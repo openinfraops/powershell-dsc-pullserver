@@ -2,7 +2,8 @@
 param(
     [Parameter(Mandatory = $true)][string]$SourcePath,
     [Parameter(Mandatory = $true)][string]$OutputPath,
-    [string]$NodeContextPath = ''
+    [string]$NodeContextPath = '',
+    [string]$ConfigurationNamesJson = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -46,6 +47,19 @@ if ($hasNodeContext) {
 }
 $nodeName = [string]$nodeContext.node_name
 $requestedNames = @($nodeContext.configuration_names)
+if (-not [string]::IsNullOrWhiteSpace($ConfigurationNamesJson)) {
+    $parsedNames = ConvertFrom-Json -InputObject $ConfigurationNamesJson
+    if ($parsedNames -isnot [array]) {
+        throw 'ConfigurationNamesJson must be a JSON array of strings.'
+    }
+    $requestedNames = @()
+    foreach ($requestedName in $parsedNames) {
+        if ($requestedName -isnot [string]) {
+            throw 'ConfigurationNamesJson must be a JSON array of strings.'
+        }
+        $requestedNames += $requestedName
+    }
+}
 $nodeTags = $nodeContext.tags
 
 function Test-ManifestMatch {
@@ -115,18 +129,49 @@ function Get-LegacyTagValue {
     foreach ($name in $Names) {
         foreach ($key in $Tags.Keys) {
             if ([string]::Equals([string]$key, $name, [System.StringComparison]::OrdinalIgnoreCase)) {
-                return @($Tags[$key] | ForEach-Object { [string]$_ })
+                $values = [System.Collections.Generic.List[string]]::new()
+                foreach ($value in @($Tags[$key])) {
+                    Add-LegacyTagScalarValues -InputObject $value -Values $values
+                }
+                return @($values | Select-Object -Unique)
             }
         }
     }
     return @()
 }
 
+function Add-LegacyTagScalarValues {
+    param($InputObject, [System.Collections.Generic.List[string]]$Values)
+
+    if ($null -eq $InputObject) {
+        return
+    }
+    if ($InputObject -is [System.Collections.IDictionary]) {
+        foreach ($value in $InputObject.Values) {
+            Add-LegacyTagScalarValues -InputObject $value -Values $Values
+        }
+        return
+    }
+    if ($InputObject -is [array]) {
+        foreach ($value in $InputObject) {
+            Add-LegacyTagScalarValues -InputObject $value -Values $Values
+        }
+        return
+    }
+    $text = ([string]$InputObject).Trim()
+    if ($text) {
+        $Values.Add($text)
+    }
+}
+
 function Merge-LegacyDefinitionFile {
     param([System.Collections.IDictionary]$Merged, [string]$Path)
     if (Test-Path -LiteralPath $Path -PathType Leaf) {
+        Write-Host "Loading PSD1: $Path"
         $definition = Import-PowerShellDataFile -LiteralPath $Path
         Merge-ConfigurationData -Target $Merged -Overlay $definition
+    } else {
+        Write-Host "PSD1 not found (optional): $Path"
     }
 }
 
@@ -147,6 +192,7 @@ function Invoke-LegacyDSCCompilation {
     $application = Get-LegacyTagValue -Tags $Tags -Names @('Application') | Select-Object -First 1
     $component = Get-LegacyTagValue -Tags $Tags -Names @('Composant', 'Component') | Select-Object -First 1
     $hostgroups = @(Get-LegacyTagValue -Tags $Tags -Names @('Hostgroup', 'HostGroup', 'Hostgroups') | ForEach-Object { $_ -split '[,;]' } | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Select-Object -Unique)
+    Write-Host "Node '$NodeName' selectors: OS='$os'; Environment='$environment'; Application='$application'; Component='$component'; Hostgroups='$($hostgroups -join ',')'"
 
     $definitionPaths = [System.Collections.Generic.List[string]]::new()
     if ($os) { $definitionPaths.Add((Join-Path $DefinitionsRoot (Join-Path 'os' ($os + '.psd1')))) }
@@ -167,10 +213,12 @@ function Invoke-LegacyDSCCompilation {
         Merge-LegacyDefinitionFile -Merged $merged -Path $definitionPath
     }
     if ($merged.Count -eq 0) {
-        throw "No legacy definitions found for '$NodeName'; check its tags and PSD1 filenames."
+        Write-Warning "No legacy definitions found for '$NodeName'; skipping this node."
+        return
     }
 
     foreach ($moduleFile in Get-ChildItem -LiteralPath $ConfigurationsRoot -Filter '*.psm1' -File) {
+        Write-Host "Loading PSM1: $($moduleFile.FullName)"
         Import-Module -Name $moduleFile.FullName -Force -ErrorAction Stop
     }
     foreach ($configurationFunction in @($merged.Keys | ForEach-Object { ([string]$_).Split('::')[0] } | Select-Object -Unique)) {
@@ -218,6 +266,7 @@ if ($legacyRoot) {
 }
 
 $manifests = @(Get-ChildItem -LiteralPath (Join-Path $sourceRoot 'configurations') -Filter '*.psd1' -File -Recurse | ForEach-Object {
+    Write-Host "Loading PSD1 manifest: $($_.FullName)"
     $manifest = Import-PowerShellDataFile -LiteralPath $_.FullName
     if ([string]::IsNullOrWhiteSpace([string]$manifest.Name) -or
         [string]::IsNullOrWhiteSpace([string]$manifest.Configuration) -or
@@ -271,8 +320,10 @@ foreach ($configurationName in $configurationNames) {
         throw "Configuration module not found: $modulePath"
     }
     foreach ($requiredModule in $selected.RequiredModules | Select-Object -Unique) {
+        Write-Host "Loading required DSC module: $requiredModule"
         Import-Module -Name $requiredModule -ErrorAction Stop
     }
+    Write-Host "Loading PSM1: $modulePath"
     Import-Module -Name $modulePath -Force -ErrorAction Stop
     $command = Get-Command -Name $configurationFunction -ErrorAction SilentlyContinue
     if (-not $command) {
