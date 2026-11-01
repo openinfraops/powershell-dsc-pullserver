@@ -1,9 +1,11 @@
 package service
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -16,10 +18,12 @@ import (
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/transport"
+	"go-dsc-pull/internal/logs"
 	"sort"
 )
 
 const configurationCompileTimeout = 30 * time.Minute
+const configurationGitSyncTimeout = 5 * time.Minute
 
 var configurationRepoSyncMu sync.Mutex
 
@@ -58,14 +62,23 @@ func RunConfigurationRepoSyncForNode(config ConfigurationRepoConfig, names []str
 func RunConfigurationRepoSyncForNodeContext(config ConfigurationRepoConfig, names []string, nodeName string, tags map[string][]string, process func([]CompiledConfiguration) (int, error)) (int, error) {
 	configurationRepoSyncMu.Lock()
 	defer configurationRepoSyncMu.Unlock()
+	_ = logs.WriteLogFile("INFO [CONFIGURATION REPO] Sync and compile started")
 	compiled, err := SyncAndCompileConfigurationsForNodeContext(config, names, nodeName, tags)
 	if err != nil {
+		_ = logs.WriteLogFile(fmt.Sprintf("ERROR [CONFIGURATION REPO] Sync or compilation failed: %v", err))
 		return 0, err
 	}
 	if process == nil {
 		return 0, fmt.Errorf("configuration importer is required")
 	}
-	return process(compiled)
+	_ = logs.WriteLogFile(fmt.Sprintf("INFO [CONFIGURATION REPO] Importing %d compiled MOF(s)", len(compiled)))
+	changed, err := process(compiled)
+	if err != nil {
+		_ = logs.WriteLogFile(fmt.Sprintf("ERROR [CONFIGURATION REPO] Database import failed: %v", err))
+		return 0, err
+	}
+	_ = logs.WriteLogFile(fmt.Sprintf("INFO [CONFIGURATION REPO] Sync completed; changed configurations=%d", changed))
+	return changed, nil
 }
 
 func StartConfigurationRepoWorker(config ConfigurationRepoConfig, interval time.Duration, process func([]CompiledConfiguration) (int, error), onRunStart func(startedAt time.Time, nextRunAt *time.Time), onResult func(startedAt time.Time, changed int, err error)) {
@@ -146,12 +159,16 @@ func SyncAndCompileConfigurationsForNodeContext(config ConfigurationRepoConfig, 
 	if err != nil {
 		return nil, err
 	}
+	_ = logs.WriteLogFile(fmt.Sprintf("INFO [CONFIGURATION REPO] Git sync started; branch=%q directory=%q", config.Branch, repoDir))
 	if err := os.MkdirAll(filepath.Dir(repoDir), 0755); err != nil {
 		return nil, err
 	}
-	if err := SyncGitRepository(repoDir, config.URL, config.Branch); err != nil {
+	gitContext, cancelGit := context.WithTimeout(context.Background(), configurationGitSyncTimeout)
+	defer cancelGit()
+	if err := syncGitRepositoryContext(gitContext, repoDir, config.URL, config.Branch); err != nil {
 		return nil, err
 	}
+	_ = logs.WriteLogFile("INFO [CONFIGURATION REPO] Git sync completed; PowerShell compilation starting")
 
 	script := config.CompilerScript
 	if !filepath.IsAbs(script) {
@@ -190,13 +207,66 @@ func SyncAndCompileConfigurationsForNodeContext(config ConfigurationRepoConfig, 
 	}
 	cmd := exec.CommandContext(ctx, config.PowerShellExecutable, args...)
 	cmd.Dir = repoDir
-	output, err := cmd.CombinedOutput()
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, fmt.Errorf("open PowerShell stdout: %w", err)
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, fmt.Errorf("open PowerShell stderr: %w", err)
+	}
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("start PowerShell compilation: %w", err)
+	}
+	var outputMu sync.Mutex
+	var output strings.Builder
+	var outputReaders sync.WaitGroup
+	streamOutput := func(name string, stream io.ReadCloser) {
+		defer outputReaders.Done()
+		scanner := bufio.NewScanner(stream)
+		scanner.Buffer(make([]byte, 64*1024), 4*1024*1024)
+		for scanner.Scan() {
+			line := scanner.Text()
+			outputMu.Lock()
+			output.WriteString(line)
+			output.WriteByte('\n')
+			outputMu.Unlock()
+			_ = logs.WriteLogFile(fmt.Sprintf("INFO [CONFIGURATION REPO] PowerShell %s: %s", name, line))
+		}
+		if scanErr := scanner.Err(); scanErr != nil {
+			_ = logs.WriteLogFile(fmt.Sprintf("ERROR [CONFIGURATION REPO] Reading PowerShell %s: %v", name, scanErr))
+		}
+	}
+	outputReaders.Add(2)
+	go streamOutput("stdout", stdout)
+	go streamOutput("stderr", stderr)
+	stopHeartbeat := make(chan struct{})
+	heartbeatDone := make(chan struct{})
+	go func() {
+		defer close(heartbeatDone)
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				_ = logs.WriteLogFile("INFO [CONFIGURATION REPO] PowerShell compilation still running")
+			case <-stopHeartbeat:
+				return
+			}
+		}
+	}()
+	compileStarted := time.Now()
+	outputReaders.Wait()
+	err = cmd.Wait()
+	close(stopHeartbeat)
+	<-heartbeatDone
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil, fmt.Errorf("PowerShell compilation timed out after %s", configurationCompileTimeout)
 		}
-		return nil, fmt.Errorf("PowerShell compilation failed: %w: %s", err, strings.TrimSpace(string(output)))
+		return nil, fmt.Errorf("PowerShell compilation failed: %w: %s", err, strings.TrimSpace(output.String()))
 	}
+	_ = logs.WriteLogFile(fmt.Sprintf("INFO [CONFIGURATION REPO] PowerShell compilation completed in %s", time.Since(compileStarted).Round(time.Second)))
 
 	compiled := make([]CompiledConfiguration, 0)
 	err = filepath.WalkDir(outputDir, func(path string, entry fs.DirEntry, walkErr error) error {
@@ -268,6 +338,12 @@ func writeNodeCompilationContext(nodes []NodeCompilationContext, names []string)
 }
 
 func SyncGitRepository(repoDir, repositoryURL, branch string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), configurationGitSyncTimeout)
+	defer cancel()
+	return syncGitRepositoryContext(ctx, repoDir, repositoryURL, branch)
+}
+
+func syncGitRepositoryContext(ctx context.Context, repoDir, repositoryURL, branch string) error {
 	if _, err := os.Stat(filepath.Join(repoDir, ".git")); os.IsNotExist(err) {
 		if _, dirErr := os.Stat(repoDir); dirErr == nil {
 			entries, readErr := os.ReadDir(repoDir)
@@ -285,7 +361,7 @@ func SyncGitRepository(repoDir, repositoryURL, branch string) error {
 			cloneOptions.ReferenceName = plumbing.NewBranchReferenceName(branch)
 			cloneOptions.SingleBranch = true
 		}
-		if _, err := git.PlainClone(repoDir, false, cloneOptions); err != nil {
+		if _, err := git.PlainCloneContext(ctx, repoDir, false, cloneOptions); err != nil {
 			return fmt.Errorf("git clone failed: %w", err)
 		}
 	} else if err != nil {
@@ -323,7 +399,7 @@ func SyncGitRepository(repoDir, repositoryURL, branch string) error {
 	if err := worktree.Checkout(&git.CheckoutOptions{Branch: branchRef, Keep: true}); err != nil {
 		return fmt.Errorf("checkout branch %q: %w", branch, err)
 	}
-	if err := remote.Fetch(&git.FetchOptions{RefSpecs: []config.RefSpec{config.RefSpec("+refs/heads/" + branch + ":refs/remotes/origin/" + branch)}, Prune: true}); err != nil && err != git.NoErrAlreadyUpToDate && err != transport.ErrEmptyRemoteRepository {
+	if err := remote.FetchContext(ctx, &git.FetchOptions{RefSpecs: []config.RefSpec{config.RefSpec("+refs/heads/" + branch + ":refs/remotes/origin/" + branch)}, Prune: true}); err != nil && err != git.NoErrAlreadyUpToDate && err != transport.ErrEmptyRemoteRepository {
 		return fmt.Errorf("fetch branch %q: %w", branch, err)
 	}
 	remoteRef, err := repository.Reference(plumbing.NewRemoteReferenceName("origin", branch), true)
@@ -337,7 +413,7 @@ func SyncGitRepository(repoDir, repositoryURL, branch string) error {
 	if head.Hash() == remoteRef.Hash() {
 		return nil
 	}
-	if err := worktree.Pull(&git.PullOptions{RemoteName: "origin", ReferenceName: branchRef, SingleBranch: true, Force: false}); err != nil && err != git.NoErrAlreadyUpToDate {
+	if err := worktree.PullContext(ctx, &git.PullOptions{RemoteName: "origin", ReferenceName: branchRef, SingleBranch: true, Force: false}); err != nil && err != git.NoErrAlreadyUpToDate {
 		return fmt.Errorf("fast-forward branch %q: %w", branch, err)
 	}
 	return nil
