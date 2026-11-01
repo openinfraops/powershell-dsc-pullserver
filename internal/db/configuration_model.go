@@ -20,7 +20,7 @@ func GetConfigurationModel(db *sql.DB, id int64) (*schema.ConfigurationModel, er
 	row := db.QueryRow(`SELECT id, name, original_name, previous_id, uploaded_by, mof_file, upload_date, last_usage FROM configuration_model WHERE id = ?`, id)
 	var cm schema.ConfigurationModel
 	var uploadDate string
-	var lastUsage string
+	var lastUsage sql.NullString
 	var originalName sql.NullString
 	var previousID sql.NullInt64
 	if err := row.Scan(&cm.ID, &cm.Name, &originalName, &previousID, &cm.UploadedBy, &cm.MofFile, &uploadDate, &lastUsage); err != nil {
@@ -36,14 +36,14 @@ func GetConfigurationModel(db *sql.DB, id int64) (*schema.ConfigurationModel, er
 	} else {
 		cm.PreviousID = nil
 	}
-	       t := utils.ParseTimeFlexible(uploadDate)
-	       cm.UploadDate = t
-	       if lastUsage != "" {
-		       t2 := utils.ParseTimeFlexible(lastUsage)
-		       cm.LastUsage = &t2
-	       } else {
-		       cm.LastUsage = nil
-	       }
+	t := utils.ParseTimeFlexible(uploadDate)
+	cm.UploadDate = t
+	if lastUsage.Valid && lastUsage.String != "" {
+		t2 := utils.ParseTimeFlexible(lastUsage.String)
+		cm.LastUsage = &t2
+	} else {
+		cm.LastUsage = nil
+	}
 	return &cm, nil
 }
 
@@ -73,14 +73,14 @@ func ListConfigurationModels(db *sql.DB) ([]schema.ConfigurationModel, error) {
 		} else {
 			cm.PreviousID = nil
 		}
-		       t := utils.ParseTimeFlexible(uploadDate)
-		       cm.UploadDate = t
-		       if lastUsage.Valid && lastUsage.String != "" {
-			       t2 := utils.ParseTimeFlexible(lastUsage.String)
-			       cm.LastUsage = &t2
-		       } else {
-			       cm.LastUsage = nil
-		       }
+		t := utils.ParseTimeFlexible(uploadDate)
+		cm.UploadDate = t
+		if lastUsage.Valid && lastUsage.String != "" {
+			t2 := utils.ParseTimeFlexible(lastUsage.String)
+			cm.LastUsage = &t2
+		} else {
+			cm.LastUsage = nil
+		}
 		list = append(list, cm)
 	}
 	return list, nil

@@ -16,7 +16,7 @@ func TestImportCompiledConfigurationsVersionsChanges(t *testing.T) {
 	database.SetMaxOpenConns(1)
 
 	for _, statement := range []string{
-		`CREATE TABLE configuration_model (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, original_name TEXT, previous_id INTEGER, upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP, uploaded_by TEXT NOT NULL, mof_file BLOB NOT NULL)`,
+		`CREATE TABLE configuration_model (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, original_name TEXT, previous_id INTEGER, upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP, uploaded_by TEXT NOT NULL, mof_file BLOB NOT NULL, last_usage TIMESTAMP NULL)`,
 		`CREATE TABLE agents (agent_id TEXT PRIMARY KEY, state TEXT NOT NULL)`,
 		`CREATE TABLE agent_configurations (agent_id TEXT NOT NULL, configuration_name TEXT NOT NULL)`,
 		`INSERT INTO agents (agent_id, state) VALUES ('node-1', 'compliant')`,
@@ -31,6 +31,17 @@ func TestImportCompiledConfigurationsVersionsChanges(t *testing.T) {
 	changed, err := ImportCompiledConfigurations(database, first)
 	if err != nil || changed != 1 {
 		t.Fatalf("first import = (%d, %v), want (1, nil)", changed, err)
+	}
+	var currentID int64
+	if err := database.QueryRow(`SELECT id FROM configuration_model WHERE name = 'example'`).Scan(&currentID); err != nil {
+		t.Fatal(err)
+	}
+	model, err := GetConfigurationModel(database, currentID)
+	if err != nil {
+		t.Fatalf("load newly imported configuration with NULL last_usage: %v", err)
+	}
+	if model.LastUsage != nil || string(model.MofFile) != "mof-v1" {
+		t.Fatalf("unexpected downloaded model: last_usage=%v mof=%q", model.LastUsage, model.MofFile)
 	}
 	changed, err = ImportCompiledConfigurations(database, first)
 	if err != nil || changed != 0 {

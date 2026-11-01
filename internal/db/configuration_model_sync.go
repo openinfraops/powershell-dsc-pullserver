@@ -22,8 +22,9 @@ func ImportCompiledConfigurationsAndAssign(database *sql.DB, compiled []service.
 	}
 	defer tx.Rollback()
 	assignedAgentIDs := make(map[string]bool)
-	for _, agentID := range nodeAgentIDs {
-		if agentID != "" && !assignedAgentIDs[agentID] {
+	for _, config := range compiled {
+		name := strings.ToLower(strings.TrimSpace(config.Name))
+		if agentID := nodeAgentIDs[name]; agentID != "" && !assignedAgentIDs[agentID] {
 			if _, err := tx.Exec(`DELETE FROM agent_configurations WHERE agent_id = ?`, agentID); err != nil {
 				return 0, err
 			}
