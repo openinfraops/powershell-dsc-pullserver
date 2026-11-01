@@ -166,9 +166,9 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 			if isNewNode {
 				repoSettings, settingsErr := db.GetConfigurationRepoSettings(database)
 				if settingsErr == nil && repoSettings.CompileOnNodeRegistration {
-					nodeTags, tagsErr := db.GetAgentTags(database, agentId)
+					nodeTags, tagsErr := db.GetLegacyCompilationTags(database, agentId)
 					if tagsErr != nil {
-						logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][CONFIG] Failed to load tags for node %s: %v", nodeName, tagsErr))
+						logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][CONFIG] Failed to load compilation properties for node %s: %v", nodeName, tagsErr))
 						nodeTags = map[string][]string{}
 					}
 					rows, queryErr := database.Query(`SELECT configuration_name FROM agent_configurations WHERE agent_id = ?`, agentId)

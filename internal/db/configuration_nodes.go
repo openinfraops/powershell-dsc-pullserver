@@ -38,42 +38,45 @@ func ListNodeCompilationContextsWithAgentIDs(database *sql.DB) ([]service.NodeCo
 	contexts := make([]service.NodeCompilationContext, 0)
 	agentIDs := make(map[string]string)
 	for _, agent := range agents {
-		tags, err := GetAgentTags(database, agent.agentID)
+		tags, err := GetLegacyCompilationTags(database, agent.agentID)
 		if err != nil {
 			return nil, nil, err
 		}
-		compilationTags := legacyNodeTags(tags)
-		resolvedProperties := 0
-		propertyRows, err := database.Query(`
-SELECT p.name, np.value
-FROM node_properties np
-JOIN properties p ON p.id = np.property_id
-WHERE np.node_id = ?`, agent.agentID)
-		if err != nil {
-			return nil, nil, err
-		}
-		for propertyRows.Next() {
-			var propertyName, value string
-			if err := propertyRows.Scan(&propertyName, &value); err != nil {
-				propertyRows.Close()
-				return nil, nil, err
-			}
-			key := legacyNodeTagKey(propertyName)
-			compilationTags[key] = []string{value}
-			resolvedProperties++
-		}
-		if err := propertyRows.Err(); err != nil {
-			propertyRows.Close()
-			return nil, nil, err
-		}
-		if err := propertyRows.Close(); err != nil {
-			return nil, nil, err
-		}
-		_ = logs.WriteLogFile(fmt.Sprintf("INFO [CONFIGURATION REPO] Node properties resolved; node=%q agent_id=%q count=%d tags=%v", agent.nodeName, agent.agentID, resolvedProperties, compilationTags))
-		contexts = append(contexts, service.NodeCompilationContext{NodeName: agent.nodeName, Tags: compilationTags})
+		contexts = append(contexts, service.NodeCompilationContext{NodeName: agent.nodeName, Tags: tags})
 		agentIDs[strings.ToLower(strings.TrimSpace(agent.nodeName))] = agent.agentID
 	}
 	return contexts, agentIDs, nil
+}
+
+func GetLegacyCompilationTags(database *sql.DB, agentID string) (map[string][]string, error) {
+	tags, err := GetAgentTags(database, agentID)
+	if err != nil {
+		return nil, err
+	}
+	compilationTags := legacyNodeTags(tags)
+	resolvedProperties := 0
+	propertyRows, err := database.Query(`
+SELECT p.name, np.value
+FROM node_properties np
+JOIN properties p ON p.id = np.property_id
+		WHERE np.node_id = ?`, agentID)
+	if err != nil {
+		return nil, err
+	}
+	defer propertyRows.Close()
+	for propertyRows.Next() {
+		var propertyName, value string
+		if err := propertyRows.Scan(&propertyName, &value); err != nil {
+			return nil, err
+		}
+		compilationTags[legacyNodeTagKey(propertyName)] = []string{value}
+		resolvedProperties++
+	}
+	if err := propertyRows.Err(); err != nil {
+		return nil, err
+	}
+	_ = logs.WriteLogFile(fmt.Sprintf("INFO [CONFIGURATION REPO] Node properties resolved; agent_id=%q count=%d tags=%v", agentID, resolvedProperties, compilationTags))
+	return compilationTags, nil
 }
 
 func legacyNodeTags(tags map[string][]string) map[string][]string {
