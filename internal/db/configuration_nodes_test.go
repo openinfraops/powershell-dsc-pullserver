@@ -22,7 +22,7 @@ func TestListNodeCompilationContextsUsesPropertyValues(t *testing.T) {
 		`INSERT INTO agents (agent_id, node_name) VALUES ('agent-1', 'node-1')`,
 		`INSERT INTO agent_tags (agent_id, tag_key, tag_value) VALUES ('agent-1', 'OS', '7')`,
 		`INSERT INTO properties (id, name) VALUES (7, 'OS')`,
-		`INSERT INTO node_properties (node_id, property_id, value) VALUES ('node-1', 7, 'windows')`,
+		`INSERT INTO node_properties (node_id, property_id, value) VALUES ('agent-1', 7, 'windows')`,
 	} {
 		if _, err := database.Exec(statement); err != nil {
 			t.Fatal(err)

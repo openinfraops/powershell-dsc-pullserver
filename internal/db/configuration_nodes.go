@@ -45,7 +45,7 @@ func ListNodeCompilationContextsWithAgentIDs(database *sql.DB) ([]service.NodeCo
 SELECT p.name, np.value
 FROM node_properties np
 JOIN properties p ON p.id = np.property_id
-WHERE np.node_id = ?`, agent.nodeName)
+WHERE np.node_id = ?`, agent.agentID)
 		if err != nil {
 			return nil, nil, err
 		}
