@@ -1,60 +1,60 @@
 package routes
 
 import (
-	"net/http"
 	"database/sql"
+	samlsp "github.com/crewjam/saml/samlsp"
 	"go-dsc-pull/handlers"
-	"go-dsc-pull/internal/middleware"
 	"go-dsc-pull/internal/auth"
+	"go-dsc-pull/internal/middleware"
+	"go-dsc-pull/utils"
+	"html/template"
+	"net/http"
 	"path"
 	"path/filepath"
 	"strings"
-	"go-dsc-pull/utils"
-	samlsp "github.com/crewjam/saml/samlsp"
-	"html/template"
 )
 
 // RegisterWebRoutes sets up all web/API endpoints on the provided mux
 func RegisterWebRoutes(mux *http.ServeMux, dbConn *sql.DB, jwtAuthMiddleware func(http.Handler) http.Handler, samlMiddleware http.Handler) {
 	// Handler pour la page d'audit admin
-			       // Admin-only middleware for user management
-			       adminOnly := func(next http.Handler) http.Handler {
-				       return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					       if !auth.IsAdmin(r, dbConn) {
-						       http.Error(w, "Unauthorized", http.StatusUnauthorized)
-						       return
-					       }
-					       next.ServeHTTP(w, r)
-				       })
-			       }
+	// Admin-only middleware for user management
+	adminOnly := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !auth.IsAdmin(r, dbConn) {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 
-			       // Render access denied page (must be defined before use)
-			       renderDenied := func(w http.ResponseWriter) {
-				       // Load and render access_denied.tmpl with layout, head, menu, footer
-				       exeDir, err := utils.ExePath()
-				       if err != nil {
-					       http.Error(w, "Template error: "+err.Error(), http.StatusInternalServerError)
-					       return
-				       }
-				       baseDir := filepath.Dir(exeDir)
-				       tmpl, err := template.New("layout.tmpl").
-					       ParseFiles(
-						       filepath.Join(baseDir, "templates/layout.tmpl"),
-						       filepath.Join(baseDir, "templates/head.tmpl"),
-						       filepath.Join(baseDir, "templates/menu.tmpl"),
-						       filepath.Join(baseDir, "templates/footer.tmpl"),
-						       filepath.Join(baseDir, "templates/access_denied.tmpl"),
-					       )
-				       if err != nil {
-					       http.Error(w, "Template error: "+err.Error(), http.StatusInternalServerError)
-					       return
-				       }
-				       data := map[string]interface{}{ "Title": "Access Denied" }
-				       err = tmpl.ExecuteTemplate(w, "layout", data)
-				       if err != nil {
-					       http.Error(w, "Render error: "+err.Error(), http.StatusInternalServerError)
-				       }
-			       }
+	// Render access denied page (must be defined before use)
+	renderDenied := func(w http.ResponseWriter) {
+		// Load and render access_denied.tmpl with layout, head, menu, footer
+		exeDir, err := utils.ExePath()
+		if err != nil {
+			http.Error(w, "Template error: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		baseDir := filepath.Dir(exeDir)
+		tmpl, err := template.New("layout.tmpl").
+			ParseFiles(
+				filepath.Join(baseDir, "templates/layout.tmpl"),
+				filepath.Join(baseDir, "templates/head.tmpl"),
+				filepath.Join(baseDir, "templates/menu.tmpl"),
+				filepath.Join(baseDir, "templates/footer.tmpl"),
+				filepath.Join(baseDir, "templates/access_denied.tmpl"),
+			)
+		if err != nil {
+			http.Error(w, "Template error: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		data := map[string]interface{}{"Title": "Access Denied"}
+		err = tmpl.ExecuteTemplate(w, "layout", data)
+		if err != nil {
+			http.Error(w, "Render error: "+err.Error(), http.StatusInternalServerError)
+		}
+	}
 	// Endpoint pour la liste des profils utilisateurs disponibles
 	mux.Handle("GET /api/v1/user_roles", jwtAuthMiddleware(http.HandlerFunc(handlers.UserRolesHandler())))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -94,6 +94,7 @@ func RegisterWebRoutes(mux *http.ServeMux, dbConn *sql.DB, jwtAuthMiddleware fun
 	mux.Handle("GET /api/v1/scheduler/tasks/{task}/history", jwtAuthMiddleware(adminOnly(http.HandlerFunc(handlers.SchedulerTaskHistoryAPIHandler))))
 	mux.Handle("POST /api/v1/scheduler/cleanup/run", jwtAuthMiddleware(adminOnly(http.HandlerFunc(handlers.SchedulerRunCleanupAPIHandler))))
 	mux.Handle("POST /api/v1/scheduler/release-check/run", jwtAuthMiddleware(adminOnly(http.HandlerFunc(handlers.SchedulerRunReleaseCheckAPIHandler))))
+	mux.Handle("POST /api/v1/scheduler/configuration-repo/run", jwtAuthMiddleware(adminOnly(http.HandlerFunc(handlers.SchedulerRunConfigurationRepoAPIHandler))))
 	mux.Handle("POST /api/v1/scheduler/logs/cleanup/run", jwtAuthMiddleware(adminOnly(http.HandlerFunc(handlers.SchedulerRunLogCleanupAPIHandler))))
 	// Web UI for SAML config (admin only)
 	mux.Handle("GET /web/saml_config", handlers.WebJWTAuthMiddleware(middleware.WebAdminOnly(dbConn, renderDenied)(http.HandlerFunc(handlers.WebSAMLConfigHandler))))
@@ -129,11 +130,11 @@ func RegisterWebRoutes(mux *http.ServeMux, dbConn *sql.DB, jwtAuthMiddleware fun
 	mux.HandleFunc("/web/login", WebLoginHandler)
 	if smw, ok := samlMiddleware.(*samlsp.Middleware); ok {
 		mux.Handle("/web/login/saml", smw.RequireAccount(handlers.SAMLLoginHandler(dbConn)))
-		mux.HandleFunc("/saml/login", func(w http.ResponseWriter, r *http.Request) {smw.ServeHTTP(w, r)})
-		mux.HandleFunc("/saml/acs", func(w http.ResponseWriter, r *http.Request) {smw.ServeHTTP(w, r)})
-		mux.HandleFunc("/saml/metadata", func(w http.ResponseWriter, r *http.Request) {smw.ServeHTTP(w, r)})
+		mux.HandleFunc("/saml/login", func(w http.ResponseWriter, r *http.Request) { smw.ServeHTTP(w, r) })
+		mux.HandleFunc("/saml/acs", func(w http.ResponseWriter, r *http.Request) { smw.ServeHTTP(w, r) })
+		mux.HandleFunc("/saml/metadata", func(w http.ResponseWriter, r *http.Request) { smw.ServeHTTP(w, r) })
 	}
-	
+
 	webStatic := http.FileServer(http.Dir(filepath.Join(baseDir, "web")))
 
 	// Web GUI endpoints (login, index, static, node, modules, configuration_model, properties, users, user_edit, user_password)
@@ -160,7 +161,7 @@ func RegisterWebRoutes(mux *http.ServeMux, dbConn *sql.DB, jwtAuthMiddleware fun
 
 		r.URL.Path = "/" + relativePath
 		webStatic.ServeHTTP(w, r)
-	   })))
+	})))
 	mux.Handle("/web/node/", handlers.WebJWTAuthMiddleware(http.HandlerFunc(handlers.WebNodeHandler)))
 	mux.Handle("/web/modules", handlers.WebJWTAuthMiddleware(http.HandlerFunc(handlers.WebModulesHandler)))
 	mux.Handle("/web/configuration_model", handlers.WebJWTAuthMiddleware(http.HandlerFunc(handlers.WebConfigurationModelHandler)))
@@ -185,7 +186,7 @@ func RegisterWebRoutes(mux *http.ServeMux, dbConn *sql.DB, jwtAuthMiddleware fun
 	mux.Handle("/web/configuration_model/", handlers.WebJWTAuthMiddleware(http.HandlerFunc(handlers.WebConfigurationModelDetailHandler)))
 	mux.Handle("GET /api/v1/modules/{name}", jwtAuthMiddleware(http.HandlerFunc(handlers.GetModuleVersionHandler)))
 	mux.Handle("DELETE /api/v1/agents/{id}", jwtAuthMiddleware(http.HandlerFunc(handlers.DeleteNodeHandler)))
-	mux.Handle("/web/admin/audit",handlers.WebJWTAuthMiddleware(middleware.WebAdminOnly(dbConn, renderDenied)(http.HandlerFunc(handlers.WebAuditHandler))))
+	mux.Handle("/web/admin/audit", handlers.WebJWTAuthMiddleware(middleware.WebAdminOnly(dbConn, renderDenied)(http.HandlerFunc(handlers.WebAuditHandler))))
 	mux.Handle("GET /api/v1/audit", jwtAuthMiddleware(adminOnly(http.HandlerFunc(handlers.AuditListHandler))))
 	mux.Handle("GET /api/v1/audit/filters", jwtAuthMiddleware(adminOnly(http.HandlerFunc(handlers.AuditFilterOptionsHandler))))
 	mux.Handle("GET /api/v1/audit/export", jwtAuthMiddleware(adminOnly(http.HandlerFunc(handlers.AuditExportCSVHandler))))

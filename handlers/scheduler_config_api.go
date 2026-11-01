@@ -19,9 +19,10 @@ import (
 )
 
 const (
-	schedulerTaskReportCleanup = "report_cleanup"
-	schedulerTaskReleaseCheck  = "release_check"
-	schedulerTaskLogCleanup    = "log_cleanup"
+	schedulerTaskReportCleanup         = "report_cleanup"
+	schedulerTaskReleaseCheck          = "release_check"
+	schedulerTaskLogCleanup            = "log_cleanup"
+	schedulerTaskConfigurationRepoSync = "configuration_repo_sync"
 )
 
 func schedulerDisplayName(taskName string) string {
@@ -32,6 +33,8 @@ func schedulerDisplayName(taskName string) string {
 		return "Release check"
 	case schedulerTaskLogCleanup:
 		return "Log rotate"
+	case schedulerTaskConfigurationRepoSync:
+		return "Configuration repository sync"
 	default:
 		return taskName
 	}
@@ -66,21 +69,45 @@ func schedulerNextRunFromConfig(taskName string) *time.Time {
 		}
 		n := now.Add(time.Hour)
 		return &n
+	case schedulerTaskConfigurationRepoSync:
+		database, err := db.OpenDB(&global.AppConfig.Database)
+		if err != nil {
+			return nil
+		}
+		defer database.Close()
+		settings, err := db.GetConfigurationRepoSettings(database)
+		if err != nil || !settings.Enabled {
+			return nil
+		}
+		mins := settings.SyncIntervalMins
+		if mins <= 0 {
+			mins = 60
+		}
+		n := now.Add(time.Duration(mins) * time.Minute)
+		return &n
 	default:
 		return nil
 	}
 }
 
 type SchedulerConfigDTO struct {
-	EnableReportAutoCleanup bool `json:"enable_report_auto_cleanup"`
-	ReportRetentionDays     int  `json:"report_retention_days"`
-	ReportCleanupIntervalMins int `json:"report_cleanup_interval_mins"`
-	EnableReleaseCheck bool `json:"enable_release_check"`
-	ReleaseCheckIntervalMins int `json:"release_check_interval_mins"`
-	EnableLogRotation bool `json:"enable_log_rotation"`
-	LogRotateMaxSizeMB int `json:"log_rotate_max_size_mb"`
-	LogRotateMaxBackups int `json:"log_rotate_max_backups"`
-	LogRotateMaxAgeDays int `json:"log_rotate_max_age_days"`
+	EnableReportAutoCleanup           bool   `json:"enable_report_auto_cleanup"`
+	ReportRetentionDays               int    `json:"report_retention_days"`
+	ReportCleanupIntervalMins         int    `json:"report_cleanup_interval_mins"`
+	EnableReleaseCheck                bool   `json:"enable_release_check"`
+	ReleaseCheckIntervalMins          int    `json:"release_check_interval_mins"`
+	EnableLogRotation                 bool   `json:"enable_log_rotation"`
+	LogRotateMaxSizeMB                int    `json:"log_rotate_max_size_mb"`
+	LogRotateMaxBackups               int    `json:"log_rotate_max_backups"`
+	LogRotateMaxAgeDays               int    `json:"log_rotate_max_age_days"`
+	EnableConfigurationRepoSync       bool   `json:"enable_configuration_repo_sync"`
+	ConfigurationRepoSyncIntervalMins int    `json:"configuration_repo_sync_interval_mins"`
+	ConfigurationRepoURL              string `json:"configuration_repo_url"`
+	ConfigurationRepoBranch           string `json:"configuration_repo_branch"`
+	ConfigurationRepoDirectory        string `json:"configuration_repo_directory"`
+	ConfigurationCompilerScript       string `json:"configuration_compiler_script"`
+	ConfigurationPowerShellExecutable string `json:"configuration_powershell_executable"`
+	CompileOnNodeRegistration         bool   `json:"compile_configuration_on_node_registration"`
 }
 
 func resolveConfigPath() (string, error) {
@@ -121,16 +148,35 @@ func SchedulerConfigAPIHandler(w http.ResponseWriter, r *http.Request) {
 			logRotateMaxBackups = 5
 			logRotateMaxAgeDays = 30
 		}
+		database, err := db.OpenDB(&cfg.Database)
+		if err != nil {
+			http.Error(w, "DB open error", http.StatusInternalServerError)
+			return
+		}
+		defer database.Close()
+		repoSettings, err := db.GetConfigurationRepoSettings(database)
+		if err != nil {
+			http.Error(w, "Failed to load configuration repository settings", http.StatusInternalServerError)
+			return
+		}
 		_ = json.NewEncoder(w).Encode(SchedulerConfigDTO{
-			EnableReportAutoCleanup:  cfg.DSCPullServer.EnableReportAutoCleanup,
-			ReportRetentionDays:      cfg.DSCPullServer.ReportRetentionDays,
-			ReportCleanupIntervalMins: cfg.DSCPullServer.ReportCleanupIntervalMins,
-			EnableReleaseCheck: cfg.DSCPullServer.EnableReleaseCheck,
-			ReleaseCheckIntervalMins: cfg.DSCPullServer.ReleaseCheckIntervalMins,
-			EnableLogRotation: enableLogRotation,
-			LogRotateMaxSizeMB: logRotateMaxSizeMB,
-			LogRotateMaxBackups: logRotateMaxBackups,
-			LogRotateMaxAgeDays: logRotateMaxAgeDays,
+			EnableReportAutoCleanup:           cfg.DSCPullServer.EnableReportAutoCleanup,
+			ReportRetentionDays:               cfg.DSCPullServer.ReportRetentionDays,
+			ReportCleanupIntervalMins:         cfg.DSCPullServer.ReportCleanupIntervalMins,
+			EnableReleaseCheck:                cfg.DSCPullServer.EnableReleaseCheck,
+			ReleaseCheckIntervalMins:          cfg.DSCPullServer.ReleaseCheckIntervalMins,
+			EnableLogRotation:                 enableLogRotation,
+			LogRotateMaxSizeMB:                logRotateMaxSizeMB,
+			LogRotateMaxBackups:               logRotateMaxBackups,
+			LogRotateMaxAgeDays:               logRotateMaxAgeDays,
+			EnableConfigurationRepoSync:       repoSettings.Enabled,
+			ConfigurationRepoSyncIntervalMins: repoSettings.SyncIntervalMins,
+			ConfigurationRepoURL:              repoSettings.URL,
+			ConfigurationRepoBranch:           repoSettings.Branch,
+			ConfigurationRepoDirectory:        repoSettings.Directory,
+			ConfigurationCompilerScript:       repoSettings.CompilerScript,
+			ConfigurationPowerShellExecutable: repoSettings.PowerShellExecutable,
+			CompileOnNodeRegistration:         repoSettings.CompileOnNodeRegistration,
 		})
 
 	case http.MethodPut:
@@ -168,6 +214,16 @@ func SchedulerConfigAPIHandler(w http.ResponseWriter, r *http.Request) {
 		if req.LogRotateMaxAgeDays <= 0 {
 			w.WriteHeader(http.StatusBadRequest)
 			_ = json.NewEncoder(w).Encode(map[string]string{"error": "log_rotate_max_age_days must be > 0"})
+			return
+		}
+		if req.EnableConfigurationRepoSync && req.ConfigurationRepoSyncIntervalMins <= 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "configuration_repo_sync_interval_mins must be > 0"})
+			return
+		}
+		if (req.EnableConfigurationRepoSync || req.CompileOnNodeRegistration) && (req.ConfigurationRepoURL == "" || req.ConfigurationRepoDirectory == "" || req.ConfigurationCompilerScript == "") {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "configuration repository URL, directory, and compiler script are required"})
 			return
 		}
 
@@ -218,6 +274,26 @@ func SchedulerConfigAPIHandler(w http.ResponseWriter, r *http.Request) {
 			_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to write config"})
 			return
 		}
+		database, err := db.OpenDB(&global.AppConfig.Database)
+		if err != nil {
+			http.Error(w, "DB open error", http.StatusInternalServerError)
+			return
+		}
+		defer database.Close()
+		if err := db.SaveConfigurationRepoSettings(database, global.AppConfig.Database.Driver, db.ConfigurationRepoSettings{
+			Enabled:                   req.EnableConfigurationRepoSync,
+			URL:                       req.ConfigurationRepoURL,
+			Branch:                    req.ConfigurationRepoBranch,
+			Directory:                 req.ConfigurationRepoDirectory,
+			CompilerScript:            req.ConfigurationCompilerScript,
+			PowerShellExecutable:      req.ConfigurationPowerShellExecutable,
+			SyncIntervalMins:          req.ConfigurationRepoSyncIntervalMins,
+			CompileOnNodeRegistration: req.CompileOnNodeRegistration,
+			LegacyImported:            true,
+		}); err != nil {
+			http.Error(w, "Failed to save configuration repository settings", http.StatusInternalServerError)
+			return
+		}
 
 		// Hot-reload in-memory values for immediate API visibility.
 		global.AppConfig.DSCPullServer.EnableReportAutoCleanup = req.EnableReportAutoCleanup
@@ -233,7 +309,7 @@ func SchedulerConfigAPIHandler(w http.ResponseWriter, r *http.Request) {
 		if auditDB, auditErr := db.OpenDB(&global.AppConfig.Database); auditErr == nil {
 			driverName := global.AppConfig.Database.Driver
 			details := fmt.Sprintf(
-				"Updated scheduler config: report_cleanup(enable=%t, retention_days=%d, interval_mins=%d), release_check(enable=%t, interval_mins=%d), log_rotation(enable=%t, max_size_mb=%d, max_backups=%d, max_age_days=%d)",
+				"Updated scheduler config: report_cleanup(enable=%t, retention_days=%d, interval_mins=%d), release_check(enable=%t, interval_mins=%d), log_rotation(enable=%t, max_size_mb=%d, max_backups=%d, max_age_days=%d), configuration_repo_sync(enable=%t, interval_mins=%d)",
 				req.EnableReportAutoCleanup,
 				req.ReportRetentionDays,
 				req.ReportCleanupIntervalMins,
@@ -243,6 +319,8 @@ func SchedulerConfigAPIHandler(w http.ResponseWriter, r *http.Request) {
 				req.LogRotateMaxSizeMB,
 				req.LogRotateMaxBackups,
 				req.LogRotateMaxAgeDays,
+				req.EnableConfigurationRepoSync,
+				req.ConfigurationRepoSyncIntervalMins,
 			)
 			_ = db.InsertAudit(auditDB, driverName, schedulerActorEmail(r), "update", "scheduler_config", details, r.RemoteAddr)
 			auditDB.Close()
@@ -306,15 +384,15 @@ func SchedulerConfigFromApp(cfg *schema.AppConfig) SchedulerConfigDTO {
 	}
 
 	return SchedulerConfigDTO{
-		EnableReportAutoCleanup:  cfg.DSCPullServer.EnableReportAutoCleanup,
-		ReportRetentionDays:      cfg.DSCPullServer.ReportRetentionDays,
+		EnableReportAutoCleanup:   cfg.DSCPullServer.EnableReportAutoCleanup,
+		ReportRetentionDays:       cfg.DSCPullServer.ReportRetentionDays,
 		ReportCleanupIntervalMins: cfg.DSCPullServer.ReportCleanupIntervalMins,
-		EnableReleaseCheck: cfg.DSCPullServer.EnableReleaseCheck,
-		ReleaseCheckIntervalMins: cfg.DSCPullServer.ReleaseCheckIntervalMins,
-		EnableLogRotation: enableLogRotation,
-		LogRotateMaxSizeMB: logRotateMaxSizeMB,
-		LogRotateMaxBackups: logRotateMaxBackups,
-		LogRotateMaxAgeDays: logRotateMaxAgeDays,
+		EnableReleaseCheck:        cfg.DSCPullServer.EnableReleaseCheck,
+		ReleaseCheckIntervalMins:  cfg.DSCPullServer.ReleaseCheckIntervalMins,
+		EnableLogRotation:         enableLogRotation,
+		LogRotateMaxSizeMB:        logRotateMaxSizeMB,
+		LogRotateMaxBackups:       logRotateMaxBackups,
+		LogRotateMaxAgeDays:       logRotateMaxAgeDays,
 	}
 }
 
@@ -368,11 +446,58 @@ func SchedulerRunReleaseCheckAPIHandler(w http.ResponseWriter, r *http.Request) 
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"current_version": result.CurrentVersion,
-		"latest_release": result.LatestRelease,
+		"current_version":    result.CurrentVersion,
+		"latest_release":     result.LatestRelease,
 		"latest_release_url": result.LatestReleaseURL,
-		"update_available": result.UpdateAvailable,
+		"update_available":   result.UpdateAvailable,
 	})
+}
+
+func SchedulerRunConfigurationRepoAPIHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	database, err := db.OpenDB(&global.AppConfig.Database)
+	if err != nil {
+		http.Error(w, "DB open error", http.StatusInternalServerError)
+		return
+	}
+	defer database.Close()
+	repoSettings, err := db.GetConfigurationRepoSettings(database)
+	if err != nil {
+		http.Error(w, "Failed to load configuration repository settings", http.StatusInternalServerError)
+		return
+	}
+	if repoSettings.URL == "" || repoSettings.Directory == "" || repoSettings.CompilerScript == "" {
+		http.Error(w, "Configuration repository is incomplete", http.StatusBadRequest)
+		return
+	}
+	startedAt := time.Now().UTC()
+	nextRun := schedulerNextRunFromConfig(schedulerTaskConfigurationRepoSync)
+	driver := global.AppConfig.Database.Driver
+	_ = db.BeginSchedulerTaskRun(database, driver, schedulerTaskConfigurationRepoSync, schedulerDisplayName(schedulerTaskConfigurationRepoSync), "manual", startedAt, nextRun)
+	config := service.ConfigurationRepoConfig{URL: repoSettings.URL, Branch: repoSettings.Branch, Directory: repoSettings.Directory, CompilerScript: repoSettings.CompilerScript, PowerShellExecutable: repoSettings.PowerShellExecutable}
+	contexts, nodeAgentIDs, err := db.ListNodeCompilationContextsWithAgentIDs(database)
+	if err != nil {
+		http.Error(w, "Failed to load node compilation contexts", http.StatusInternalServerError)
+		return
+	}
+	config.NodeContexts = contexts
+	changed, err := service.RunConfigurationRepoSync(config, func(compiled []service.CompiledConfiguration) (int, error) {
+		return db.ImportCompiledConfigurationsAndAssign(database, compiled, nodeAgentIDs)
+	})
+	if err != nil {
+		_ = db.InsertAudit(database, driver, schedulerActorEmail(r), "run", "scheduler_task", fmt.Sprintf("Manual run failed: %s, error=%s", schedulerTaskConfigurationRepoSync, err.Error()), r.RemoteAddr)
+		_ = db.CompleteSchedulerTaskRun(database, driver, schedulerTaskConfigurationRepoSync, "error", err.Error(), time.Now().UTC(), nextRun)
+		http.Error(w, "Configuration repository sync failed", http.StatusInternalServerError)
+		return
+	}
+	message := fmt.Sprintf("Updated configurations: %d", changed)
+	_ = db.InsertAudit(database, driver, schedulerActorEmail(r), "run", "scheduler_task", "Manual run: "+schedulerTaskConfigurationRepoSync+", "+message, r.RemoteAddr)
+	_ = db.CompleteSchedulerTaskRun(database, driver, schedulerTaskConfigurationRepoSync, "success", message, time.Now().UTC(), nextRun)
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]int{"updated": changed})
 }
 
 func SchedulerRunLogCleanupAPIHandler(w http.ResponseWriter, r *http.Request) {
@@ -489,9 +614,9 @@ func SchedulerTaskHistoryAPIHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"items": history,
-		"limit": limit,
-		"offset": offset,
+		"items":    history,
+		"limit":    limit,
+		"offset":   offset,
 		"has_more": hasMore,
 	})
 }

@@ -51,7 +51,7 @@ CREATE INDEX IF NOT EXISTS idx_reports_agent_id ON reports(agent_id);
 CREATE TABLE IF NOT EXISTS dsc_infra_info (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     web_version TEXT DEFAULT '0.0.1',
-    db_version TEXT DEFAULT '1.1.3p2',
+    db_version TEXT DEFAULT '1.2.0',
     latest_release TEXT,
     latest_release_url TEXT,
     update_available INTEGER DEFAULT 0,
@@ -59,8 +59,8 @@ CREATE TABLE IF NOT EXISTS dsc_infra_info (
     release_checked_at TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-INSERT OR IGNORE INTO dsc_infra_info (id, web_version, db_version, updated_at) VALUES (1, '0.0.1', '1.1.3p2', CURRENT_TIMESTAMP);
-UPDATE dsc_infra_info SET db_version = '1.1.3p2', updated_at = CURRENT_TIMESTAMP WHERE id = 1;
+INSERT OR IGNORE INTO dsc_infra_info (id, web_version, db_version, updated_at) VALUES (1, '0.0.1', '1.2.0', CURRENT_TIMESTAMP);
+UPDATE dsc_infra_info SET db_version = '1.2.0', updated_at = CURRENT_TIMESTAMP WHERE id = 1;
 
 CREATE TABLE IF NOT EXISTS scheduler_tasks (
     task_name TEXT PRIMARY KEY,
@@ -71,6 +71,21 @@ CREATE TABLE IF NOT EXISTS scheduler_tasks (
     last_message TEXT NULL,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS configuration_repo_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    enabled INTEGER NOT NULL DEFAULT 0,
+    repository_url TEXT NOT NULL DEFAULT '',
+    branch TEXT NOT NULL DEFAULT 'main',
+    checkout_directory TEXT NOT NULL DEFAULT 'data/configuration-repository',
+    compiler_script TEXT NOT NULL DEFAULT 'scripts/Compile-Configurations.ps1',
+    powershell_executable TEXT NOT NULL DEFAULT 'pwsh',
+    sync_interval_mins INTEGER NOT NULL DEFAULT 60,
+    compile_on_node_registration INTEGER NOT NULL DEFAULT 0,
+    legacy_imported INTEGER NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+INSERT OR IGNORE INTO configuration_repo_settings (id) VALUES (1);
 
 CREATE TABLE IF NOT EXISTS scheduler_task_runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

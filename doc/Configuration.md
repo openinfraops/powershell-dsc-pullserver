@@ -52,6 +52,7 @@ This page describes all configuration options available in `config.json` for the
 | log_rotate_max_size_mb     | int     | Rotate log file when size reaches this value (MB)   | `10`                   |
 | log_rotate_max_backups     | int     | Number of rotated log backups to keep               | `5`                    |
 | log_rotate_max_age_days    | int     | Delete rotated log backups older than this age       | `30`                   |
+Configuration repository settings are stored in the database and managed from the Scheduler administration page. The compiler must accept `-SourcePath` and `-OutputPath` and write `.mof` files into the output directory. Changed MOFs are versioned in the configuration model store and assigned agents are marked `pending_apply`. See [the DSC configuration repository example](../powershell/DSCConfigurationRepo/README.md) for a manifest/module/compiler layout and its priority rule.
 
 ---
 

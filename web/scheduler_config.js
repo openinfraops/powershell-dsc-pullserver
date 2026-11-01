@@ -14,7 +14,8 @@ $(function() {
     const taskRunEndpoints = {
         report_cleanup: '/api/v1/scheduler/cleanup/run',
         release_check: '/api/v1/scheduler/release-check/run',
-        log_cleanup: '/api/v1/scheduler/logs/cleanup/run'
+        log_cleanup: '/api/v1/scheduler/logs/cleanup/run',
+        configuration_repo_sync: '/api/v1/scheduler/configuration-repo/run'
     };
 
     function showStatus(text, color) {
@@ -32,7 +33,15 @@ $(function() {
             enable_log_rotation: c.enable_log_rotation !== false,
             log_rotate_max_size_mb: c.log_rotate_max_size_mb || 10,
             log_rotate_max_backups: c.log_rotate_max_backups || 5,
-            log_rotate_max_age_days: c.log_rotate_max_age_days || 30
+            log_rotate_max_age_days: c.log_rotate_max_age_days || 30,
+            enable_configuration_repo_sync: !!c.enable_configuration_repo_sync,
+            configuration_repo_sync_interval_mins: c.configuration_repo_sync_interval_mins || 60,
+            configuration_repo_url: c.configuration_repo_url || '',
+            configuration_repo_branch: c.configuration_repo_branch || 'main',
+            configuration_repo_directory: c.configuration_repo_directory || 'data/configuration-repository',
+            configuration_compiler_script: c.configuration_compiler_script || 'scripts/Compile-Configurations.ps1',
+            configuration_powershell_executable: c.configuration_powershell_executable || 'pwsh',
+            compile_configuration_on_node_registration: !!c.compile_configuration_on_node_registration
         };
     }
 
@@ -111,6 +120,9 @@ $(function() {
         }
         if (taskName === 'log_cleanup') {
             return !!cfg.enable_log_rotation;
+        }
+        if (taskName === 'configuration_repo_sync') {
+            return !!cfg.enable_configuration_repo_sync;
         }
         return true;
     }
@@ -313,6 +325,19 @@ $(function() {
             openLogsConfigModal();
             return;
         }
+        if (task === 'configuration_repo_sync') {
+            const cfg = normalizeConfig(schedulerConfig);
+            $('#modal_enable_configuration_repo_sync').prop('checked', cfg.enable_configuration_repo_sync);
+            $('#modal_configuration_repo_sync_interval_mins').val(cfg.configuration_repo_sync_interval_mins);
+            $('#modal_configuration_repo_url').val(cfg.configuration_repo_url);
+            $('#modal_configuration_repo_branch').val(cfg.configuration_repo_branch);
+            $('#modal_configuration_repo_directory').val(cfg.configuration_repo_directory);
+            $('#modal_configuration_compiler_script').val(cfg.configuration_compiler_script);
+            $('#modal_configuration_powershell_executable').val(cfg.configuration_powershell_executable);
+            $('#modal_compile_configuration_on_node_registration').prop('checked', cfg.compile_configuration_on_node_registration);
+            $('#configurationRepoSyncModal').modal('show');
+            return;
+        }
     });
 
     $('#save-report-config').on('click', function() {
@@ -345,6 +370,22 @@ $(function() {
         });
         saveConfig(payload, function() {
             $('#logsConfigModal').modal('hide');
+        });
+    });
+
+    $('#save-configuration-repo-config').on('click', function() {
+        const payload = buildPayload({
+            enable_configuration_repo_sync: $('#modal_enable_configuration_repo_sync').prop('checked'),
+            configuration_repo_sync_interval_mins: parseInt($('#modal_configuration_repo_sync_interval_mins').val(), 10),
+            configuration_repo_url: $('#modal_configuration_repo_url').val().trim(),
+            configuration_repo_branch: $('#modal_configuration_repo_branch').val().trim(),
+            configuration_repo_directory: $('#modal_configuration_repo_directory').val().trim(),
+            configuration_compiler_script: $('#modal_configuration_compiler_script').val().trim(),
+            configuration_powershell_executable: $('#modal_configuration_powershell_executable').val().trim(),
+            compile_configuration_on_node_registration: $('#modal_compile_configuration_on_node_registration').prop('checked')
+        });
+        saveConfig(payload, function() {
+            $('#configurationRepoSyncModal').modal('hide');
         });
     });
 
