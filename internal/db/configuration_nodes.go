@@ -2,8 +2,10 @@ package db
 
 import (
 	"database/sql"
+	"fmt"
 	"strings"
 
+	"go-dsc-pull/internal/logs"
 	"go-dsc-pull/internal/service"
 )
 
@@ -41,6 +43,7 @@ func ListNodeCompilationContextsWithAgentIDs(database *sql.DB) ([]service.NodeCo
 			return nil, nil, err
 		}
 		compilationTags := legacyNodeTags(tags)
+		resolvedProperties := 0
 		propertyRows, err := database.Query(`
 SELECT p.name, np.value
 FROM node_properties np
@@ -57,6 +60,7 @@ WHERE np.node_id = ?`, agent.agentID)
 			}
 			key := legacyNodeTagKey(propertyName)
 			compilationTags[key] = []string{value}
+			resolvedProperties++
 		}
 		if err := propertyRows.Err(); err != nil {
 			propertyRows.Close()
@@ -65,6 +69,7 @@ WHERE np.node_id = ?`, agent.agentID)
 		if err := propertyRows.Close(); err != nil {
 			return nil, nil, err
 		}
+		_ = logs.WriteLogFile(fmt.Sprintf("INFO [CONFIGURATION REPO] Node properties resolved; node=%q agent_id=%q count=%d tags=%v", agent.nodeName, agent.agentID, resolvedProperties, compilationTags))
 		contexts = append(contexts, service.NodeCompilationContext{NodeName: agent.nodeName, Tags: compilationTags})
 		agentIDs[strings.ToLower(strings.TrimSpace(agent.nodeName))] = agent.agentID
 	}
