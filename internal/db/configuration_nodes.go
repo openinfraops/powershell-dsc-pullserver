@@ -14,37 +14,67 @@ func ListNodeCompilationContextsWithAgentIDs(database *sql.DB) ([]service.NodeCo
 	}
 	defer rows.Close()
 
-	contexts := make([]service.NodeCompilationContext, 0)
-	agentIDs := make(map[string]string)
+	type nodeAgent struct {
+		agentID  string
+		nodeName string
+	}
+	var agents []nodeAgent
 	for rows.Next() {
-		var agentID, nodeName string
-		if err := rows.Scan(&agentID, &nodeName); err != nil {
+		var agent nodeAgent
+		if err := rows.Scan(&agent.agentID, &agent.nodeName); err != nil {
 			return nil, nil, err
 		}
-		tags, err := GetAgentTags(database, agentID)
+		agents = append(agents, agent)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, nil, err
+	}
+
+	contexts := make([]service.NodeCompilationContext, 0)
+	agentIDs := make(map[string]string)
+	for _, agent := range agents {
+		tags, err := GetAgentTags(database, agent.agentID)
 		if err != nil {
 			return nil, nil, err
 		}
-		contexts = append(contexts, service.NodeCompilationContext{NodeName: nodeName, Tags: legacyNodeTags(tags)})
-		agentIDs[strings.ToLower(strings.TrimSpace(nodeName))] = agentID
+		compilationTags := legacyNodeTags(tags)
+		propertyRows, err := database.Query(`
+SELECT p.name, np.value
+FROM node_properties np
+JOIN properties p ON p.id = np.property_id
+WHERE np.node_id = ?`, agent.nodeName)
+		if err != nil {
+			return nil, nil, err
+		}
+		for propertyRows.Next() {
+			var propertyName, value string
+			if err := propertyRows.Scan(&propertyName, &value); err != nil {
+				propertyRows.Close()
+				return nil, nil, err
+			}
+			key := legacyNodeTagKey(propertyName)
+			compilationTags[key] = []string{value}
+		}
+		if err := propertyRows.Err(); err != nil {
+			propertyRows.Close()
+			return nil, nil, err
+		}
+		if err := propertyRows.Close(); err != nil {
+			return nil, nil, err
+		}
+		contexts = append(contexts, service.NodeCompilationContext{NodeName: agent.nodeName, Tags: compilationTags})
+		agentIDs[strings.ToLower(strings.TrimSpace(agent.nodeName))] = agent.agentID
 	}
-	return contexts, agentIDs, rows.Err()
+	return contexts, agentIDs, nil
 }
 
 func legacyNodeTags(tags map[string][]string) map[string][]string {
-	aliases := map[string]string{
-		"os": "OS", "operatingsystem": "OS",
-		"environment": "Environnement", "environnement": "Environnement",
-		"application": "Application",
-		"component":   "Composant", "composant": "Composant",
-		"hostgroup": "Hostgroup", "hostgroups": "Hostgroup",
-	}
 	normalized := make(map[string][]string, len(tags))
 	for key, values := range tags {
-		canonical := key
-		if alias, ok := aliases[strings.ToLower(strings.TrimSpace(key))]; ok {
-			canonical = alias
-		}
+		canonical := legacyNodeTagKey(key)
 		normalized[canonical] = append(normalized[canonical], values...)
 	}
 	for key, values := range normalized {
@@ -60,4 +90,18 @@ func legacyNodeTags(tags map[string][]string) map[string][]string {
 		normalized[key] = unique
 	}
 	return normalized
+}
+
+func legacyNodeTagKey(key string) string {
+	aliases := map[string]string{
+		"os": "OS", "operatingsystem": "OS",
+		"environment": "Environnement", "environnement": "Environnement",
+		"application": "Application",
+		"component":   "Composant", "composant": "Composant",
+		"hostgroup": "Hostgroup", "hostgroups": "Hostgroup",
+	}
+	if canonical, ok := aliases[strings.ToLower(strings.TrimSpace(key))]; ok {
+		return canonical
+	}
+	return key
 }
