@@ -69,7 +69,11 @@ JOIN properties p ON p.id = np.property_id
 		if err := propertyRows.Scan(&propertyName, &value); err != nil {
 			return nil, err
 		}
-		compilationTags[legacyNodeTagKey(propertyName)] = []string{value}
+		key := legacyNodeTagKey(propertyName)
+		if existingValues := compilationTags[key]; len(existingValues) > 0 {
+			continue
+		}
+		compilationTags[key] = []string{value}
 		resolvedProperties++
 	}
 	if err := propertyRows.Err(); err != nil {
