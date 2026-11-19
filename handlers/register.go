@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"go-dsc-pull/internal/db"
@@ -86,16 +87,15 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 			var tempAgentId string
 			err = database.QueryRow(`SELECT agent_id FROM agents WHERE node_name = ? AND agent_id LIKE 'TEMP-%'`, nodeName).Scan(&tempAgentId)
 			if err == nil && tempAgentId != "" {
-				// Mise à jour : change l'agent_id et les infos
-				_, err = database.Exec(`UPDATE agents SET agent_id = ?, lcm_version = ?, registration_type = ?, certificate_thumbprint = ?, certificate_subject = ?, certificate_issuer = ?, certificate_notbefore = ?, certificate_notafter = ? WHERE agent_id = ?`,
-					agentId, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter, tempAgentId)
-				if err != nil {
-					logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][DB] Erreur update agent TEMP: %v", err))
-				}
-				// Met à jour l'agent_id dans la table agent_tags
-				_, err = database.Exec(`UPDATE agent_tags SET agent_id = ? WHERE agent_id = ?`, agentId, tempAgentId)
-				if err != nil {
-					logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][DB] Erreur update agent_tags TEMP: %v", err))
+				// Migration TEMP → réel.
+				// SQL Server interdit de modifier la PK agents.agent_id lorsqu'une table
+				// enfant (agent_tags, agent_configurations, agent_ips) la référence via une
+				// FOREIGN KEY : un `UPDATE agents SET agent_id = ...` échoue avec une erreur
+				// de contrainte (constaté en production sur MSSQL). On insère donc une
+				// nouvelle ligne avec l'ID réel, on ré-attache les lignes enfants, puis on
+				// supprime la ligne TEMP, le tout dans une transaction.
+				if migrateErr := migrateTempAgentToRealID(database, driver, tempAgentId, agentId, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter); migrateErr != nil {
+					logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][DB] Migration agent TEMP %s vers %s impossible: %v", tempAgentId, agentId, migrateErr))
 				}
 			} else {
 				// Insertion normale, compatible SQLite/MSSQL
@@ -223,6 +223,45 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("ProtocolVersion", "2.0")
 	_ = json.NewEncoder(w).Encode(resp)
+}
+
+// migrateTempAgentToRealID remplace une pré-inscription TEMP-* par l'ID réel d'un
+// agent après enregistrement authentifié. MSSQL refuse de modifier la PK agents.agent_id
+// référencée par les tables enfants, d'où l'insertion d'une nouvelle ligne puis la
+// ré-attribution des enfants et la suppression de la ligne TEMP, dans une transaction.
+func migrateTempAgentToRealID(database *sql.DB, driver, tempAgentID, realAgentID, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter string) error {
+	tx, err := database.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if driver == "sqlite" {
+		_, err = tx.Exec(`INSERT OR REPLACE INTO agents (agent_id, node_name, lcm_version, registration_type, certificate_thumbprint, certificate_subject, certificate_issuer, certificate_notbefore, certificate_notafter, state) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			realAgentID, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter, "pending_apply")
+	} else {
+		_, err = tx.Exec(`IF NOT EXISTS (SELECT 1 FROM agents WHERE agent_id = ?) INSERT INTO agents (agent_id, node_name, lcm_version, registration_type, certificate_thumbprint, certificate_subject, certificate_issuer, certificate_notbefore, certificate_notafter, registered_at, last_communication, state, has_error_last_report) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, GETDATE(), GETDATE(), 'pending_apply', 0)`,
+			realAgentID, realAgentID, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter)
+	}
+	if err != nil {
+		return fmt.Errorf("insert real agent %s: %w", realAgentID, err)
+	}
+
+	for _, q := range []string{
+		`UPDATE agent_tags SET agent_id = ? WHERE agent_id = ?`,
+		`UPDATE agent_configurations SET agent_id = ? WHERE agent_id = ?`,
+		`UPDATE agent_ips SET agent_id = ? WHERE agent_id = ?`,
+		`UPDATE node_properties SET node_id = ? WHERE node_id = ?`,
+	} {
+		if _, err := tx.Exec(q, realAgentID, tempAgentID); err != nil {
+			return fmt.Errorf("migrate children from %s: %w", tempAgentID, err)
+		}
+	}
+
+	if _, err := tx.Exec(`DELETE FROM agents WHERE agent_id = ?`, tempAgentID); err != nil {
+		return fmt.Errorf("delete temp agent %s: %w", tempAgentID, err)
+	}
+	return tx.Commit()
 }
 
 func generateAgentId() string {
