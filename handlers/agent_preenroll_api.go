@@ -24,6 +24,10 @@ func PreEnrollAgentHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		NodeName string `json:"node_name"`
+		Tags     []struct {
+			Key   string `json:"key"`
+			Value string `json:"value"`
+		} `json:"tags"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.NodeName == "" {
 		http.Error(w, "Invalid or missing node_name", http.StatusBadRequest)
@@ -62,6 +66,16 @@ func PreEnrollAgentHandler(w http.ResponseWriter, r *http.Request) {
 
 		_ = logs.WriteLogFile(fmt.Sprintf("INFO [API][PRE-ENROLL] Agent pré-enregistré: NodeName=%s, AgentId=%s", req.NodeName, tempAgentId))
 
+		// Pose les tags fournis au pré-enregistrement (la compilation initiale en a besoin).
+		for _, tag := range req.Tags {
+			if tag.Key == "" || tag.Value == "" {
+				continue
+			}
+			if err := db.SetAgentTag(database, global.AppConfig.Database.Driver, tempAgentId, tag.Key, tag.Value); err != nil {
+				_ = logs.WriteLogFile(fmt.Sprintf("ERROR [API][PRE-ENROLL] Erreur pose du tag %s=%s: %v", tag.Key, tag.Value, err))
+			}
+		}
+
 		// Audit pre-enroll
 		driverName := global.AppConfig.Database.Driver
 		user := "?"
@@ -71,6 +85,10 @@ func PreEnrollAgentHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		_ = db.InsertAudit(database, driverName, user, "preenroll", "agent", "Pre-enrolled agent: "+tempAgentId+" ("+req.NodeName+")", "")
+
+		// Compilation initiale : en async (le nœud ne registrera que bien plus tard),
+		// la config sera prête avant le premier pull de l'agent.
+		triggerNodeRecompileAsync(tempAgentId, req.NodeName)
 
 	agent := schema.Agent{
 		AgentId:           tempAgentId,

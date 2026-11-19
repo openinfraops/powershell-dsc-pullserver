@@ -62,6 +62,8 @@ func AgentTagsSetHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "DB update error: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	// Un changement de tag rend la configuration du nœud obsolète.
+	_, _ = database.Exec(`UPDATE agents SET needs_recompile = 1 WHERE agent_id = ?`, agentId)
 	   w.WriteHeader(http.StatusNoContent)
 }
 
@@ -108,12 +110,14 @@ func AgentTagsDeleteHandler(w http.ResponseWriter, r *http.Request) {
 			   http.Error(w, "DB update error: "+err.Error(), http.StatusInternalServerError)
 			   return
 		   }
+		   _, _ = database.Exec(`UPDATE agents SET needs_recompile = 1 WHERE agent_id = ?`, agentId)
 	   } else {
 		   if err := db.DeleteAllAgentTags(database, agentId); err != nil {
 			   logs.WriteLogFile("AgentTagsDeleteHandler: DB delete-all error: " + err.Error())
 			   http.Error(w, "DB update error: "+err.Error(), http.StatusInternalServerError)
 			   return
 		   }
+		   _, _ = database.Exec(`UPDATE agents SET needs_recompile = 1 WHERE agent_id = ?`, agentId)
 	   }
 	   w.WriteHeader(http.StatusNoContent)
 }

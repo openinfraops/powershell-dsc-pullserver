@@ -160,6 +160,7 @@ CREATE TABLE agents (
     certificate_notafter NVARCHAR(50) NULL,
     registered_at DATETIME DEFAULT GETDATE(),
     last_communication DATETIME DEFAULT GETDATE(),
+    needs_recompile BIT NOT NULL DEFAULT 0,
     state NVARCHAR(50),
     has_error_last_report BIT DEFAULT 0
 );

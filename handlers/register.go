@@ -8,14 +8,12 @@ import (
 	"go-dsc-pull/internal/global"
 	"go-dsc-pull/internal/logs"
 	"go-dsc-pull/internal/schema"
-	"go-dsc-pull/internal/service"
 	internalutils "go-dsc-pull/internal/utils"
 	utils "go-dsc-pull/utils"
 	"io"
 	"log"
 	"math/rand"
 	"net/http"
-	"strings"
 	"time"
 )
 
@@ -163,58 +161,8 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 					logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][CONFIG] Failed to assign node configuration %s: %v", nodeName, err))
 				}
 			}
-			if isNewNode {
-				repoSettings, settingsErr := db.GetConfigurationRepoSettings(database)
-				if settingsErr == nil && repoSettings.CompileOnNodeRegistration {
-					nodeTags, tagsErr := db.GetLegacyCompilationTags(database, agentId)
-					if tagsErr != nil {
-						logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][CONFIG] Failed to load compilation properties for node %s: %v", nodeName, tagsErr))
-						nodeTags = map[string][]string{}
-					}
-					rows, queryErr := database.Query(`SELECT configuration_name FROM agent_configurations WHERE agent_id = ?`, agentId)
-					configNames := make([]string, 0)
-					if queryErr == nil {
-						for rows.Next() {
-							var name string
-							if rows.Scan(&name) == nil && name != "" {
-								configNames = append(configNames, name)
-							}
-						}
-						rows.Close()
-					} else {
-						logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][CONFIG] Failed to load assigned configurations: %v", queryErr))
-					}
-					if len(configNames) == 0 {
-						configNames = append(configNames, nodeName)
-					}
-					repoConfig := service.ConfigurationRepoConfig{
-						URL:                  repoSettings.URL,
-						Branch:               repoSettings.Branch,
-						Directory:            repoSettings.Directory,
-						CompilerScript:       repoSettings.CompilerScript,
-						PowerShellExecutable: repoSettings.PowerShellExecutable,
-					}
-					go func() {
-						_, compileErr := service.RunConfigurationRepoSyncForNodeContext(repoConfig, configNames, nodeName, nodeTags, func(compiled []service.CompiledConfiguration) (int, error) {
-							compileDB, openErr := db.OpenDB(&global.AppConfig.Database)
-							if openErr != nil {
-								return 0, openErr
-							}
-							defer compileDB.Close()
-							assignments := make(map[string]string, len(compiled)+1)
-							assignments[strings.ToLower(strings.TrimSpace(nodeName))] = agentId
-							for _, configuration := range compiled {
-								assignments[strings.ToLower(strings.TrimSpace(configuration.Name))] = agentId
-							}
-							return db.ImportCompiledConfigurationsAndAssign(compileDB, compiled, assignments)
-						})
-						if compileErr != nil {
-							logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][CONFIG] Compilation failed for node %s: %v", nodeName, compileErr))
-						} else {
-							logs.WriteLogFile(fmt.Sprintf("[INFO][REGISTER][CONFIG] Compiled assigned configurations for node %s", nodeName))
-						}
-					}()
-				}
+			if isNewNode && tempAgentId == "" {
+				triggerNodeRecompileAsync(agentId, nodeName)
 			}
 		}
 	}

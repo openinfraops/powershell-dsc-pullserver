@@ -16,4 +16,5 @@ type Agent struct {
 	Configurations         []string `json:"configurations,omitempty"`
 	Tags                   map[string][]string `json:"tags,omitempty"`
 	State                  *string  `json:"state,omitempty"`
+	NeedsRecompile        bool     `json:"needs_recompile"`
 }

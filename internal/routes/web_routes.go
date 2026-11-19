@@ -180,6 +180,7 @@ func RegisterWebRoutes(mux *http.ServeMux, dbConn *sql.DB, jwtAuthMiddleware fun
 	mux.Handle("GET /api/v1/agents/{id}/tags", jwtAuthMiddleware(http.HandlerFunc(handlers.AgentTagsListHandler)))
 	mux.Handle("PUT /api/v1/agents/{id}/tags", jwtAuthMiddleware(http.HandlerFunc(handlers.AgentTagsSetHandler)))
 	mux.Handle("DELETE /api/v1/agents/{id}/tags", jwtAuthMiddleware(http.HandlerFunc(handlers.AgentTagsDeleteHandler)))
+	mux.Handle("POST /api/v1/agents/{id}/recompile", jwtAuthMiddleware(adminOnly(http.HandlerFunc(handlers.AgentRecompileHandler))))
 	// Détail configuration (API et Web)
 	mux.Handle("GET /api/v1/configuration_models/{id}/detail", jwtAuthMiddleware(http.HandlerFunc(handlers.GetConfigurationModelDetailHandler)))
 	mux.Handle("GET /api/v1/configuration_models/{id}/download", jwtAuthMiddleware(http.HandlerFunc(handlers.DownloadConfigurationModelHandler)))

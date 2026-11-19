@@ -12,9 +12,13 @@
     <div class="container-fluid">
         <div class="card">
             <div class="card-body">
+                <div id="node-message-block"></div>
                 <div class="d-flex justify-content-between align-items-center">
                     <h3>LCM Agent information</h3>
-                    <button id="delete-node-btn" class="btn btn-danger btn-sm">Delete this node</button>
+                    <div>
+                        <button id="recompile-node-btn" class="btn btn-warning btn-sm mr-1" style="display:none;">Recalculer la configuration</button>
+                        <button id="delete-node-btn" class="btn btn-danger btn-sm">Delete this node</button>
+                    </div>
                 </div>
                 <div id="agent-info-block">
                     <div><strong>Name:</strong> <span id="agent-name"></span></div>

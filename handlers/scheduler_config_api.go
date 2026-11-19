@@ -493,6 +493,11 @@ func SchedulerRunConfigurationRepoAPIHandler(w http.ResponseWriter, r *http.Requ
 		http.Error(w, "Configuration repository sync failed", http.StatusInternalServerError)
 		return
 	}
+	// Un recalcul global recompile toutes les configurations depuis l'état courant :
+	// les nœuds dont la config était marquée obsolète sont désormais à jour.
+	if changed > 0 {
+		_, _ = database.Exec(`UPDATE agents SET needs_recompile = 0`)
+	}
 	message := fmt.Sprintf("Updated configurations: %d", changed)
 	_ = db.InsertAudit(database, driver, schedulerActorEmail(r), "run", "scheduler_task", "Manual run: "+schedulerTaskConfigurationRepoSync+", "+message, r.RemoteAddr)
 	_ = db.CompleteSchedulerTaskRun(database, driver, schedulerTaskConfigurationRepoSync, "success", message, time.Now().UTC(), nextRun)

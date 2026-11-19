@@ -7,16 +7,27 @@ import (
 	"go-dsc-pull/internal/db"
 	"go-dsc-pull/internal/global"
 	"go-dsc-pull/internal/schema"
+	"go-dsc-pull/internal/service"
 	"io"
 	"log"
 	"net/http"
 	"strings"
+	"time"
 )
+
+// agentCompileWait borne l'attente d'une compilation en cours lors d'un pull.
+const agentCompileWait = 2 * time.Minute
 
 // GetDscActionNodeHandlerWithId gère POST /PSDSCPullServer.svc/{id}/GetDscAction avec agentId déjà extrait
 func GetDscActionNodeHandlerWithId(w http.ResponseWriter, r *http.Request, agentId string) {
 	database, err := db.OpenDB(&global.AppConfig.Database)
 	log.Printf("[GETDSCACTION-NODE] Start for agentId=%q", agentId)
+
+	// Si une compilation est en cours pour ce nœud (enregistrement ou recompilation),
+	// on attend qu'elle se termine : la configuration doit être prête avant le pull.
+	var waitingNode string
+	_ = database.QueryRow(`SELECT node_name FROM agents WHERE agent_id = ?`, agentId).Scan(&waitingNode)
+	service.WaitForNodeCompile(waitingNode, agentCompileWait)
 	// Log du body et des headers reçus pour debug
 	body, _ := io.ReadAll(r.Body)
 	r.Body = io.NopCloser(strings.NewReader(string(body)))

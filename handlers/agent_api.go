@@ -60,7 +60,7 @@ func GetAgentsHandler(w http.ResponseWriter, r *http.Request) {
 	       }
 
 		       // Filtrage dynamique
-		       q := `SELECT agent_id, node_name, lcm_version, registration_type, certificate_thumbprint, certificate_subject, certificate_issuer, certificate_notbefore, certificate_notafter, registered_at, last_communication, has_error_last_report, state FROM agents WHERE 1=1`
+		       q := `SELECT agent_id, node_name, lcm_version, registration_type, certificate_thumbprint, certificate_subject, certificate_issuer, certificate_notbefore, certificate_notafter, registered_at, last_communication, has_error_last_report, needs_recompile, state FROM agents WHERE 1=1`
 		       args := []interface{}{}
 		       nodeName := r.URL.Query().Get("node_name")
 		       if nodeName != "" {
@@ -94,7 +94,8 @@ func GetAgentsHandler(w http.ResponseWriter, r *http.Request) {
 				   var a schema.Agent
 				   var lcmVersion, registrationType, certificateThumbprint, certificateSubject, certificateIssuer, certificateNotBefore, certificateNotAfter, registeredAt, lastCommunication, state *string
 				   var hasErrorBool bool
-				   if err := rows.Scan(&a.AgentId, &a.NodeName, &lcmVersion, &registrationType, &certificateThumbprint, &certificateSubject, &certificateIssuer, &certificateNotBefore, &certificateNotAfter, &registeredAt, &lastCommunication, &hasErrorBool, &state); err == nil {
+				   var needsRecompileBool bool
+				   if err := rows.Scan(&a.AgentId, &a.NodeName, &lcmVersion, &registrationType, &certificateThumbprint, &certificateSubject, &certificateIssuer, &certificateNotBefore, &certificateNotAfter, &registeredAt, &lastCommunication, &hasErrorBool, &needsRecompileBool, &state); err == nil {
 					   // Pour DataTables, renvoyer les champs attendus même vides
 					   empty := ""
 					   a.LCMVersion = lcmVersion
@@ -120,6 +121,7 @@ func GetAgentsHandler(w http.ResponseWriter, r *http.Request) {
 						   a.LastCommunication = empty
 					   }
 					   a.HasErrorLastReport = hasErrorBool
+					   a.NeedsRecompile = needsRecompileBool
 					   tags, tagErr := db.GetAgentTags(database, a.AgentId)
 					   if tagErr == nil && len(tags) > 0 {
 						   a.Tags = tags

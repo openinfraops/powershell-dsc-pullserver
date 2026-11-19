@@ -114,6 +114,7 @@ CREATE TABLE IF NOT EXISTS agents (
     registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_communication TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     has_error_last_report BOOLEAN DEFAULT 0,
+    needs_recompile INTEGER DEFAULT 0,
     state TEXT
 );
 -- Migration : ajout de la colonne has_error_last_report si besoin

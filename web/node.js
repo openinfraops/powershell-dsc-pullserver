@@ -28,6 +28,39 @@ $(document).on('click', '#delete-node-btn', function() {
         });
     }
 });
+
+$(document).on('click', '#recompile-node-btn', function() {
+    const nodeId = getNodeIdFromUrl();
+    if (!nodeId) return;
+    if (!confirm('Recalculer la configuration de ce nœud à partir des tags actuels ?')) return;
+    $.ajax({
+        url: '/api/v1/agents/' + encodeURIComponent(nodeId) + '/recompile',
+        type: 'POST',
+        success: function() {
+            showNodeMessage('Recalcul de la configuration lancé.', 'success');
+            let tries = 0;
+            const poll = setInterval(function() {
+                tries++;
+                $.ajax({
+                    url: '/api/v1/agents/' + encodeURIComponent(nodeId),
+                    method: 'GET',
+                    dataType: 'json',
+                    success: function(agent) {
+                        state.agent = agent;
+                        renderAll();
+                        if (!state.agent.needs_recompile || tries > 30) {
+                            clearInterval(poll);
+                            showNodeMessage(state.agent.needs_recompile ? 'Recalcul toujours en attente…' : 'Configuration recalculée.', state.agent.needs_recompile ? 'info' : 'success');
+                        }
+                    }
+                });
+            }, 5000);
+        },
+        error: function(xhr) {
+            showNodeMessage('Erreur lors du recalcul: ' + (xhr.responseText || xhr.status), 'error');
+        }
+    });
+});
 // node.js (frontend) pour page /web/node/{id}
 
 function getNodeIdFromUrl() {
@@ -121,6 +154,14 @@ function fillAgentInfo() {
         $('#agent-config-block').html(html);
     } else {
         $('#agent-config-block').html('');
+    }
+    // Bouton de recalcul : admin uniquement, visible quand la config est obsolète.
+    const isAdmin = window.currentUser && window.currentUser.role === 'admin';
+    const needsRecompile = !!state.agent.needs_recompile;
+    if (isAdmin && needsRecompile) {
+        $('#recompile-node-btn').show();
+    } else {
+        $('#recompile-node-btn').hide();
     }
 }
 
