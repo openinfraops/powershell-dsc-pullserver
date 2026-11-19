@@ -165,10 +165,16 @@ func SyncAndCompileConfigurationsForNodeContext(config ConfigurationRepoConfig, 
 	}
 	gitContext, cancelGit := context.WithTimeout(context.Background(), configurationGitSyncTimeout)
 	defer cancelGit()
-	if err := syncGitRepositoryContext(gitContext, repoDir, config.URL, config.Branch); err != nil {
+	gitChanged, err := syncGitRepositoryContext(gitContext, repoDir, config.URL, config.Branch)
+	if err != nil {
 		return nil, err
 	}
-	_ = logs.WriteLogFile("INFO [CONFIGURATION REPO] Git sync completed; PowerShell compilation starting")
+	_ = logs.WriteLogFile("INFO [CONFIGURATION REPO] Git sync completed")
+	if !gitChanged && nodeName == "" && len(tags) == 0 {
+		_ = logs.WriteLogFile("INFO [CONFIGURATION REPO] Git repository is up to date; skipping compilation")
+		return []CompiledConfiguration{}, nil
+	}
+	_ = logs.WriteLogFile("INFO [CONFIGURATION REPO] PowerShell compilation starting")
 
 	script := config.CompilerScript
 	if !filepath.IsAbs(script) {
@@ -337,24 +343,24 @@ func writeNodeCompilationContext(nodes []NodeCompilationContext, names []string)
 	return file.Name(), nil
 }
 
-func SyncGitRepository(repoDir, repositoryURL, branch string) error {
+func SyncGitRepository(repoDir, repositoryURL, branch string) (bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), configurationGitSyncTimeout)
 	defer cancel()
 	return syncGitRepositoryContext(ctx, repoDir, repositoryURL, branch)
 }
 
-func syncGitRepositoryContext(ctx context.Context, repoDir, repositoryURL, branch string) error {
+func syncGitRepositoryContext(ctx context.Context, repoDir, repositoryURL, branch string) (bool, error) {
 	if _, err := os.Stat(filepath.Join(repoDir, ".git")); os.IsNotExist(err) {
 		if _, dirErr := os.Stat(repoDir); dirErr == nil {
 			entries, readErr := os.ReadDir(repoDir)
 			if readErr != nil {
-				return readErr
+				return false, readErr
 			}
 			if len(entries) != 0 {
-				return fmt.Errorf("repository directory is not empty and is not a git checkout")
+				return false, fmt.Errorf("repository directory is not empty and is not a git checkout")
 			}
 		} else if !os.IsNotExist(dirErr) {
-			return fmt.Errorf("inspect repository directory: %w", dirErr)
+			return false, fmt.Errorf("inspect repository directory: %w", dirErr)
 		}
 		cloneOptions := &git.CloneOptions{URL: repositoryURL, Progress: nil}
 		if branch != "" {
@@ -362,31 +368,32 @@ func syncGitRepositoryContext(ctx context.Context, repoDir, repositoryURL, branc
 			cloneOptions.SingleBranch = true
 		}
 		if _, err := git.PlainCloneContext(ctx, repoDir, false, cloneOptions); err != nil {
-			return fmt.Errorf("git clone failed: %w", err)
+			return false, fmt.Errorf("git clone failed: %w", err)
 		}
+		return true, nil
 	} else if err != nil {
-		return fmt.Errorf("inspect repository directory: %w", err)
+		return false, fmt.Errorf("inspect repository directory: %w", err)
 	}
 
 	repository, err := git.PlainOpen(repoDir)
 	if err != nil {
-		return fmt.Errorf("open git checkout: %w", err)
+		return false, fmt.Errorf("open git checkout: %w", err)
 	}
 	remote, err := repository.Remote("origin")
 	if err != nil {
-		return fmt.Errorf("open git origin: %w", err)
+		return false, fmt.Errorf("open git origin: %w", err)
 	}
 	if len(remote.Config().URLs) == 0 || remote.Config().URLs[0] != repositoryURL {
-		return fmt.Errorf("repository origin does not match configured URL")
+		return false, fmt.Errorf("repository origin does not match configured URL")
 	}
 
 	if branch == "" {
 		head, err := repository.Head()
 		if err != nil {
-			return fmt.Errorf("resolve checked-out branch: %w", err)
+			return false, fmt.Errorf("resolve checked-out branch: %w", err)
 		}
 		if !head.Name().IsBranch() {
-			return fmt.Errorf("repository is in detached HEAD state and no branch is configured")
+			return false, fmt.Errorf("repository is in detached HEAD state and no branch is configured")
 		}
 		branch = head.Name().Short()
 	}
@@ -394,27 +401,27 @@ func syncGitRepositoryContext(ctx context.Context, repoDir, repositoryURL, branc
 	branchRef := plumbing.NewBranchReferenceName(branch)
 	worktree, err := repository.Worktree()
 	if err != nil {
-		return err
+		return false, err
 	}
 	if err := worktree.Checkout(&git.CheckoutOptions{Branch: branchRef, Keep: true}); err != nil {
-		return fmt.Errorf("checkout branch %q: %w", branch, err)
+		return false, fmt.Errorf("checkout branch %q: %w", branch, err)
 	}
 	if err := remote.FetchContext(ctx, &git.FetchOptions{RefSpecs: []config.RefSpec{config.RefSpec("+refs/heads/" + branch + ":refs/remotes/origin/" + branch)}, Prune: true}); err != nil && err != git.NoErrAlreadyUpToDate && err != transport.ErrEmptyRemoteRepository {
-		return fmt.Errorf("fetch branch %q: %w", branch, err)
+		return false, fmt.Errorf("fetch branch %q: %w", branch, err)
 	}
 	remoteRef, err := repository.Reference(plumbing.NewRemoteReferenceName("origin", branch), true)
 	if err != nil {
-		return fmt.Errorf("resolve remote branch %q: %w", branch, err)
+		return false, fmt.Errorf("resolve remote branch %q: %w", branch, err)
 	}
 	head, err := repository.Head()
 	if err != nil {
-		return fmt.Errorf("resolve local HEAD: %w", err)
+		return false, fmt.Errorf("resolve local HEAD: %w", err)
 	}
 	if head.Hash() == remoteRef.Hash() {
-		return nil
+		return false, nil
 	}
 	if err := worktree.PullContext(ctx, &git.PullOptions{RemoteName: "origin", ReferenceName: branchRef, SingleBranch: true, Force: false}); err != nil && err != git.NoErrAlreadyUpToDate {
-		return fmt.Errorf("fast-forward branch %q: %w", branch, err)
+		return false, fmt.Errorf("fast-forward branch %q: %w", branch, err)
 	}
-	return nil
+	return true, nil
 }

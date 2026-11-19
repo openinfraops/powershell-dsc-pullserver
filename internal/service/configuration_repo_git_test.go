@@ -31,8 +31,10 @@ func TestSyncGitRepositoryClonesAndFastForwards(t *testing.T) {
 	}
 
 	checkoutPath := filepath.Join(root, "checkout")
-	if err := SyncGitRepository(checkoutPath, remotePath, "master"); err != nil {
+	if changed, err := SyncGitRepository(checkoutPath, remotePath, "master"); err != nil {
 		t.Fatalf("initial clone: %v", err)
+	} else if !changed {
+		t.Fatal("initial clone should report a change")
 	}
 	checkout, err := git.PlainOpen(checkoutPath)
 	if err != nil {
@@ -53,8 +55,10 @@ func TestSyncGitRepositoryClonesAndFastForwards(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := SyncGitRepository(checkoutPath, remotePath, "master"); err != nil {
+	if changed, err := SyncGitRepository(checkoutPath, remotePath, "master"); err != nil {
 		t.Fatalf("fast-forward: %v", err)
+	} else if !changed {
+		t.Fatal("fast-forward to a new commit should report a change")
 	}
 	after, err := checkout.Head()
 	if err != nil {
@@ -81,10 +85,56 @@ func TestSyncGitRepositoryRejectsNonEmptyDirectory(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(checkoutPath, "keep.txt"), []byte("keep"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := SyncGitRepository(checkoutPath, filepath.Join(root, "missing.git"), "main"); err == nil {
+	if _, err := SyncGitRepository(checkoutPath, filepath.Join(root, "missing.git"), "main"); err == nil {
 		t.Fatal("expected non-empty directory to be rejected")
 	}
 	if _, err := os.Stat(filepath.Join(checkoutPath, "keep.txt")); err != nil {
 		t.Fatalf("existing directory content was changed: %v", err)
+	}
+}
+
+func TestSyncGitRepositoryReportsChange(t *testing.T) {
+	root := t.TempDir()
+	remotePath := filepath.Join(root, "remote")
+	remote, err := git.PlainInit(remotePath, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	remoteWorktree, err := remote.Worktree()
+	if err != nil {
+		t.Fatal(err)
+	}
+	commit := func(message string, content string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(remotePath, "config.psd1"), []byte(content), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := remoteWorktree.Add("config.psd1"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := remoteWorktree.Commit(message, &git.CommitOptions{Author: &object.Signature{Name: "test", Email: "test@example.invalid"}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	commit("initial", "version one")
+
+	checkoutPath := filepath.Join(root, "checkout")
+	if changed, err := SyncGitRepository(checkoutPath, remotePath, "master"); err != nil {
+		t.Fatalf("initial clone: %v", err)
+	} else if !changed {
+		t.Fatal("initial clone should report a change")
+	}
+
+	if changed, err := SyncGitRepository(checkoutPath, remotePath, "master"); err != nil {
+		t.Fatalf("idempotent sync: %v", err)
+	} else if changed {
+		t.Fatal("sync with no remote change should report no change")
+	}
+
+	commit("update", "version two")
+	if changed, err := SyncGitRepository(checkoutPath, remotePath, "master"); err != nil {
+		t.Fatalf("sync after remote commit: %v", err)
+	} else if !changed {
+		t.Fatal("sync after a new remote commit should report a change")
 	}
 }
