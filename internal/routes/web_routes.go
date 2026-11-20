@@ -169,6 +169,12 @@ func RegisterWebRoutes(mux *http.ServeMux, dbConn *sql.DB, jwtAuthMiddleware fun
 			return
 		}
 
+		// Empêche le navigateur de servir une version obsolète des assets (JS/CSS)
+		// en cache après un déploiement : il revalide à chaque chargement (304 si
+		// inchangé, sinon le nouveau fichier). Évite les bugs fantômes type
+		// "NaN j" causés par un ancien nodes.js resté en cache.
+		w.Header().Set("Cache-Control", "no-cache, must-revalidate")
+
 		r.URL.Path = "/" + relativePath
 		webStatic.ServeHTTP(w, r)
 	})))
