@@ -25,6 +25,9 @@ type HTTPConfig struct {
 	LegacyConfigurationCompilerScript       string `json:"configuration_compiler_script"`
 	LegacyConfigurationPowerShellExecutable string `json:"configuration_powershell_executable"`
 	LegacyConfigurationRepoSyncIntervalMins int    `json:"configuration_repo_sync_interval_mins"`
+	EnableAgentPurge                        bool   `json:"enable_agent_purge"`
+	AgentPurgeRetentionDays                 int    `json:"agent_purge_retention_days"`
+	AgentPurgeIntervalMins                  int    `json:"agent_purge_interval_mins"`
 }
 
 type AppConfig struct {

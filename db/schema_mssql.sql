@@ -161,6 +161,8 @@ CREATE TABLE agents (
     registered_at DATETIME DEFAULT GETDATE(),
     last_communication DATETIME DEFAULT GETDATE(),
     needs_recompile BIT NOT NULL DEFAULT 0,
+    deleted_at DATETIME NULL,
+    deleted_by NVARCHAR(200) NULL,
     state NVARCHAR(50),
     has_error_last_report BIT DEFAULT 0
 );

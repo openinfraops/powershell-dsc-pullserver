@@ -10,7 +10,7 @@ import (
 )
 
 func ListNodeCompilationContextsWithAgentIDs(database *sql.DB) ([]service.NodeCompilationContext, map[string]string, error) {
-	rows, err := database.Query(`SELECT agent_id, node_name FROM agents WHERE node_name IS NOT NULL AND node_name <> '' ORDER BY node_name`)
+	rows, err := database.Query(`SELECT agent_id, node_name FROM agents WHERE node_name IS NOT NULL AND node_name <> '' AND deleted_at IS NULL ORDER BY node_name`)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -1,7 +1,25 @@
 function renderNodeActionBlock() {
     const nodeId = getNodeIdFromUrl();
-    if(!nodeId) return '';
-    return '<button id="delete-node-btn" class="btn btn-danger btn-sm">Supprimer ce noeud</button>';
+    if (!nodeId || !state.agent) return '';
+    const isAdmin = window.currentUser && window.currentUser.role === 'admin';
+    const isDeleted = !!state.agent.deleted_at;
+    let html = '';
+    if (isDeleted) {
+        // Nœud en corbeille : on ne peut que le restaurer (admin).
+        if (isAdmin) {
+            html += '<button id="restore-node-btn" class="btn btn-success btn-sm">Restaurer ce nœud</button>';
+        }
+        return html;
+    }
+    // Recalcul de la configuration : admin uniquement, visible quand la config est obsolète.
+    if (isAdmin && state.agent.needs_recompile) {
+        html += '<button id="recompile-node-btn" class="btn btn-warning btn-sm mr-1">Recalculer la configuration</button>';
+    }
+    // Suppression : admin uniquement.
+    if (isAdmin) {
+        html += '<button id="delete-node-btn" class="btn btn-danger btn-sm">Supprimer ce nœud</button>';
+    }
+    return html;
 }
 
 function showNodeMessage(msg, type) {
@@ -11,22 +29,69 @@ function showNodeMessage(msg, type) {
     $('#node-message-block').html('<div style="background:'+color+';color:'+txtColor+';padding:8px 12px;border-radius:4px;margin-bottom:8px;">'+msg+'</div>');
 }
 
+// Suppression : ouvre une modale demandant de retaper le nom d'hôte.
 $(document).on('click', '#delete-node-btn', function() {
     const nodeId = getNodeIdFromUrl();
-    if(!nodeId) return;
-    if(confirm('Êtes-vous sûr de vouloir supprimer ce noeud ? Cette action supprimera aussi ses tags et historiques de rapport.')) {
-        $.ajax({
-            url: '/api/v1/agents/' + encodeURIComponent(nodeId),
-            type: 'DELETE',
-            success: function() {
-                showNodeMessage('Noeud supprimé.', 'success');
-                setTimeout(function(){ window.location.href = '/web'; }, 1200);
-            },
-            error: function(xhr) {
-                showNodeMessage('Erreur lors de la suppression du noeud: ' + (xhr.responseText || xhr.status), 'error');
-            }
-        });
+    if (!nodeId || !state.agent) return;
+    const requiredName = (state.agent.node_name || '').trim();
+    $('#delete-required-name').text(requiredName);
+    $('#delete-confirm-input').val('');
+    $('#delete-node-confirm-btn').prop('disabled', true);
+    $('#delete-node-modal').modal('show');
+});
+
+// Active le bouton "Supprimer définitivement" uniquement si le nom d'hôte a été retapé
+// (comparaison insensible à la casse et aux espaces).
+$(document).on('input', '#delete-confirm-input', function() {
+    const requiredName = (state.agent && state.agent.node_name || '').trim();
+    const typed = $(this).val().trim();
+    if (requiredName && typed.toLowerCase() === requiredName.toLowerCase()) {
+        $('#delete-node-confirm-btn').prop('disabled', false);
+    } else {
+        $('#delete-node-confirm-btn').prop('disabled', true);
     }
+});
+
+$(document).on('click', '#delete-node-confirm-btn', function() {
+    const nodeId = getNodeIdFromUrl();
+    if (!nodeId) return;
+    const requiredName = (state.agent && state.agent.node_name || '').trim();
+    const typed = $('#delete-confirm-input').val().trim();
+    if (!requiredName || typed.toLowerCase() !== requiredName.toLowerCase()) {
+        $('#delete-node-confirm-btn').prop('disabled', true);
+        return;
+    }
+    $.ajax({
+        url: '/api/v1/agents/' + encodeURIComponent(nodeId),
+        type: 'DELETE',
+        success: function() {
+            $('#delete-node-modal').modal('hide');
+            showNodeMessage('Noeud déplacé vers la corbeille.', 'success');
+            setTimeout(function(){ window.location.href = '/web'; }, 1200);
+        },
+        error: function(xhr) {
+            $('#delete-node-modal').modal('hide');
+            showNodeMessage('Erreur lors de la suppression du noeud: ' + (xhr.responseText || xhr.status), 'error');
+        }
+    });
+});
+
+// Restauration d'un nœud depuis la corbeille.
+$(document).on('click', '#restore-node-btn', function() {
+    const nodeId = getNodeIdFromUrl();
+    if (!nodeId) return;
+    if (!confirm('Restaurer ce nœud depuis la corbeille ?')) return;
+    $.ajax({
+        url: '/api/v1/agents/' + encodeURIComponent(nodeId) + '/restore',
+        type: 'POST',
+        success: function() {
+            showNodeMessage('Nœud restauré.', 'success');
+            setTimeout(function(){ window.location.reload(); }, 1000);
+        },
+        error: function(xhr) {
+            showNodeMessage('Erreur lors de la restauration: ' + (xhr.responseText || xhr.status), 'error');
+        }
+    });
 });
 
 $(document).on('click', '#recompile-node-btn', function() {
@@ -146,6 +211,9 @@ function fillAgentInfo() {
         }
     }
     $('#agent-name').text(state.agent.node_name || '');
+    if (state.agent.deleted_at) {
+        $('#agent-name').append(' <span class="badge bg-dark">Corbeille</span>');
+    }
     $('#agent-thumbprint').text(certExp + daysLeft);
     $('#agent-lastcomm').text(lastComm);
     if (Array.isArray(state.agent.configurations) && state.agent.configurations.length > 0) {
@@ -154,14 +222,6 @@ function fillAgentInfo() {
         $('#agent-config-block').html(html);
     } else {
         $('#agent-config-block').html('');
-    }
-    // Bouton de recalcul : admin uniquement, visible quand la config est obsolète.
-    const isAdmin = window.currentUser && window.currentUser.role === 'admin';
-    const needsRecompile = !!state.agent.needs_recompile;
-    if (isAdmin && needsRecompile) {
-        $('#recompile-node-btn').show();
-    } else {
-        $('#recompile-node-btn').hide();
     }
 }
 

@@ -15,10 +15,7 @@
                 <div id="node-message-block"></div>
                 <div class="d-flex justify-content-between align-items-center">
                     <h3>LCM Agent information</h3>
-                    <div>
-                        <button id="recompile-node-btn" class="btn btn-warning btn-sm mr-1" style="display:none;">Recalculer la configuration</button>
-                        <button id="delete-node-btn" class="btn btn-danger btn-sm">Delete this node</button>
-                    </div>
+                    <div id="node-action-block"></div>
                 </div>
                 <div id="agent-info-block">
                     <div><strong>Name:</strong> <span id="agent-name"></span></div>
@@ -42,5 +39,27 @@
         </div>
     </div>
 </section>
+
+<!-- Modale de confirmation de suppression : re-saisie du nom d'hôte obligatoire -->
+<div class="modal fade" id="delete-node-modal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Supprimer ce nœud</h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            </div>
+            <div class="modal-body">
+                <p>Cette action supprime <strong>définitivement</strong> le nœud, ses tags et son historique de rapports.</p>
+                <p>Pour confirmer, tape le nom d'hôte <strong><span id="delete-required-name"></span></strong> ci-dessous :</p>
+                <input type="text" class="form-control" id="delete-confirm-input" placeholder="Nom d'hôte" autocomplete="off">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-danger" id="delete-node-confirm-btn" disabled>Supprimer définitivement</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script src="/web/node.js"></script>
 {{end}}
