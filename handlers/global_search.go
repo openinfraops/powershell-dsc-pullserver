@@ -7,6 +7,7 @@ import (
 
 	"go-dsc-pull/internal/db"
 	"go-dsc-pull/internal/global"
+	"go-dsc-pull/internal/logs"
 )
 
 // searchAgentItem est un résultat de recherche côté nœuds.
@@ -70,6 +71,13 @@ func GlobalSearchHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer database.Close()
 
+	isMSSQL := isMSSQLDriver(global.AppConfig.Database.Driver)
+	// LIMIT n'est pas valide en T-SQL (MSSQL) : on utilise OFFSET/FETCH.
+	limitClause := "LIMIT ?"
+	if isMSSQL {
+		limitClause = "OFFSET 0 ROWS FETCH NEXT ? ROWS ONLY"
+	}
+
 	pattern := "%" + q + "%"
 	resp := searchResponse{
 		Agents:         make([]searchAgentItem, 0),
@@ -84,8 +92,10 @@ func GlobalSearchHandler(w http.ResponseWriter, r *http.Request) {
 		 WHERE deleted_at IS NULL
 		   AND (COALESCE(node_name, '') LIKE ? OR agent_id LIKE ? OR COALESCE(certificate_thumbprint, '') LIKE ?)
 		 ORDER BY COALESCE(node_name, '')
-		 LIMIT ?`, pattern, pattern, pattern, maxSearchResults)
-	if err == nil {
+		 `+limitClause, pattern, pattern, pattern, maxSearchResults)
+	if err != nil {
+		logs.WriteLogFile("WARN [SEARCH] agents query: " + err.Error())
+	} else {
 		defer agentRows.Close()
 		for agentRows.Next() {
 			var a searchAgentItem
@@ -102,8 +112,10 @@ func GlobalSearchHandler(w http.ResponseWriter, r *http.Request) {
 		 WHERE original_name = name
 		   AND (name LIKE ? OR COALESCE(original_name, '') LIKE ?)
 		 ORDER BY name
-		 LIMIT ?`, pattern, pattern, maxSearchResults)
-	if err == nil {
+		 `+limitClause, pattern, pattern, maxSearchResults)
+	if err != nil {
+		logs.WriteLogFile("WARN [SEARCH] configurations query: " + err.Error())
+	} else {
 		defer configRows.Close()
 		for configRows.Next() {
 			var c searchConfigItem
@@ -115,9 +127,11 @@ func GlobalSearchHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Modules : nom.
 	moduleRows, err := database.Query(
-		`SELECT id, name, COALESCE(version, '') FROM modules WHERE name LIKE ? ORDER BY name LIMIT ?`,
+		`SELECT id, name, COALESCE(version, '') FROM modules WHERE name LIKE ? ORDER BY name `+limitClause,
 		pattern, maxSearchResults)
-	if err == nil {
+	if err != nil {
+		logs.WriteLogFile("WARN [SEARCH] modules query: " + err.Error())
+	} else {
 		defer moduleRows.Close()
 		for moduleRows.Next() {
 			var m searchModuleItem
