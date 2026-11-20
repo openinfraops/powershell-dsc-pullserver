@@ -58,6 +58,13 @@ func GetAgentsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Mode serverSide de DataTable : le navigateur envoie le paramètre draw.
+	// On délègue alors au handler paginé/trié/recherche.
+	if r.URL.Query().Get("draw") != "" {
+		ListAgentsDataTableHandler(w, r)
+		return
+	}
+
 	// Filtrage dynamique
 	q := `SELECT agent_id, node_name, lcm_version, registration_type, certificate_thumbprint, certificate_subject, certificate_issuer, certificate_notbefore, certificate_notafter, registered_at, last_communication, has_error_last_report, needs_recompile, state, deleted_at, deleted_by FROM agents WHERE 1=1`
 	args := []interface{}{}
