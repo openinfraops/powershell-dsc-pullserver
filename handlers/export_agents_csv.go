@@ -67,6 +67,14 @@ func ExportAgentsCSVHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Filtre "certificats à risque" : expiré ou expirant sous X jours.
+	if r.URL.Query().Get("cert_at_risk") == "true" {
+		days, _ := strconv.Atoi(r.URL.Query().Get("cert_expiring_days"))
+		clause, cutoff := certAtRiskClause(global.AppConfig.Database.Driver, days)
+		q += clause
+		args = append(args, cutoff)
+	}
+
 	for _, rawTag := range r.URL.Query()["tag"] {
 		tagKey, tagValue, found := strings.Cut(rawTag, ":")
 		if !found || tagKey == "" || tagValue == "" {

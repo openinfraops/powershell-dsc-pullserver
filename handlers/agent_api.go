@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // GET /api/v1/agents
@@ -35,12 +36,41 @@ func GetAgentsHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Compteurs certificats (expirés / expirant sous X jours), driver-aware.
+		isMSSQL := isMSSQLDriver(global.AppConfig.Database.Driver)
+		expr := certNotAfterExpr(global.AppConfig.Database.Driver)
+		nowExpr := "julianday('now')"
+		if isMSSQL {
+			nowExpr = "GETDATE()"
+		}
+		certBase := " FROM agents WHERE deleted_at IS NULL AND certificate_notafter IS NOT NULL AND certificate_notafter <> ''"
+		cutoff := time.Now().UTC().AddDate(0, 0, 30)
+
+		var certsExpired, certsExpiring int
+		if err := database.QueryRow("SELECT COUNT(*)" + certBase + " AND " + expr + " < " + nowExpr).Scan(&certsExpired); err != nil {
+			http.Error(w, "DB stats error", http.StatusInternalServerError)
+			return
+		}
+		if isMSSQL {
+			if err := database.QueryRow("SELECT COUNT(*)"+certBase+" AND "+expr+" >= "+nowExpr+" AND "+expr+" < ?", cutoff).Scan(&certsExpiring); err != nil {
+				http.Error(w, "DB stats error", http.StatusInternalServerError)
+				return
+			}
+		} else {
+			if err := database.QueryRow("SELECT COUNT(*)"+certBase+" AND "+expr+" >= "+nowExpr+" AND "+expr+" < julianday(?)", cutoff.Format("2006-01-02 15:04:05")).Scan(&certsExpiring); err != nil {
+				http.Error(w, "DB stats error", http.StatusInternalServerError)
+				return
+			}
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]int{
 			"compliant":      compliant,
 			"failed":         failed,
 			"pending_enroll": pendingEnroll,
 			"pending_apply":  pendingApply,
+			"certs_expired":  certsExpired,
+			"certs_expiring": certsExpiring,
 		})
 		return
 	}
