@@ -12,25 +12,52 @@
 </section>
 <section class="content">
     <div class="container-fluid">
-        <div class="d-flex justify-content-end mb-2">
-            <button id="toggle-trash-btn" class="btn btn-outline-warning mr-2">
-                <i class="fas fa-trash"></i> Voir la corbeille
-            </button>
-            <button id="purge-trash-btn" class="btn btn-outline-danger mr-2" style="display:none;">
-                <i class="fas fa-broom"></i> Purger la corbeille
-            </button>
-            <button id="export-agents-csv-btn" class="btn btn-outline-success mr-2">
-                <i class="fas fa-file-csv"></i> Export CSV
-            </button>
-            <button id="preenroll-btn" class="btn btn-success" data-toggle="modal" data-target="#preenrollModal">
-                <i class="fas fa-plus"></i> Add node
-            </button>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="d-flex align-items-center flex-wrap">
+                <button id="stale-filter-btn" class="btn btn-outline-info btn-sm mr-2" title="Afficher uniquement les nœuds sans communication récente">
+                    <i class="fas fa-satellite-dish"></i> Nœuds muets <span id="stale-filter-indicator" class="badge badge-info ml-1" style="display:none;">ON</span>
+                </button>
+                <div class="form-inline">
+                    <label class="mr-1">Tag :</label>
+                    <select id="tag-filter-key" class="form-control form-control-sm mr-1" style="width:160px;">
+                        <option value="">(tous)</option>
+                    </select>
+                    <input type="text" id="tag-filter-value" class="form-control form-control-sm mr-1" placeholder="valeur" style="width:140px;">
+                    <button id="tag-filter-apply" class="btn btn-outline-secondary btn-sm mr-1" title="Filtrer par tag"><i class="fas fa-filter"></i></button>
+                    <button id="tag-filter-clear" class="btn btn-outline-secondary btn-sm" title="Effacer le filtre tag"><i class="fas fa-times"></i></button>
+                </div>
+            </div>
+            <div class="d-flex justify-content-end">
+                <button id="toggle-trash-btn" class="btn btn-outline-warning mr-2">
+                    <i class="fas fa-trash"></i> Voir la corbeille
+                </button>
+                <button id="purge-trash-btn" class="btn btn-outline-danger mr-2" style="display:none;">
+                    <i class="fas fa-broom"></i> Purger la corbeille
+                </button>
+                <button id="export-agents-csv-btn" class="btn btn-outline-success mr-2">
+                    <i class="fas fa-file-csv"></i> Export CSV
+                </button>
+                <button id="preenroll-btn" class="btn btn-success" data-toggle="modal" data-target="#preenrollModal">
+                    <i class="fas fa-plus"></i> Add node
+                </button>
+            </div>
         </div>
+
+        <div id="bulk-toolbar" class="alert alert-secondary p-2 mb-2" style="display:none;">
+            <strong><span id="bulk-selection-count">0</span> sélectionné(s)</strong>
+            <button id="bulk-recompile-btn" class="btn btn-warning btn-sm ml-2"><i class="fas fa-sync-alt"></i> Recompiler</button>
+            <button id="bulk-tag-btn" class="btn btn-info btn-sm ml-1"><i class="fas fa-tag"></i> Set tag</button>
+            <button id="bulk-trash-btn" class="btn btn-danger btn-sm ml-1"><i class="fas fa-trash"></i> Corbeille</button>
+            <button id="bulk-restore-btn" class="btn btn-success btn-sm ml-1" style="display:none;"><i class="fas fa-undo"></i> Restaurer</button>
+            <button id="bulk-clear-btn" class="btn btn-secondary btn-sm ml-1 float-right">Clear</button>
+        </div>
+
         <div class="card">
             <div class="card-body">
                 <table style="width:100%" id="agents-table" class="table table-bordered table-striped">
                     <thead>
                         <tr>
+                            <th><input type="checkbox" id="select-all-rows"></th>
                             <th>Name</th>
                             <th>Last Communication</th>
                             <th>Thumbprint</th>

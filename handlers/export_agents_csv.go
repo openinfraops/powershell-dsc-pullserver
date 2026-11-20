@@ -54,6 +54,19 @@ func ExportAgentsCSVHandler(w http.ResponseWriter, r *http.Request) {
 		q += " AND has_error_last_report = 0"
 	}
 
+	// Filtre "nœuds muets" : dernière communication trop ancienne.
+	if r.URL.Query().Get("stale") == "true" {
+		staleDays, _ := strconv.Atoi(r.URL.Query().Get("stale_days"))
+		cutoff := staleCutoff(staleDays)
+		if isMSSQLDriver(global.AppConfig.Database.Driver) {
+			q += " AND (last_communication IS NULL OR last_communication < ?)"
+			args = append(args, cutoff)
+		} else {
+			q += " AND COALESCE(julianday(COALESCE(last_communication, '')), 0) < julianday(?)"
+			args = append(args, cutoff.Format("2006-01-02 15:04:05"))
+		}
+	}
+
 	for _, rawTag := range r.URL.Query()["tag"] {
 		tagKey, tagValue, found := strings.Cut(rawTag, ":")
 		if !found || tagKey == "" || tagValue == "" {
