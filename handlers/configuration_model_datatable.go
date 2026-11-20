@@ -70,22 +70,23 @@ func ListConfigurationModelsDataTableHandler(w http.ResponseWriter, r *http.Requ
 
 	search := strings.TrimSpace(r.URL.Query().Get("search[value]"))
 
-	// Tri : mappe l'index de colonne DataTable vers une colonne SQL.
-	sortableCols := map[int]string{
-		0: "id",
-		1: "name",
-		2: "uploaded_by",
-		3: "upload_date",
-		4: "last_usage",
-	}
+	// Tri : l'index de colonne DataTable (user) est validé et mappé vers une
+	// colonne SQL fixe, sans jamais concaténer la valeur utilisateur dans la
+	// requête (ORDER BY). Le sens de tri est limité à 'asc'/'desc'.
 	orderColIdx, _ := strconv.Atoi(r.URL.Query().Get("order[0][column]"))
-	orderDir := r.URL.Query().Get("order[0][dir]")
-	if orderDir != "asc" {
-		orderDir = "desc"
+	orderCol := "id"
+	switch orderColIdx {
+	case 1:
+		orderCol = "name"
+	case 2:
+		orderCol = "uploaded_by"
+	case 3:
+		orderCol = "upload_date"
+	case 4:
+		orderCol = "last_usage"
 	}
-	orderCol, ok := sortableCols[orderColIdx]
-	if !ok {
-		orderCol = "id"
+	orderDir := "asc"
+	if r.URL.Query().Get("order[0][dir]") == "desc" {
 		orderDir = "desc"
 	}
 

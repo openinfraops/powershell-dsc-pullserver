@@ -98,23 +98,26 @@ func ListAgentsDataTableHandler(w http.ResponseWriter, r *http.Request) {
 
 	search := strings.TrimSpace(r.URL.Query().Get("search[value]"))
 
-	sortableCols := map[int]string{
-		1: "node_name",
-		2: "last_communication",
-		3: "certificate_thumbprint",
-		4: "state",
-		5: "certificate_notafter",
-		6: "agent_id",
-	}
+	// Tri : l'index de colonne DataTable (user) est validé et mappé vers une
+	// colonne SQL fixe, sans jamais concaténer la valeur utilisateur dans la
+	// requête (ORDER BY). Le sens de tri est limité à 'asc'/'desc'.
 	orderColIdx, _ := strconv.Atoi(r.URL.Query().Get("order[0][column]"))
-	orderDir := r.URL.Query().Get("order[0][dir]")
-	if orderDir != "asc" {
-		orderDir = "desc"
+	orderCol := "node_name"
+	switch orderColIdx {
+	case 2:
+		orderCol = "last_communication"
+	case 3:
+		orderCol = "certificate_thumbprint"
+	case 4:
+		orderCol = "state"
+	case 5:
+		orderCol = "certificate_notafter"
+	case 6:
+		orderCol = "agent_id"
 	}
-	orderCol, ok := sortableCols[orderColIdx]
-	if !ok {
-		orderCol = "node_name"
-		orderDir = "asc"
+	orderDir := "asc"
+	if r.URL.Query().Get("order[0][dir]") == "desc" {
+		orderDir = "desc"
 	}
 
 	isMSSQL := isMSSQLDriver(global.AppConfig.Database.Driver)
