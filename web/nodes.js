@@ -57,7 +57,7 @@ $(document).ready(function() {
         ]
     });
     $(window).on('resize', function() {
-        $('#agents-table').DataTable().columns.adjust().responsive.recalc();
+        $('#agents-table').DataTable().columns.adjust();
     });
 
     $('#preenroll-btn').click(function() {
