@@ -92,8 +92,9 @@ $(document).ready(function() {
             $('#bulk-restore-btn').toggle(viewMode === 'deleted');
             // Les actions de mise en corbeille/recompiler/tag ne s'appliquent qu'aux nœuds actifs.
             var active = viewMode !== 'deleted';
+            var isAdmin = window.currentUser && window.currentUser.role === 'admin';
             $('#bulk-recompile-btn').toggle(active);
-            $('#bulk-tag-btn').toggle(active);
+            $('#bulk-tag-btn').toggle(active && isAdmin);
             $('#bulk-trash-btn').toggle(active);
         } else {
             $('#bulk-toolbar').hide();

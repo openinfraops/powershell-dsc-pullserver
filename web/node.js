@@ -144,6 +144,7 @@ const state = {
     tags: {},
 };
 function renderAgentTags() {
+    const isAdmin = window.currentUser && window.currentUser.role === 'admin';
     let html = '';
     if (!state.tags || Object.keys(state.tags).length === 0) {
         html = '<em>Aucun tag</em>';
@@ -153,14 +154,12 @@ function renderAgentTags() {
             if (Array.isArray(values)) {
                 for (const v of values) {
                     html += `<li class="list-group-item py-1 px-2 d-flex justify-content-between align-items-center" style="font-size:0.97em;">
-                        <span><span class="badge badge-secondary mr-2" style="font-size:0.93em;">${k}</span> <span>${v}</span></span>
-                        <button class="btn btn-outline-danger btn-xs delete-tag-btn" data-key="${k}" data-value="${v}" style="padding:2px 8px;font-size:0.92em;">✕</button>
+                        <span><span class="badge badge-secondary mr-2" style="font-size:0.93em;">${k}</span> <span>${v}</span></span>` + (isAdmin ? `<button class="btn btn-outline-danger btn-xs delete-tag-btn" data-key="${k}" data-value="${v}" style="padding:2px 8px;font-size:0.92em;">✕</button>` : '') + `
                     </li>`;
                 }
             } else {
                 html += `<li class="list-group-item py-1 px-2 d-flex justify-content-between align-items-center" style="font-size:0.97em;">
-                    <span><span class="badge badge-secondary mr-2" style="font-size:0.93em;">${k}</span> <span>${values}</span></span>
-                    <button class="btn btn-outline-danger btn-xs delete-tag-btn" data-key="${k}" data-value="${values}" style="padding:2px 8px;font-size:0.92em;">✕</button>
+                    <span><span class="badge badge-secondary mr-2" style="font-size:0.93em;">${k}</span> <span>${values}</span></span>` + (isAdmin ? `<button class="btn btn-outline-danger btn-xs delete-tag-btn" data-key="${k}" data-value="${values}" style="padding:2px 8px;font-size:0.92em;">✕</button>` : '') + `
                 </li>`;
             }
         }
@@ -502,6 +501,11 @@ function renderAll() {
 
 $(document).ready(function() {
     const agentId = getNodeIdFromUrl();
+    // Ajout/suppression de tags réservé aux admins : on n'affiche le formulaire
+    // que pour un utilisateur admin.
+    if (window.currentUser && window.currentUser.role === 'admin') {
+        $('#add-tag-form').show();
+    }
     // Ne pas réécrire le HTML, juste remplir les valeurs
     renderAll();
     if (!agentId) {
