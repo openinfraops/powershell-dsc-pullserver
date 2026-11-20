@@ -19,12 +19,20 @@ $(document).ready(function() {
     // Parse une date stockée "YYYY-MM-DD HH:MM:SS" (UTC) en Date JS.
     function parseUtc(s) {
         if (!s) return null;
-        var t = String(s).replace('T', ' ').replace('Z', '');
-        if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(t)) {
-            return new Date(t.replace(' ', 'T') + 'Z');
+        var str = String(s).trim();
+        // "YYYY-MM-DD[ T]HH:MM:SS[.f...][Z|z]" -> traité comme UTC. DSC envoie
+        // parfois une fraction à 7 chiffres (.0000000Z) que Date() rejette ;
+        // on la tronque à 3 chiffres (millisecondes) pour un parsing fiable.
+        var m = str.match(/^(\d{4}-\d{2}-\d{2})[\sT]+(\d{2}:\d{2}:\d{2})(?:\.(\d+))?(?:Z|z)?$/);
+        if (m) {
+            var frac = (m[3] || '').slice(0, 3);
+            var iso = m[1] + 'T' + m[2] + (frac ? '.' + frac : '') + 'Z';
+            var d = new Date(iso);
+            return isNaN(d.getTime()) ? null : d;
         }
-        var d = new Date(s);
-        return isNaN(d.getTime()) ? null : d;
+        // Format avec fuseau explicite (±HH:MM) ou autre ISO : parsing natif.
+        var d2 = new Date(str);
+        return isNaN(d2.getTime()) ? null : d2;
     }
 
     function isStale(lastComm) {
@@ -56,7 +64,7 @@ $(document).ready(function() {
             return '<span class="badge bg-secondary text-light" title="Aucun certificat">N/A</span>';
         }
         var days = daysUntil(notAfter);
-        if (days === null) {
+        if (days === null || isNaN(days)) {
             return '<span class="badge bg-secondary text-light" title="Date non parseable">' + esc(notAfter) + '</span>';
         }
         if (days < 0) {

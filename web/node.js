@@ -181,7 +181,7 @@ function fillAgentInfo() {
     let certExp = certExpRaw;
     let daysLeft = '';
     if (certExpRaw) {
-        let expDate = new Date(certExpRaw);
+        let expDate = new Date(String(certExpRaw).replace(/\.(\d{3})\d+/, '.$1'));
         if (!isNaN(expDate.getTime())) {
             let y = expDate.getFullYear();
             let m = (expDate.getMonth()+1).toString().padStart(2,'0');
