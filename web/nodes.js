@@ -60,6 +60,29 @@ $(document).ready(function() {
         $('#agents-table').DataTable().columns.adjust();
     });
 
+    // Export CSV des agents (selon la vue active / corbeille) via blob authentifié.
+    $('#export-agents-csv-btn').click(function() {
+        var url = '/api/v1/agents/export?deleted=' + (viewMode === 'deleted' ? 'true' : 'false');
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', url, true);
+        xhr.responseType = 'blob';
+        xhr.onload = function() {
+            if(xhr.status === 200) {
+                var blob = xhr.response;
+                var link = document.createElement('a');
+                link.href = window.URL.createObjectURL(blob);
+                link.download = viewMode === 'deleted' ? 'agents_trash.csv' : 'agents_export.csv';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } else {
+                alert('Export failed: ' + xhr.status);
+            }
+        };
+        xhr.onerror = function() { alert('Export error'); };
+        xhr.send();
+    });
+
     $('#preenroll-btn').click(function() {
         $('#preenrollModal').modal('show');
     });

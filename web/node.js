@@ -533,6 +533,29 @@ $(document).ready(function() {
         }
     });
 
+    // Export CSV des rapports du nœud (blob authentifié).
+    $(document).on('click', '#export-reports-csv-btn', function() {
+        const url = `/api/v1/agents/${agentId}/reports/export`;
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', url, true);
+        xhr.responseType = 'blob';
+        xhr.onload = function() {
+            if(xhr.status === 200) {
+                const blob = xhr.response;
+                const link = document.createElement('a');
+                link.href = window.URL.createObjectURL(blob);
+                link.download = 'agent_reports_export.csv';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } else {
+                alert('Export failed: ' + xhr.status);
+            }
+        };
+        xhr.onerror = function() { alert('Export error'); };
+        xhr.send();
+    });
+
     // Gestion du changement de sélection de rapport (delegation)
     $(document).on('change', '#report-select', function() {
         const idx = parseInt($(this).val(), 10);
