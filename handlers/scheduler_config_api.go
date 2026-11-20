@@ -19,11 +19,12 @@ import (
 )
 
 const (
-	schedulerTaskReportCleanup         = "report_cleanup"
-	schedulerTaskReleaseCheck          = "release_check"
-	schedulerTaskLogCleanup            = "log_cleanup"
-	schedulerTaskConfigurationRepoSync = "configuration_repo_sync"
-	schedulerTaskAgentPurge            = "agent_purge"
+	schedulerTaskReportCleanup               = "report_cleanup"
+	schedulerTaskReleaseCheck                = "release_check"
+	schedulerTaskLogCleanup                  = "log_cleanup"
+	schedulerTaskConfigurationRepoSync       = "configuration_repo_sync"
+	schedulerTaskAgentPurge                  = "agent_purge"
+	schedulerTaskConfigurationVersionCleanup = "configuration_version_cleanup"
 )
 
 func schedulerDisplayName(taskName string) string {
@@ -38,6 +39,8 @@ func schedulerDisplayName(taskName string) string {
 		return "Configuration repository sync"
 	case schedulerTaskAgentPurge:
 		return "Corbeille (purge agents)"
+	case schedulerTaskConfigurationVersionCleanup:
+		return "Rétention versions de configuration"
 	default:
 		return taskName
 	}
@@ -98,32 +101,45 @@ func schedulerNextRunFromConfig(taskName string) *time.Time {
 		}
 		n := now.Add(time.Duration(mins) * time.Minute)
 		return &n
+	case schedulerTaskConfigurationVersionCleanup:
+		if !global.AppConfig.DSCPullServer.EnableConfigurationVersionCleanup {
+			return nil
+		}
+		mins := global.AppConfig.DSCPullServer.ConfigurationVersionCleanupIntervalMins
+		if mins <= 0 {
+			mins = 1440
+		}
+		n := now.Add(time.Duration(mins) * time.Minute)
+		return &n
 	default:
 		return nil
 	}
 }
 
 type SchedulerConfigDTO struct {
-	EnableReportAutoCleanup           bool   `json:"enable_report_auto_cleanup"`
-	ReportRetentionDays               int    `json:"report_retention_days"`
-	ReportCleanupIntervalMins         int    `json:"report_cleanup_interval_mins"`
-	EnableReleaseCheck                bool   `json:"enable_release_check"`
-	ReleaseCheckIntervalMins          int    `json:"release_check_interval_mins"`
-	EnableLogRotation                 bool   `json:"enable_log_rotation"`
-	LogRotateMaxSizeMB                int    `json:"log_rotate_max_size_mb"`
-	LogRotateMaxBackups               int    `json:"log_rotate_max_backups"`
-	LogRotateMaxAgeDays               int    `json:"log_rotate_max_age_days"`
-	EnableConfigurationRepoSync       bool   `json:"enable_configuration_repo_sync"`
-	ConfigurationRepoSyncIntervalMins int    `json:"configuration_repo_sync_interval_mins"`
-	ConfigurationRepoURL              string `json:"configuration_repo_url"`
-	ConfigurationRepoBranch           string `json:"configuration_repo_branch"`
-	ConfigurationRepoDirectory        string `json:"configuration_repo_directory"`
-	ConfigurationCompilerScript       string `json:"configuration_compiler_script"`
-	ConfigurationPowerShellExecutable string `json:"configuration_powershell_executable"`
-	CompileOnNodeRegistration         bool   `json:"compile_configuration_on_node_registration"`
-	EnableAgentPurge                  bool   `json:"enable_agent_purge"`
-	AgentPurgeRetentionDays           int    `json:"agent_purge_retention_days"`
-	AgentPurgeIntervalMins            int    `json:"agent_purge_interval_mins"`
+	EnableReportAutoCleanup                 bool   `json:"enable_report_auto_cleanup"`
+	ReportRetentionDays                     int    `json:"report_retention_days"`
+	ReportCleanupIntervalMins               int    `json:"report_cleanup_interval_mins"`
+	EnableReleaseCheck                      bool   `json:"enable_release_check"`
+	ReleaseCheckIntervalMins                int    `json:"release_check_interval_mins"`
+	EnableLogRotation                       bool   `json:"enable_log_rotation"`
+	LogRotateMaxSizeMB                      int    `json:"log_rotate_max_size_mb"`
+	LogRotateMaxBackups                     int    `json:"log_rotate_max_backups"`
+	LogRotateMaxAgeDays                     int    `json:"log_rotate_max_age_days"`
+	EnableConfigurationRepoSync             bool   `json:"enable_configuration_repo_sync"`
+	ConfigurationRepoSyncIntervalMins       int    `json:"configuration_repo_sync_interval_mins"`
+	ConfigurationRepoURL                    string `json:"configuration_repo_url"`
+	ConfigurationRepoBranch                 string `json:"configuration_repo_branch"`
+	ConfigurationRepoDirectory              string `json:"configuration_repo_directory"`
+	ConfigurationCompilerScript             string `json:"configuration_compiler_script"`
+	ConfigurationPowerShellExecutable       string `json:"configuration_powershell_executable"`
+	CompileOnNodeRegistration               bool   `json:"compile_configuration_on_node_registration"`
+	EnableAgentPurge                        bool   `json:"enable_agent_purge"`
+	AgentPurgeRetentionDays                 int    `json:"agent_purge_retention_days"`
+	AgentPurgeIntervalMins                  int    `json:"agent_purge_interval_mins"`
+	EnableConfigurationVersionCleanup       bool   `json:"enable_configuration_version_cleanup"`
+	ConfigurationVersionMaxKeep             int    `json:"configuration_version_max_keep"`
+	ConfigurationVersionCleanupIntervalMins int    `json:"configuration_version_cleanup_interval_mins"`
 }
 
 func resolveConfigPath() (string, error) {
@@ -176,26 +192,29 @@ func SchedulerConfigAPIHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		_ = json.NewEncoder(w).Encode(SchedulerConfigDTO{
-			EnableReportAutoCleanup:           cfg.DSCPullServer.EnableReportAutoCleanup,
-			ReportRetentionDays:               cfg.DSCPullServer.ReportRetentionDays,
-			ReportCleanupIntervalMins:         cfg.DSCPullServer.ReportCleanupIntervalMins,
-			EnableReleaseCheck:                cfg.DSCPullServer.EnableReleaseCheck,
-			ReleaseCheckIntervalMins:          cfg.DSCPullServer.ReleaseCheckIntervalMins,
-			EnableLogRotation:                 enableLogRotation,
-			LogRotateMaxSizeMB:                logRotateMaxSizeMB,
-			LogRotateMaxBackups:               logRotateMaxBackups,
-			LogRotateMaxAgeDays:               logRotateMaxAgeDays,
-			EnableConfigurationRepoSync:       repoSettings.Enabled,
-			ConfigurationRepoSyncIntervalMins: repoSettings.SyncIntervalMins,
-			ConfigurationRepoURL:              repoSettings.URL,
-			ConfigurationRepoBranch:           repoSettings.Branch,
-			ConfigurationRepoDirectory:        repoSettings.Directory,
-			ConfigurationCompilerScript:       repoSettings.CompilerScript,
-			ConfigurationPowerShellExecutable: repoSettings.PowerShellExecutable,
-			CompileOnNodeRegistration:         repoSettings.CompileOnNodeRegistration,
-			EnableAgentPurge:                  cfg.DSCPullServer.EnableAgentPurge,
-			AgentPurgeRetentionDays:           cfg.DSCPullServer.AgentPurgeRetentionDays,
-			AgentPurgeIntervalMins:            cfg.DSCPullServer.AgentPurgeIntervalMins,
+			EnableReportAutoCleanup:                 cfg.DSCPullServer.EnableReportAutoCleanup,
+			ReportRetentionDays:                     cfg.DSCPullServer.ReportRetentionDays,
+			ReportCleanupIntervalMins:               cfg.DSCPullServer.ReportCleanupIntervalMins,
+			EnableReleaseCheck:                      cfg.DSCPullServer.EnableReleaseCheck,
+			ReleaseCheckIntervalMins:                cfg.DSCPullServer.ReleaseCheckIntervalMins,
+			EnableLogRotation:                       enableLogRotation,
+			LogRotateMaxSizeMB:                      logRotateMaxSizeMB,
+			LogRotateMaxBackups:                     logRotateMaxBackups,
+			LogRotateMaxAgeDays:                     logRotateMaxAgeDays,
+			EnableConfigurationRepoSync:             repoSettings.Enabled,
+			ConfigurationRepoSyncIntervalMins:       repoSettings.SyncIntervalMins,
+			ConfigurationRepoURL:                    repoSettings.URL,
+			ConfigurationRepoBranch:                 repoSettings.Branch,
+			ConfigurationRepoDirectory:              repoSettings.Directory,
+			ConfigurationCompilerScript:             repoSettings.CompilerScript,
+			ConfigurationPowerShellExecutable:       repoSettings.PowerShellExecutable,
+			CompileOnNodeRegistration:               repoSettings.CompileOnNodeRegistration,
+			EnableAgentPurge:                        cfg.DSCPullServer.EnableAgentPurge,
+			AgentPurgeRetentionDays:                 cfg.DSCPullServer.AgentPurgeRetentionDays,
+			AgentPurgeIntervalMins:                  cfg.DSCPullServer.AgentPurgeIntervalMins,
+			EnableConfigurationVersionCleanup:       cfg.DSCPullServer.EnableConfigurationVersionCleanup,
+			ConfigurationVersionMaxKeep:             cfg.DSCPullServer.ConfigurationVersionMaxKeep,
+			ConfigurationVersionCleanupIntervalMins: cfg.DSCPullServer.ConfigurationVersionCleanupIntervalMins,
 		})
 
 	case http.MethodPut:
@@ -255,6 +274,16 @@ func SchedulerConfigAPIHandler(w http.ResponseWriter, r *http.Request) {
 			_ = json.NewEncoder(w).Encode(map[string]string{"error": "agent_purge_interval_mins must be > 0 when agent purge is enabled"})
 			return
 		}
+		if req.EnableConfigurationVersionCleanup && req.ConfigurationVersionMaxKeep < 1 {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "configuration_version_max_keep must be >= 1 when configuration version cleanup is enabled"})
+			return
+		}
+		if req.EnableConfigurationVersionCleanup && req.ConfigurationVersionCleanupIntervalMins <= 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "configuration_version_cleanup_interval_mins must be > 0 when configuration version cleanup is enabled"})
+			return
+		}
 
 		configPath, err := resolveConfigPath()
 		if err != nil {
@@ -293,6 +322,9 @@ func SchedulerConfigAPIHandler(w http.ResponseWriter, r *http.Request) {
 		dscPullRaw["enable_agent_purge"] = req.EnableAgentPurge
 		dscPullRaw["agent_purge_retention_days"] = req.AgentPurgeRetentionDays
 		dscPullRaw["agent_purge_interval_mins"] = req.AgentPurgeIntervalMins
+		dscPullRaw["enable_configuration_version_cleanup"] = req.EnableConfigurationVersionCleanup
+		dscPullRaw["configuration_version_max_keep"] = req.ConfigurationVersionMaxKeep
+		dscPullRaw["configuration_version_cleanup_interval_mins"] = req.ConfigurationVersionCleanupIntervalMins
 		fullConfig["dsc_pullserver"] = dscPullRaw
 
 		data, err := json.MarshalIndent(fullConfig, "", "  ")
@@ -340,11 +372,14 @@ func SchedulerConfigAPIHandler(w http.ResponseWriter, r *http.Request) {
 		global.AppConfig.DSCPullServer.EnableAgentPurge = req.EnableAgentPurge
 		global.AppConfig.DSCPullServer.AgentPurgeRetentionDays = req.AgentPurgeRetentionDays
 		global.AppConfig.DSCPullServer.AgentPurgeIntervalMins = req.AgentPurgeIntervalMins
+		global.AppConfig.DSCPullServer.EnableConfigurationVersionCleanup = req.EnableConfigurationVersionCleanup
+		global.AppConfig.DSCPullServer.ConfigurationVersionMaxKeep = req.ConfigurationVersionMaxKeep
+		global.AppConfig.DSCPullServer.ConfigurationVersionCleanupIntervalMins = req.ConfigurationVersionCleanupIntervalMins
 
 		if auditDB, auditErr := db.OpenDB(&global.AppConfig.Database); auditErr == nil {
 			driverName := global.AppConfig.Database.Driver
 			details := fmt.Sprintf(
-				"Updated scheduler config: report_cleanup(enable=%t, retention_days=%d, interval_mins=%d), release_check(enable=%t, interval_mins=%d), log_rotation(enable=%t, max_size_mb=%d, max_backups=%d, max_age_days=%d), configuration_repo_sync(enable=%t, interval_mins=%d), agent_purge(enable=%t, retention_days=%d, interval_mins=%d)",
+				"Updated scheduler config: report_cleanup(enable=%t, retention_days=%d, interval_mins=%d), release_check(enable=%t, interval_mins=%d), log_rotation(enable=%t, max_size_mb=%d, max_backups=%d, max_age_days=%d), configuration_repo_sync(enable=%t, interval_mins=%d), agent_purge(enable=%t, retention_days=%d, interval_mins=%d), configuration_version_cleanup(enable=%t, max_keep=%d, interval_mins=%d)",
 				req.EnableReportAutoCleanup,
 				req.ReportRetentionDays,
 				req.ReportCleanupIntervalMins,
@@ -359,6 +394,9 @@ func SchedulerConfigAPIHandler(w http.ResponseWriter, r *http.Request) {
 				req.EnableAgentPurge,
 				req.AgentPurgeRetentionDays,
 				req.AgentPurgeIntervalMins,
+				req.EnableConfigurationVersionCleanup,
+				req.ConfigurationVersionMaxKeep,
+				req.ConfigurationVersionCleanupIntervalMins,
 			)
 			_ = db.InsertAudit(auditDB, driverName, schedulerActorEmail(r), "update", "scheduler_config", details, r.RemoteAddr)
 			auditDB.Close()
@@ -447,6 +485,46 @@ func SchedulerRunAgentPurgeAPIHandler(w http.ResponseWriter, r *http.Request) {
 	_ = db.CompleteSchedulerTaskRun(database, global.AppConfig.Database.Driver, schedulerTaskAgentPurge, "success", fmt.Sprintf("Purged %d trashed agent(s)", purged), time.Now().UTC(), nextRun)
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]int64{"purged": purged})
+}
+
+// SchedulerRunConfigurationVersionCleanupAPIHandler déclenche manuellement la
+// purge des versions de configuration au-delà du plafond configuré.
+func SchedulerRunConfigurationVersionCleanupAPIHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	maxKeep := global.AppConfig.DSCPullServer.ConfigurationVersionMaxKeep
+	if maxKeep < 1 {
+		http.Error(w, "Invalid configuration version retention configuration", http.StatusBadRequest)
+		return
+	}
+
+	database, err := db.OpenDB(&global.AppConfig.Database)
+	if err != nil {
+		http.Error(w, "DB open error", http.StatusInternalServerError)
+		return
+	}
+	defer database.Close()
+
+	startedAt := time.Now().UTC()
+	nextRun := schedulerNextRunFromConfig(schedulerTaskConfigurationVersionCleanup)
+	_ = db.BeginSchedulerTaskRun(database, global.AppConfig.Database.Driver, schedulerTaskConfigurationVersionCleanup, schedulerDisplayName(schedulerTaskConfigurationVersionCleanup), "manual", startedAt, nextRun)
+
+	pruned, err := db.PruneOldConfigurationVersions(database, maxKeep)
+	if err != nil {
+		_ = db.InsertAudit(database, global.AppConfig.Database.Driver, schedulerActorEmail(r), "run", "scheduler_task", fmt.Sprintf("Manual run failed: %s, error=%s", schedulerTaskConfigurationVersionCleanup, err.Error()), r.RemoteAddr)
+		_ = db.CompleteSchedulerTaskRun(database, global.AppConfig.Database.Driver, schedulerTaskConfigurationVersionCleanup, "error", err.Error(), time.Now().UTC(), nextRun)
+		http.Error(w, "Configuration version cleanup failed", http.StatusInternalServerError)
+		return
+	}
+
+	logs.WriteLogFile(fmt.Sprintf("INFO [CONFIG VERSION CLEANUP] Manual cleanup triggered from admin, pruned=%d", pruned))
+	_ = db.InsertAudit(database, global.AppConfig.Database.Driver, schedulerActorEmail(r), "run", "scheduler_task", fmt.Sprintf("Manual run: %s, pruned=%d", schedulerTaskConfigurationVersionCleanup, pruned), r.RemoteAddr)
+	_ = db.CompleteSchedulerTaskRun(database, global.AppConfig.Database.Driver, schedulerTaskConfigurationVersionCleanup, "success", fmt.Sprintf("Pruned %d configuration version(s)", pruned), time.Now().UTC(), nextRun)
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]int64{"pruned": pruned})
 }
 
 func SchedulerConfigFromApp(cfg *schema.AppConfig) SchedulerConfigDTO {
@@ -637,6 +715,7 @@ func SchedulerTasksAPIHandler(w http.ResponseWriter, r *http.Request) {
 	_ = db.UpsertSchedulerTask(database, driver, schedulerTaskReleaseCheck, schedulerDisplayName(schedulerTaskReleaseCheck), schedulerNextRunFromConfig(schedulerTaskReleaseCheck))
 	_ = db.UpsertSchedulerTask(database, driver, schedulerTaskLogCleanup, schedulerDisplayName(schedulerTaskLogCleanup), schedulerNextRunFromConfig(schedulerTaskLogCleanup))
 	_ = db.UpsertSchedulerTask(database, driver, schedulerTaskAgentPurge, schedulerDisplayName(schedulerTaskAgentPurge), schedulerNextRunFromConfig(schedulerTaskAgentPurge))
+	_ = db.UpsertSchedulerTask(database, driver, schedulerTaskConfigurationVersionCleanup, schedulerDisplayName(schedulerTaskConfigurationVersionCleanup), schedulerNextRunFromConfig(schedulerTaskConfigurationVersionCleanup))
 
 	tasks, err := db.ListSchedulerTasks(database)
 	if err != nil {

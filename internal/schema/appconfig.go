@@ -28,6 +28,9 @@ type HTTPConfig struct {
 	EnableAgentPurge                        bool   `json:"enable_agent_purge"`
 	AgentPurgeRetentionDays                 int    `json:"agent_purge_retention_days"`
 	AgentPurgeIntervalMins                  int    `json:"agent_purge_interval_mins"`
+	EnableConfigurationVersionCleanup       bool   `json:"enable_configuration_version_cleanup"`
+	ConfigurationVersionMaxKeep             int    `json:"configuration_version_max_keep"`
+	ConfigurationVersionCleanupIntervalMins int    `json:"configuration_version_cleanup_interval_mins"`
 }
 
 type AppConfig struct {

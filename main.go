@@ -106,11 +106,12 @@ func main() {
 		}
 
 		const (
-			taskReportCleanup         = "report_cleanup"
-			taskReleaseCheck          = "release_check"
-			taskLogCleanup            = "log_cleanup"
-			taskConfigurationRepoSync = "configuration_repo_sync"
-			taskAgentPurge            = "agent_purge"
+			taskReportCleanup               = "report_cleanup"
+			taskReleaseCheck                = "release_check"
+			taskLogCleanup                  = "log_cleanup"
+			taskConfigurationRepoSync       = "configuration_repo_sync"
+			taskAgentPurge                  = "agent_purge"
+			taskConfigurationVersionCleanup = "configuration_version_cleanup"
 		)
 
 		const logMaintenanceInterval = time.Hour
@@ -120,6 +121,7 @@ func main() {
 		logDisplay := "Log rotate"
 		configurationRepoDisplay := "Configuration repository sync"
 		agentPurgeDisplay := "Corbeille (purge agents)"
+		configurationVersionCleanupDisplay := "Rétention versions de configuration"
 
 		var reportNext *time.Time
 		if global.AppConfig.DSCPullServer.EnableReportAutoCleanup {
@@ -160,6 +162,17 @@ func main() {
 			agentPurgeNext = &n
 		}
 		_ = db.UpsertSchedulerTask(dbConn, global.AppConfig.Database.Driver, taskAgentPurge, agentPurgeDisplay, agentPurgeNext)
+
+		var configVersionCleanupNext *time.Time
+		if global.AppConfig.DSCPullServer.EnableConfigurationVersionCleanup {
+			intervalMins := global.AppConfig.DSCPullServer.ConfigurationVersionCleanupIntervalMins
+			if intervalMins <= 0 {
+				intervalMins = 1440
+			}
+			n := time.Now().UTC().Add(time.Duration(intervalMins) * time.Minute)
+			configVersionCleanupNext = &n
+		}
+		_ = db.UpsertSchedulerTask(dbConn, global.AppConfig.Database.Driver, taskConfigurationVersionCleanup, configurationVersionCleanupDisplay, configVersionCleanupNext)
 
 		repoCfg := service.ConfigurationRepoConfig{URL: repoSettings.URL, Branch: repoSettings.Branch, Directory: repoSettings.Directory, CompilerScript: repoSettings.CompilerScript, PowerShellExecutable: repoSettings.PowerShellExecutable}
 		repoSyncEnabled := repoSettings.Enabled
@@ -237,6 +250,39 @@ func main() {
 						next := startedAt.Add(time.Duration(intervalMins) * time.Minute)
 						msg := fmt.Sprintf("Purged %d trashed agent(s)", purged)
 						_ = db.CompleteSchedulerTaskRun(dbConn, global.AppConfig.Database.Driver, taskAgentPurge, "success", msg, time.Now().UTC(), &next)
+					},
+				)
+			}
+		}
+
+		if global.AppConfig.DSCPullServer.EnableConfigurationVersionCleanup {
+			maxKeep := global.AppConfig.DSCPullServer.ConfigurationVersionMaxKeep
+			intervalMins := global.AppConfig.DSCPullServer.ConfigurationVersionCleanupIntervalMins
+			if maxKeep < 1 {
+				logs.WriteLogFile("WARN [CONFIG VERSION CLEANUP] Disabled: configuration_version_max_keep must be >= 1")
+			} else {
+				if intervalMins <= 0 {
+					intervalMins = 1440
+				}
+				logs.WriteLogFile(fmt.Sprintf("INFO [CONFIG VERSION CLEANUP] Enabled: max_keep=%d version(s), interval=%d minute(s)", maxKeep, intervalMins))
+				db.StartConfigurationVersionCleanupWorker(
+					dbConn,
+					maxKeep,
+					time.Duration(intervalMins)*time.Minute,
+					func(startedAt time.Time, nextRunAt *time.Time) {
+						_ = db.BeginSchedulerTaskRun(dbConn, global.AppConfig.Database.Driver, taskConfigurationVersionCleanup, configurationVersionCleanupDisplay, "automatic", startedAt, nextRunAt)
+					},
+					func(startedAt time.Time, pruned int64, cleanupErr error) {
+						if cleanupErr != nil {
+							logs.WriteLogFile(fmt.Sprintf("ERROR [CONFIG VERSION CLEANUP] %v", cleanupErr))
+							msg := cleanupErr.Error()
+							_ = db.CompleteSchedulerTaskRun(dbConn, global.AppConfig.Database.Driver, taskConfigurationVersionCleanup, "error", msg, time.Now().UTC(), nil)
+							return
+						}
+						logs.WriteLogFile(fmt.Sprintf("INFO [CONFIG VERSION CLEANUP] Pruned %d old configuration version(s)", pruned))
+						next := startedAt.Add(time.Duration(intervalMins) * time.Minute)
+						msg := fmt.Sprintf("Pruned %d old configuration version(s)", pruned)
+						_ = db.CompleteSchedulerTaskRun(dbConn, global.AppConfig.Database.Driver, taskConfigurationVersionCleanup, "success", msg, time.Now().UTC(), &next)
 					},
 				)
 			}

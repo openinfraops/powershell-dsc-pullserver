@@ -16,7 +16,8 @@ $(function() {
         release_check: '/api/v1/scheduler/release-check/run',
         log_cleanup: '/api/v1/scheduler/logs/cleanup/run',
         configuration_repo_sync: '/api/v1/scheduler/configuration-repo/run',
-        agent_purge: '/api/v1/scheduler/agent-purge/run'
+        agent_purge: '/api/v1/scheduler/agent-purge/run',
+        configuration_version_cleanup: '/api/v1/scheduler/configuration-version-cleanup/run'
     };
 
     function showStatus(text, color) {
@@ -45,7 +46,10 @@ $(function() {
             compile_configuration_on_node_registration: !!c.compile_configuration_on_node_registration,
             enable_agent_purge: !!c.enable_agent_purge,
             agent_purge_retention_days: c.agent_purge_retention_days || 30,
-            agent_purge_interval_mins: c.agent_purge_interval_mins || 1440
+            agent_purge_interval_mins: c.agent_purge_interval_mins || 1440,
+            enable_configuration_version_cleanup: !!c.enable_configuration_version_cleanup,
+            configuration_version_max_keep: c.configuration_version_max_keep || 10,
+            configuration_version_cleanup_interval_mins: c.configuration_version_cleanup_interval_mins || 1440
         };
     }
 
@@ -108,6 +112,14 @@ $(function() {
         $('#agentPurgeConfigModal').modal('show');
     }
 
+    function openConfigurationVersionCleanupConfigModal() {
+        const cfg = normalizeConfig(schedulerConfig);
+        $('#modal_enable_configuration_version_cleanup').prop('checked', cfg.enable_configuration_version_cleanup);
+        $('#modal_configuration_version_max_keep').val(cfg.configuration_version_max_keep);
+        $('#modal_configuration_version_cleanup_interval_mins').val(cfg.configuration_version_cleanup_interval_mins);
+        $('#configurationVersionCleanupModal').modal('show');
+    }
+
     function statusBadge(status) {
         const value = (status || '').toLowerCase();
         if (value === 'success') {
@@ -138,6 +150,9 @@ $(function() {
         }
         if (taskName === 'agent_purge') {
             return !!cfg.enable_agent_purge;
+        }
+        if (taskName === 'configuration_version_cleanup') {
+            return !!cfg.enable_configuration_version_cleanup;
         }
         return true;
     }
@@ -357,6 +372,10 @@ $(function() {
             openAgentPurgeConfigModal();
             return;
         }
+        if (task === 'configuration_version_cleanup') {
+            openConfigurationVersionCleanupConfigModal();
+            return;
+        }
     });
 
     $('#save-report-config').on('click', function() {
@@ -400,6 +419,17 @@ $(function() {
         });
         saveConfig(payload, function() {
             $('#agentPurgeConfigModal').modal('hide');
+        });
+    });
+
+    $('#save-configuration-version-cleanup-config').on('click', function() {
+        const payload = buildPayload({
+            enable_configuration_version_cleanup: $('#modal_enable_configuration_version_cleanup').prop('checked'),
+            configuration_version_max_keep: parseInt($('#modal_configuration_version_max_keep').val(), 10),
+            configuration_version_cleanup_interval_mins: parseInt($('#modal_configuration_version_cleanup_interval_mins').val(), 10)
+        });
+        saveConfig(payload, function() {
+            $('#configurationVersionCleanupModal').modal('hide');
         });
     });
 
