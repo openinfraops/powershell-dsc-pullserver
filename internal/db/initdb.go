@@ -57,5 +57,10 @@ func InitDB(cfg *schema.DBConfig) {
 		os.Exit(1)
 	}
 
+	if err := EnsureConfigurationRepoSettingsSchema(database, cfg.Driver); err != nil {
+		logs.WriteLogFile("ERROR [INITDB] Failed to ensure configuration repo settings schema columns: " + err.Error())
+		os.Exit(1)
+	}
+
     logs.WriteLogFile("INFO [INITDB] DB schema checked/created.")
 }

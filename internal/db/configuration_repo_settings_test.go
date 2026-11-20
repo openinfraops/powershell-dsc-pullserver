@@ -19,7 +19,8 @@ func TestConfigurationRepoSettingsLegacyImportAndSave(t *testing.T) {
 		repository_url TEXT NOT NULL DEFAULT '', branch TEXT NOT NULL DEFAULT 'main',
 		checkout_directory TEXT NOT NULL DEFAULT 'data/configuration-repository',
 		compiler_script TEXT NOT NULL DEFAULT 'scripts/Compile-Configurations.ps1',
-		powershell_executable TEXT NOT NULL DEFAULT 'pwsh', sync_interval_mins INTEGER NOT NULL DEFAULT 60,
+		powershell_executable TEXT NOT NULL DEFAULT 'pwsh', repository_username TEXT NOT NULL DEFAULT '',
+		repository_password TEXT NOT NULL DEFAULT '', sync_interval_mins INTEGER NOT NULL DEFAULT 60,
 		compile_on_node_registration INTEGER NOT NULL DEFAULT 0, legacy_imported INTEGER NOT NULL DEFAULT 0,
 		updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)`); err != nil {
 		t.Fatal(err)

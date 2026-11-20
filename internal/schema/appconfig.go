@@ -24,6 +24,8 @@ type HTTPConfig struct {
 	LegacyConfigurationRepoDirectory        string `json:"configuration_repo_directory"`
 	LegacyConfigurationCompilerScript       string `json:"configuration_compiler_script"`
 	LegacyConfigurationPowerShellExecutable string `json:"configuration_powershell_executable"`
+	LegacyConfigurationRepoUsername         string `json:"configuration_repo_username"`
+	LegacyConfigurationRepoPassword         string `json:"configuration_repo_password"`
 	LegacyConfigurationRepoSyncIntervalMins int    `json:"configuration_repo_sync_interval_mins"`
 	EnableAgentPurge                        bool   `json:"enable_agent_purge"`
 	AgentPurgeRetentionDays                 int    `json:"agent_purge_retention_days"`

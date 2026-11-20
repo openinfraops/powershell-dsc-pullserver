@@ -7,6 +7,8 @@ CREATE TABLE configuration_repo_settings (
     checkout_directory NVARCHAR(1024) NOT NULL DEFAULT 'data/configuration-repository',
     compiler_script NVARCHAR(1024) NOT NULL DEFAULT 'scripts/Compile-Configurations.ps1',
     powershell_executable NVARCHAR(255) NOT NULL DEFAULT 'pwsh',
+    repository_username NVARCHAR(255) NOT NULL DEFAULT '',
+    repository_password NVARCHAR(2048) NOT NULL DEFAULT '',
     sync_interval_mins INT NOT NULL DEFAULT 60,
     compile_on_node_registration BIT NOT NULL DEFAULT 0,
     legacy_imported BIT NOT NULL DEFAULT 0,

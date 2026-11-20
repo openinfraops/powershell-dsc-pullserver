@@ -18,6 +18,7 @@ import (
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/transport"
+	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	"go-dsc-pull/internal/logs"
 	"sort"
 )
@@ -33,6 +34,8 @@ type ConfigurationRepoConfig struct {
 	Directory            string
 	CompilerScript       string
 	PowerShellExecutable string
+	RepositoryUsername   string
+	RepositoryPassword   string
 	NodeContexts         []NodeCompilationContext
 }
 
@@ -165,7 +168,7 @@ func SyncAndCompileConfigurationsForNodeContext(config ConfigurationRepoConfig, 
 	}
 	gitContext, cancelGit := context.WithTimeout(context.Background(), configurationGitSyncTimeout)
 	defer cancelGit()
-	gitChanged, err := syncGitRepositoryContext(gitContext, repoDir, config.URL, config.Branch)
+	gitChanged, err := syncGitRepositoryContext(gitContext, repoDir, config.URL, config.Branch, config.RepositoryUsername, config.RepositoryPassword)
 	if err != nil {
 		return nil, err
 	}
@@ -346,10 +349,20 @@ func writeNodeCompilationContext(nodes []NodeCompilationContext, names []string)
 func SyncGitRepository(repoDir, repositoryURL, branch string) (bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), configurationGitSyncTimeout)
 	defer cancel()
-	return syncGitRepositoryContext(ctx, repoDir, repositoryURL, branch)
+	return syncGitRepositoryContext(ctx, repoDir, repositoryURL, branch, "", "")
 }
 
-func syncGitRepositoryContext(ctx context.Context, repoDir, repositoryURL, branch string) (bool, error) {
+// gitAuthMethod retourne l'authentification HTTP à utiliser pour go-git. Si des
+// credentials explicites sont fournies, elles priment sur tout jeton embarqué
+// dans l'URL. Sinon on retourne nil (go-git se rabattra sur l'userinfo de l'URL).
+func gitAuthMethod(username, password string) transport.AuthMethod {
+	if username == "" && password == "" {
+		return nil
+	}
+	return &http.BasicAuth{Username: username, Password: password}
+}
+
+func syncGitRepositoryContext(ctx context.Context, repoDir, repositoryURL, branch, username, password string) (bool, error) {
 	if _, err := os.Stat(filepath.Join(repoDir, ".git")); os.IsNotExist(err) {
 		if _, dirErr := os.Stat(repoDir); dirErr == nil {
 			entries, readErr := os.ReadDir(repoDir)
@@ -362,7 +375,7 @@ func syncGitRepositoryContext(ctx context.Context, repoDir, repositoryURL, branc
 		} else if !os.IsNotExist(dirErr) {
 			return false, fmt.Errorf("inspect repository directory: %w", dirErr)
 		}
-		cloneOptions := &git.CloneOptions{URL: repositoryURL, Progress: nil}
+		cloneOptions := &git.CloneOptions{URL: repositoryURL, Progress: nil, Auth: gitAuthMethod(username, password)}
 		if branch != "" {
 			cloneOptions.ReferenceName = plumbing.NewBranchReferenceName(branch)
 			cloneOptions.SingleBranch = true
@@ -406,7 +419,7 @@ func syncGitRepositoryContext(ctx context.Context, repoDir, repositoryURL, branc
 	if err := worktree.Checkout(&git.CheckoutOptions{Branch: branchRef, Keep: true}); err != nil {
 		return false, fmt.Errorf("checkout branch %q: %w", branch, err)
 	}
-	if err := remote.FetchContext(ctx, &git.FetchOptions{RefSpecs: []config.RefSpec{config.RefSpec("+refs/heads/" + branch + ":refs/remotes/origin/" + branch)}, Prune: true}); err != nil && err != git.NoErrAlreadyUpToDate && err != transport.ErrEmptyRemoteRepository {
+	if err := remote.FetchContext(ctx, &git.FetchOptions{RefSpecs: []config.RefSpec{config.RefSpec("+refs/heads/" + branch + ":refs/remotes/origin/" + branch)}, Prune: true, Auth: gitAuthMethod(username, password)}); err != nil && err != git.NoErrAlreadyUpToDate && err != transport.ErrEmptyRemoteRepository {
 		return false, fmt.Errorf("fetch branch %q: %w", branch, err)
 	}
 	remoteRef, err := repository.Reference(plumbing.NewRemoteReferenceName("origin", branch), true)
@@ -420,7 +433,7 @@ func syncGitRepositoryContext(ctx context.Context, repoDir, repositoryURL, branc
 	if head.Hash() == remoteRef.Hash() {
 		return false, nil
 	}
-	if err := worktree.PullContext(ctx, &git.PullOptions{RemoteName: "origin", ReferenceName: branchRef, SingleBranch: true, Force: false}); err != nil && err != git.NoErrAlreadyUpToDate {
+	if err := worktree.PullContext(ctx, &git.PullOptions{RemoteName: "origin", ReferenceName: branchRef, SingleBranch: true, Force: false, Auth: gitAuthMethod(username, password)}); err != nil && err != git.NoErrAlreadyUpToDate {
 		return false, fmt.Errorf("fast-forward branch %q: %w", branch, err)
 	}
 	return true, nil

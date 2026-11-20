@@ -98,6 +98,8 @@ func main() {
 			Directory:            global.AppConfig.DSCPullServer.LegacyConfigurationRepoDirectory,
 			CompilerScript:       global.AppConfig.DSCPullServer.LegacyConfigurationCompilerScript,
 			PowerShellExecutable: global.AppConfig.DSCPullServer.LegacyConfigurationPowerShellExecutable,
+			RepositoryUsername:   global.AppConfig.DSCPullServer.LegacyConfigurationRepoUsername,
+			RepositoryPassword:   global.AppConfig.DSCPullServer.LegacyConfigurationRepoPassword,
 			SyncIntervalMins:     global.AppConfig.DSCPullServer.LegacyConfigurationRepoSyncIntervalMins,
 		})
 		if err != nil {
@@ -174,7 +176,7 @@ func main() {
 		}
 		_ = db.UpsertSchedulerTask(dbConn, global.AppConfig.Database.Driver, taskConfigurationVersionCleanup, configurationVersionCleanupDisplay, configVersionCleanupNext)
 
-		repoCfg := service.ConfigurationRepoConfig{URL: repoSettings.URL, Branch: repoSettings.Branch, Directory: repoSettings.Directory, CompilerScript: repoSettings.CompilerScript, PowerShellExecutable: repoSettings.PowerShellExecutable}
+		repoCfg := service.ConfigurationRepoConfig{URL: repoSettings.URL, Branch: repoSettings.Branch, Directory: repoSettings.Directory, CompilerScript: repoSettings.CompilerScript, PowerShellExecutable: repoSettings.PowerShellExecutable, RepositoryUsername: repoSettings.RepositoryUsername, RepositoryPassword: repoSettings.RepositoryPassword}
 		repoSyncEnabled := repoSettings.Enabled
 		repoIntervalMins := repoSettings.SyncIntervalMins
 		if repoIntervalMins <= 0 {

@@ -46,6 +46,8 @@ func compileNodeConfig(database *sql.DB, agentId, nodeName string) error {
 		Directory:            repoSettings.Directory,
 		CompilerScript:       repoSettings.CompilerScript,
 		PowerShellExecutable: repoSettings.PowerShellExecutable,
+		RepositoryUsername:   repoSettings.RepositoryUsername,
+		RepositoryPassword:   repoSettings.RepositoryPassword,
 	}
 	_, compileErr := service.RunConfigurationRepoSyncForNodeContext(repoConfig, configNames, nodeName, nodeTags, func(compiled []service.CompiledConfiguration) (int, error) {
 		assignments := make(map[string]string, len(compiled)+1)

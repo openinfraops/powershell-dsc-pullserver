@@ -133,6 +133,8 @@ type SchedulerConfigDTO struct {
 	ConfigurationRepoDirectory              string `json:"configuration_repo_directory"`
 	ConfigurationCompilerScript             string `json:"configuration_compiler_script"`
 	ConfigurationPowerShellExecutable       string `json:"configuration_powershell_executable"`
+	ConfigurationRepoUsername               string `json:"configuration_repo_username"`
+	ConfigurationRepoPassword               string `json:"configuration_repo_password"`
 	CompileOnNodeRegistration               bool   `json:"compile_configuration_on_node_registration"`
 	EnableAgentPurge                        bool   `json:"enable_agent_purge"`
 	AgentPurgeRetentionDays                 int    `json:"agent_purge_retention_days"`
@@ -208,6 +210,8 @@ func SchedulerConfigAPIHandler(w http.ResponseWriter, r *http.Request) {
 			ConfigurationRepoDirectory:              repoSettings.Directory,
 			ConfigurationCompilerScript:             repoSettings.CompilerScript,
 			ConfigurationPowerShellExecutable:       repoSettings.PowerShellExecutable,
+			ConfigurationRepoUsername:               repoSettings.RepositoryUsername,
+			ConfigurationRepoPassword:               repoSettings.RepositoryPassword,
 			CompileOnNodeRegistration:               repoSettings.CompileOnNodeRegistration,
 			EnableAgentPurge:                        cfg.DSCPullServer.EnableAgentPurge,
 			AgentPurgeRetentionDays:                 cfg.DSCPullServer.AgentPurgeRetentionDays,
@@ -351,6 +355,8 @@ func SchedulerConfigAPIHandler(w http.ResponseWriter, r *http.Request) {
 			Directory:                 req.ConfigurationRepoDirectory,
 			CompilerScript:            req.ConfigurationCompilerScript,
 			PowerShellExecutable:      req.ConfigurationPowerShellExecutable,
+			RepositoryUsername:        req.ConfigurationRepoUsername,
+			RepositoryPassword:        req.ConfigurationRepoPassword,
 			SyncIntervalMins:          req.ConfigurationRepoSyncIntervalMins,
 			CompileOnNodeRegistration: req.CompileOnNodeRegistration,
 			LegacyImported:            true,
@@ -379,7 +385,7 @@ func SchedulerConfigAPIHandler(w http.ResponseWriter, r *http.Request) {
 		if auditDB, auditErr := db.OpenDB(&global.AppConfig.Database); auditErr == nil {
 			driverName := global.AppConfig.Database.Driver
 			details := fmt.Sprintf(
-				"Updated scheduler config: report_cleanup(enable=%t, retention_days=%d, interval_mins=%d), release_check(enable=%t, interval_mins=%d), log_rotation(enable=%t, max_size_mb=%d, max_backups=%d, max_age_days=%d), configuration_repo_sync(enable=%t, interval_mins=%d), agent_purge(enable=%t, retention_days=%d, interval_mins=%d), configuration_version_cleanup(enable=%t, max_keep=%d, interval_mins=%d)",
+				"Updated scheduler config: report_cleanup(enable=%t, retention_days=%d, interval_mins=%d), release_check(enable=%t, interval_mins=%d), log_rotation(enable=%t, max_size_mb=%d, max_backups=%d, max_age_days=%d), configuration_repo_sync(enable=%t, interval_mins=%d, username=%q), agent_purge(enable=%t, retention_days=%d, interval_mins=%d), configuration_version_cleanup(enable=%t, max_keep=%d, interval_mins=%d)",
 				req.EnableReportAutoCleanup,
 				req.ReportRetentionDays,
 				req.ReportCleanupIntervalMins,
@@ -391,6 +397,7 @@ func SchedulerConfigAPIHandler(w http.ResponseWriter, r *http.Request) {
 				req.LogRotateMaxAgeDays,
 				req.EnableConfigurationRepoSync,
 				req.ConfigurationRepoSyncIntervalMins,
+				req.ConfigurationRepoUsername,
 				req.EnableAgentPurge,
 				req.AgentPurgeRetentionDays,
 				req.AgentPurgeIntervalMins,
@@ -633,7 +640,7 @@ func SchedulerRunConfigurationRepoAPIHandler(w http.ResponseWriter, r *http.Requ
 	nextRun := schedulerNextRunFromConfig(schedulerTaskConfigurationRepoSync)
 	driver := global.AppConfig.Database.Driver
 	_ = db.BeginSchedulerTaskRun(database, driver, schedulerTaskConfigurationRepoSync, schedulerDisplayName(schedulerTaskConfigurationRepoSync), "manual", startedAt, nextRun)
-	config := service.ConfigurationRepoConfig{URL: repoSettings.URL, Branch: repoSettings.Branch, Directory: repoSettings.Directory, CompilerScript: repoSettings.CompilerScript, PowerShellExecutable: repoSettings.PowerShellExecutable}
+	config := service.ConfigurationRepoConfig{URL: repoSettings.URL, Branch: repoSettings.Branch, Directory: repoSettings.Directory, CompilerScript: repoSettings.CompilerScript, PowerShellExecutable: repoSettings.PowerShellExecutable, RepositoryUsername: repoSettings.RepositoryUsername, RepositoryPassword: repoSettings.RepositoryPassword}
 	contexts, nodeAgentIDs, err := db.ListNodeCompilationContextsWithAgentIDs(database)
 	if err != nil {
 		http.Error(w, "Failed to load node compilation contexts", http.StatusInternalServerError)

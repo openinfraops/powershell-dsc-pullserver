@@ -43,6 +43,8 @@ $(function() {
             configuration_repo_directory: c.configuration_repo_directory || 'data/configuration-repository',
             configuration_compiler_script: c.configuration_compiler_script || 'scripts/Compile-Configurations.ps1',
             configuration_powershell_executable: c.configuration_powershell_executable || 'pwsh',
+            configuration_repo_username: c.configuration_repo_username || '',
+            configuration_repo_password: c.configuration_repo_password || '',
             compile_configuration_on_node_registration: !!c.compile_configuration_on_node_registration,
             enable_agent_purge: !!c.enable_agent_purge,
             agent_purge_retention_days: c.agent_purge_retention_days || 30,
@@ -364,6 +366,8 @@ $(function() {
             $('#modal_configuration_repo_directory').val(cfg.configuration_repo_directory);
             $('#modal_configuration_compiler_script').val(cfg.configuration_compiler_script);
             $('#modal_configuration_powershell_executable').val(cfg.configuration_powershell_executable);
+            $('#modal_configuration_repo_username').val(cfg.configuration_repo_username);
+            $('#modal_configuration_repo_password').val(cfg.configuration_repo_password);
             $('#modal_compile_configuration_on_node_registration').prop('checked', cfg.compile_configuration_on_node_registration);
             $('#configurationRepoSyncModal').modal('show');
             return;
@@ -442,6 +446,8 @@ $(function() {
             configuration_repo_directory: $('#modal_configuration_repo_directory').val().trim(),
             configuration_compiler_script: $('#modal_configuration_compiler_script').val().trim(),
             configuration_powershell_executable: $('#modal_configuration_powershell_executable').val().trim(),
+            configuration_repo_username: $('#modal_configuration_repo_username').val().trim(),
+            configuration_repo_password: $('#modal_configuration_repo_password').val(),
             compile_configuration_on_node_registration: $('#modal_compile_configuration_on_node_registration').prop('checked')
         });
         saveConfig(payload, function() {

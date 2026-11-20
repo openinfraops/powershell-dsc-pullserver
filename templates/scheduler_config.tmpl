@@ -203,6 +203,16 @@
           <label for="modal_configuration_powershell_executable">PowerShell executable</label>
           <input type="text" class="form-control" id="modal_configuration_powershell_executable">
         </div>
+        <div class="form-group">
+          <label for="modal_configuration_repo_username">Git repository username (optional)</label>
+          <input type="text" autocomplete="off" class="form-control" id="modal_configuration_repo_username">
+          <small class="form-text text-muted">Login pour l'authentification Git (ex. <code>oauth2</code>). Laisser vide pour utiliser les credentials portées par l'URL.</small>
+        </div>
+        <div class="form-group">
+          <label for="modal_configuration_repo_password">Git repository password / token (optional)</label>
+          <input type="password" autocomplete="new-password" class="form-control" id="modal_configuration_repo_password">
+          <small class="form-text text-muted">Mot de passe ou Personal Access Token. Stocké en base (admin uniquement), jamais exposé dans l'URL.</small>
+        </div>
         <div class="form-group form-check">
           <input type="checkbox" class="form-check-input" id="modal_compile_configuration_on_node_registration">
           <label class="form-check-label" for="modal_compile_configuration_on_node_registration">Compile assigned configuration when a new node registers</label>
