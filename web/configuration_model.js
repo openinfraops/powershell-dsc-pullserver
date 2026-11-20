@@ -1,5 +1,5 @@
 $(function() {
-    // Affiche la modal d'upload et charge les propriétés
+    // Affiche la modal d'upload
     $('#btn-upload-config-model').on('click', function() {
         $('#modal-upload-config-model').modal('show');
     });
@@ -8,6 +8,59 @@ $(function() {
         if(window.currentUser && window.currentUser.role === 'admin'){
             $('#btn-upload-config-model').show();
         }
+    });
+
+    // Formatage des dates pour l'affichage
+    function formatDate(dateStr) {
+        if (!dateStr || dateStr === "0001-01-01T00:00:00Z") return "";
+        var d = new Date(dateStr);
+        if (isNaN(d.getTime())) return dateStr;
+        return d.toLocaleString();
+    }
+
+    // Tableau en mode serverSide : pagination, tri de colonnes et recherche
+    // sont gérés côté serveur via /api/v1/configuration_models?current=1&draw=...
+    var dataTable = $('#config-models-table').DataTable({
+        processing: true,
+        serverSide: true,
+        ajax: {
+            url: '/api/v1/configuration_models?current=1',
+            type: 'GET'
+        },
+        order: [[3, 'desc']],
+        pageLength: 25,
+        lengthMenu: [10, 25, 50, 100],
+        columns: [
+            { data: 'id', title: 'ID' },
+            { data: 'name', title: 'Name' },
+            { data: 'uploaded_by', title: 'Uploaded by' },
+            {
+                data: 'upload_date',
+                title: 'Upload date',
+                render: function(data, type) {
+                    if (type === 'sort') return data;
+                    return formatDate(data);
+                }
+            },
+            {
+                data: 'last_usage',
+                title: 'Last call',
+                render: function(data, type) {
+                    if (type === 'sort') return data;
+                    return formatDate(data);
+                }
+            },
+            {
+                data: null,
+                title: 'Action',
+                searchable: false,
+                orderable: false,
+                render: function(data, type, row) {
+                    return '<button class="btn btn-info btn-sm btn-detail-config-model" data-id="' + row.name + '">Détail</button> ' +
+                        '<button class="btn btn-danger btn-sm delete-config-model" data-id="' + row.id + '">Delete</button>';
+                }
+            }
+        ]
     });
 
     // Soumission du formulaire d'upload
@@ -22,49 +75,13 @@ $(function() {
             contentType: false,
             success: function() {
                 $('#modal-upload-config-model').modal('hide');
-                loadConfigModels();
+                dataTable.ajax.reload(null, false);
             },
             error: function(xhr) {
                 alert('Failed to upload: ' + xhr.responseText);
             }
         });
     });
-
-    // Chargement du tableau
-    function formatDate(dateStr) {
-        if (!dateStr || dateStr === "0001-01-01T00:00:00Z") return "";
-        var d = new Date(dateStr);
-        if (isNaN(d.getTime())) return dateStr;
-        return d.toLocaleString();
-    }
-
-    function loadConfigModels() {
-        $.getJSON('/api/v1/configuration_models?current=1', function(data) {
-            if ($.fn.DataTable.isDataTable('#config-models-table')) {
-                $('#config-models-table').DataTable().clear().destroy();
-            }
-            var tbody = '';
-            data.forEach(function(model) {
-                var lastUsage = formatDate(model.last_usage);
-                var uploadDate = formatDate(model.upload_date);
-                tbody += '<tr>' +
-                    '<td>' + model.id + '</td>' +
-                    '<td>' + model.name + '</td>' +
-                    '<td>' + model.uploaded_by + '</td>' +
-                    '<td>' + uploadDate + '</td>' +
-                    '<td>' + lastUsage + '</td>' +
-                    '<td>' +
-                        '<button class="btn btn-info btn-sm btn-detail-config-model" data-id="' + model.name + '">Détail</button> ' +
-                        '<button class="btn btn-danger btn-sm delete-config-model" data-id="' + model.id + '">Delete</button>' +
-                    '</td>' +
-                '</tr>';
-            });
-            $('#config-models-table tbody').html(tbody);
-            $('#config-models-table').DataTable({
-                order: [[0, 'desc']]
-            });
-        });
-    }
 
     // Suppression
     $('#config-models-table').on('click', '.delete-config-model', function() {
@@ -74,7 +91,7 @@ $(function() {
                 url: '/api/v1/configuration_models?id=' + id,
                 type: 'DELETE',
                 success: function() {
-                    loadConfigModels();
+                    dataTable.ajax.reload(null, false);
                 },
                 error: function(xhr) {
                     alert('Failed to delete: ' + xhr.responseText);
@@ -82,7 +99,4 @@ $(function() {
             });
         }
     });
-
-    // Initial load
-    loadConfigModels();
 });

@@ -1,0 +1,68 @@
+{{define "content"}}
+<script src="/web/auth_check.js"></script>
+<script src="/web/jwt_ajax.js"></script>
+<section class="content-header">
+    <div class="container-fluid">
+        <div class="row mb-2">
+            <div class="col-sm-6">
+                <h1>Nodes</h1>
+            </div>
+        </div>
+    </div>
+</section>
+<section class="content">
+    <div class="container-fluid">
+        <div class="d-flex justify-content-end mb-2">
+            <button id="toggle-trash-btn" class="btn btn-outline-warning mr-2">
+                <i class="fas fa-trash"></i> Voir la corbeille
+            </button>
+            <button id="purge-trash-btn" class="btn btn-outline-danger mr-2" style="display:none;">
+                <i class="fas fa-broom"></i> Purger la corbeille
+            </button>
+            <button id="preenroll-btn" class="btn btn-success" data-toggle="modal" data-target="#preenrollModal">
+                <i class="fas fa-plus"></i> Add node
+            </button>
+        </div>
+        <div class="card">
+            <div class="card-body">
+                <table style="width:100%" id="agents-table" class="table table-bordered table-striped">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Last Communication</th>
+                            <th>Thumbprint</th>
+                            <th>Status</th>
+                            <th>Detail</th>
+                        </tr>
+                    </thead>
+                </table>
+            </div>
+        </div>
+    </div>
+</section>
+<!-- Modal for pre-enrolling a node -->
+<div class="modal fade" id="preenrollModal" tabindex="-1" role="dialog" aria-labelledby="preenrollModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="preenrollModalLabel">Add node</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="preenroll-node-name">Name</label>
+                    <input type="text" class="form-control" id="preenroll-node-name" placeholder="Enter node name">
+                </div>
+                <div id="preenroll-error" class="text-danger"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-primary" id="preenroll-submit">Ajouter</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="/web/nodes.js"></script>
+{{end}}

@@ -6,54 +6,34 @@
         <br/>
         <div class="row mb-4">
             <div class="col-md-3">
-                <div class="card text-white bg-primary mb-3">
-                    <div class="card-body">
-                        <p class="card-text" style="font-size:2em;"><i class="fas fa-server mr-2"></i><a id="total-agents" ></a></p>
-                        <h5 class="card-title">Managed agents</h5>
+                <a href="/web/nodes" class="d-block text-decoration-none">
+                    <div class="card text-white bg-primary mb-3">
+                        <div class="card-body">
+                            <p class="card-text" style="font-size:2em;"><i class="fas fa-server mr-2"></i><span id="total-agents"></span></p>
+                            <h5 class="card-title">Managed agents</h5>
+                        </div>
                     </div>
-                </div>
+                </a>
             </div>
             <div class="col-md-3">
-                <div class="card text-white bg-primary mb-3">
-                    <div class="card-body">
-                        <p class="card-text" style="font-size:2em;"><i class="fas fa-cubes mr-2"></i><a id="total-modules" ></a></p>
-                        <h5 class="card-title">Ressources Modules</h5>
+                <a href="/web/modules" class="d-block text-decoration-none">
+                    <div class="card text-white bg-primary mb-3">
+                        <div class="card-body">
+                            <p class="card-text" style="font-size:2em;"><i class="fas fa-cubes mr-2"></i><span id="total-modules"></span></p>
+                            <h5 class="card-title">Ressources Modules</h5>
+                        </div>
                     </div>
-                </div>
+                </a>
             </div>
             <div class="col-md-3">
-                <div class="card text-white bg-primary mb-3">
-                    <div class="card-body">
-                        <p class="card-text" style="font-size:2em;"><i class="fas fa-project-diagram mr-2"></i><a id="total-configurations" ></a></p>
-                        <h5 class="card-title">Configurations</h5>
+                <a href="/web/configuration_model" class="d-block text-decoration-none">
+                    <div class="card text-white bg-primary mb-3">
+                        <div class="card-body">
+                            <p class="card-text" style="font-size:2em;"><i class="fas fa-project-diagram mr-2"></i><span id="total-configurations"></span></p>
+                            <h5 class="card-title">Configurations</h5>
+                        </div>
                     </div>
-                </div>
-            </div>
-        </div>
-        <div class="d-flex justify-content-end mb-2">
-            <button id="toggle-trash-btn" class="btn btn-outline-warning mr-2">
-                <i class="fas fa-trash"></i> Voir la corbeille
-            </button>
-            <button id="purge-trash-btn" class="btn btn-outline-danger mr-2" style="display:none;">
-                <i class="fas fa-broom"></i> Purger la corbeille
-            </button>
-            <button id="preenroll-btn" class="btn btn-success" data-toggle="modal" data-target="#preenrollModal">
-                <i class="fas fa-plus"></i> Add node
-            </button>
-        </div>
-        <div class="card">
-            <div class="card-body">
-                <table style="width:100%" id="agents-table" class="table table-bordered table-striped">
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Last Communication</th>
-                            <th>Thumbprint</th>
-                            <th>Status</th>
-                            <th>Detail</th>
-                        </tr>
-                    </thead>
-                </table>
+                </a>
             </div>
         </div>
         <div class="col-md-3">
@@ -77,29 +57,4 @@
     </div>
 </section>
 <script src="/web/reports.js"></script>
-        <!-- Modal for pre-enrolling a node -->
-        <div class="modal fade" id="preenrollModal" tabindex="-1" role="dialog" aria-labelledby="preenrollModalLabel" aria-hidden="true">
-            <div class="modal-dialog" role="document">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="preenrollModalLabel">Add node</h5>
-                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                            <span aria-hidden="true">&times;</span>
-                        </button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="form-group">
-                            <label for="preenroll-node-name">Name</label>
-                            <input type="text" class="form-control" id="preenroll-node-name" placeholder="Enter node name">
-                        </div>
-                        <div id="preenroll-error" class="text-danger"></div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Annuler</button>
-                        <button type="button" class="btn btn-primary" id="preenroll-submit">Ajouter</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-<script src="/web/preenroll.js"></script>
 {{end}}
