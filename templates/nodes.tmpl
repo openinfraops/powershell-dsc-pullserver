@@ -17,6 +17,9 @@
                 <button id="stale-filter-btn" class="btn btn-outline-info btn-sm mr-2" title="Afficher uniquement les nœuds sans communication récente">
                     <i class="fas fa-satellite-dish"></i> Nœuds muets <span id="stale-filter-indicator" class="badge badge-info ml-1" style="display:none;">ON</span>
                 </button>
+                <button id="cert-filter-btn" class="btn btn-outline-danger btn-sm mr-2" title="Afficher uniquement les nœuds dont le certificat est expiré ou expire bientôt">
+                    <i class="fas fa-certificate"></i> Certificats à risque <span id="cert-filter-indicator" class="badge badge-danger ml-1" style="display:none;">ON</span>
+                </button>
                 <div class="form-inline">
                     <label class="mr-1">Tag :</label>
                     <select id="tag-filter-key" class="form-control form-control-sm mr-1" style="width:160px;">
@@ -62,6 +65,7 @@
                             <th>Last Communication</th>
                             <th>Thumbprint</th>
                             <th>Status</th>
+                            <th>Certificates</th>
                             <th>Detail</th>
                         </tr>
                     </thead>

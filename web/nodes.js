@@ -1,9 +1,11 @@
 $(document).ready(function() {
     var viewMode = 'active'; // 'active' | 'deleted' (corbeille)
     var staleFilter = false; // filtre "nœuds muets"
+    var certFilter = false;  // filtre "certificats à risque"
     var tagFilter = { key: '', value: '' };
     var selected = {}; // agent_id -> true, persisté entre les pages
     var STALE_DAYS = 7;
+    var CERT_EXPIRING_DAYS = 30;
 
     // --- Helpers -------------------------------------------------------------
 
@@ -37,6 +39,33 @@ $(document).ready(function() {
         var d = parseUtc(dateStr);
         if (!d) return dateStr;
         return d.toLocaleString();
+    }
+
+    // Jours restants avant expiration du certificat (négatif si déjà expiré).
+    function daysUntil(dateStr) {
+        var d = parseUtc(dateStr);
+        if (!d) return null;
+        return Math.ceil((d.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    }
+
+    // Badge de statut du certificat : expiré / expire bientôt / valide / absent.
+    function certRender(data, type, row) {
+        if (type === 'sort') return data || '';
+        var notAfter = row.certificate_notafter || '';
+        if (!notAfter) {
+            return '<span class="badge bg-secondary text-light" title="Aucun certificat">N/A</span>';
+        }
+        var days = daysUntil(notAfter);
+        if (days === null) {
+            return '<span class="badge bg-secondary text-light" title="Date non parseable">' + esc(notAfter) + '</span>';
+        }
+        if (days < 0) {
+            return '<span class="badge bg-danger" title="Expiré le ' + esc(notAfter) + '">Expiré</span>';
+        }
+        if (days <= CERT_EXPIRING_DAYS) {
+            return '<span class="badge bg-warning text-dark" title="Expire le ' + esc(notAfter) + '">' + days + ' j</span>';
+        }
+        return '<span class="badge bg-success" title="Expire le ' + esc(notAfter) + '">' + days + ' j</span>';
     }
 
     function agentsEndpoint() {
@@ -153,6 +182,7 @@ $(document).ready(function() {
             };
             if (viewMode === 'deleted') params.deleted = 'true';
             if (staleFilter) params.stale = 'true';
+            if (certFilter) params['cert_at_risk'] = 'true';
             if (tagFilter.key && tagFilter.value) params['tag'] = tagFilter.key + ':' + tagFilter.value;
             $.ajax({
                 url: agentsEndpoint(),
@@ -181,6 +211,10 @@ $(document).ready(function() {
                 render: function(data) { return data ? esc(data) : ''; }
             },
             { data: 'has_error_last_report', title: 'Status', className: 'text-center', render: statusRender },
+            {
+                data: 'certificate_notafter', title: 'Certificates', className: 'text-center',
+                render: certRender
+            },
             { data: 'agent_id', title: 'Detail', render: detailRender }
         ],
         order: [[1, 'asc']],
@@ -241,6 +275,22 @@ $(document).ready(function() {
         $(this).toggleClass('active', staleFilter);
         dataTable.ajax.reload(null, false);
     });
+
+    // Filtre "certificats à risque" (expiré ou expirant sous N jours)
+    $('#cert-filter-btn').click(function() {
+        certFilter = !certFilter;
+        $('#cert-filter-indicator').toggle(certFilter);
+        $(this).toggleClass('active', certFilter);
+        dataTable.ajax.reload(null, false);
+    });
+
+    // Active automatiquement le filtre "certificats à risque" si l'URL contient
+    // ?cert_at_risk=1 (lien depuis le dashboard).
+    if (/[?&]cert_at_risk=1\b/.test(window.location.search)) {
+        certFilter = true;
+        $('#cert-filter-indicator').show();
+        $('#cert-filter-btn').addClass('active');
+    }
 
     // Options de clés de tag pour le filtre
     $.getJSON('/api/v1/agents/tags/options', function(resp) {
@@ -346,6 +396,7 @@ $(document).ready(function() {
     $('#export-agents-csv-btn').click(function() {
         var url = '/api/v1/agents/export?deleted=' + (viewMode === 'deleted' ? 'true' : 'false');
         if (staleFilter) url += '&stale=true';
+        if (certFilter) url += '&cert_at_risk=true';
         if (tagFilter.key && tagFilter.value) url += '&tag=' + encodeURIComponent(tagFilter.key + ':' + tagFilter.value);
         var xhr = new XMLHttpRequest();
         xhr.open('GET', url, true);

@@ -79,6 +79,7 @@ $(function() {
 
     $.getJSON('/api/v1/configuration_models/' + encodeURIComponent(name) + '/detail', function(data) {
         var html = '';
+        var isAdmin = window.currentUser && window.currentUser.role === 'admin';
         html += '<h3>' + escapeHtml(data.name) + '</h3>';
         html += '<p><b>Uploaded by:</b> ' + escapeHtml(data.uploaded_by) + ' | <b>Date:</b> ' + (data.upload_date ? new Date(data.upload_date).toLocaleString() : '') + '</p>';
         html += '<button class="btn btn-primary" id="download-mof-btn">Download MOF</button>';
@@ -86,7 +87,7 @@ $(function() {
         html += '<div style="font-family:monospace">';
         data.versions.forEach(function(v, idx) {
             var isCurrent = (v.name === data.name);
-            html += '<div>';
+            html += '<div class="d-flex align-items-center" style="gap:6px;">';
             if(isCurrent) {
                 html += '<span style="font-weight:bold;color:#222">&bull;</span> ';
                 html += '<b>';
@@ -96,6 +97,9 @@ $(function() {
             html += '<a href="/web/configuration_model/' + encodeURIComponent(v.name) + '">' + escapeHtml(v.name) + '</a>';
             if(isCurrent) html += '</b>';
             html += ' <span style="color:#888">(' + (v.upload_date ? new Date(v.upload_date).toLocaleString() : '') + ')</span>';
+            if(!isCurrent && isAdmin) {
+                html += ' <button class="btn btn-outline-warning btn-sm ml-2 revert-version-btn" data-id="' + v.id + '" data-name="' + escapeHtml(v.name) + '" title="Republier cette version comme version active"><i class="fas fa-undo"></i> Revert</button>';
+            }
             html += '</div>';
         });
         html += '</div>';
@@ -238,5 +242,28 @@ $(function() {
                 });
             });
         }
+    });
+
+    // Revert : republier une version antérieure comme version active (admin).
+    $(document).on('click', '.revert-version-btn', function() {
+        var id = $(this).data('id');
+        var versionName = $(this).data('name');
+        if(!id) return;
+        if(!confirm('Revert to version "' + versionName + '" ? Cette action republie cette version comme version active et forcera la recompilation des nœuds liés.')) return;
+        $.ajax({
+            url: '/api/v1/configuration_models/' + encodeURIComponent(id) + '/revert',
+            method: 'POST',
+            success: function(res) {
+                if(res && res.status === 'already_active') {
+                    alert('Cette version est déjà la version active.');
+                    return;
+                }
+                alert('Configuration réactivée sur la version "' + (res && res.name ? res.name : versionName) + '".');
+                window.location.reload();
+            },
+            error: function(xhr) {
+                alert('Erreur revert: ' + (xhr.responseText || xhr.status));
+            }
+        });
     });
 });

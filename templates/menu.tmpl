@@ -6,6 +6,15 @@
         </li>
     </ul>
     <ul class="navbar-nav ml-auto">
+        <li class="nav-item mr-2" style="position:relative;">
+            <div class="input-group input-group-sm" style="width:260px;">
+                <input type="text" id="global-search-input" class="form-control" placeholder="Rechercher nœuds, configs, modules...">
+                <div class="input-group-append">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                </div>
+            </div>
+            <div id="global-search-results" class="dropdown-menu show" style="display:none;position:absolute;right:0;top:100%;width:360px;max-height:420px;overflow-y:auto;z-index:1050;"></div>
+        </li>
         <li class="nav-item dropdown mr-2">
             <a class="nav-link d-flex align-items-center justify-content-center border rounded-circle" data-toggle="dropdown" href="#" id="aboutDropdown" style="width:34px;height:34px;padding:0;">
                 <i class="fas fa-question"></i>
@@ -50,6 +59,7 @@
     </div>
 </div>
 <script src="/web/user_session.js"></script>
+<script src="/web/global_search.js"></script>
 <aside class="main-sidebar sidebar-dark-primary elevation-4 sidebar-modern">
     <a href="/web" class="brand-link">
         <span class="brand-text font-weight-light">DSC Admin Console</span>
