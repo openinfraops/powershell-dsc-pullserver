@@ -20,6 +20,7 @@ type agentDTRow struct {
 	RegistrationType      *string `json:"registration_type,omitempty"`
 	State                 *string `json:"state,omitempty"`
 	CertificateThumbprint *string `json:"certificate_thumbprint,omitempty"`
+	CertificateNotAfter   *string `json:"certificate_notafter,omitempty"`
 	LastCommunication     string  `json:"last_communication"`
 	HasErrorLastReport    bool    `json:"has_error_last_report"`
 	NeedsRecompile        bool    `json:"needs_recompile"`
@@ -42,6 +43,30 @@ func staleCutoff(days int) time.Time {
 		days = 7
 	}
 	return time.Now().UTC().AddDate(0, 0, -days)
+}
+
+// certNotAfterExpr retourne l'expression SQL normalisée de certificate_notafter
+// (texte "YYYY-MM-DD HH:MM:SS" ou RFC3339 -> type date comparables). Driver-aware.
+func certNotAfterExpr(driver string) string {
+	if isMSSQLDriver(driver) {
+		return "TRY_CONVERT(datetime, REPLACE(REPLACE(certificate_notafter,'T',' '),'Z',''))"
+	}
+	return "julianday(REPLACE(REPLACE(certificate_notafter,'T',' '),'Z',''))"
+}
+
+// certAtRiskClause retourne la clause WHERE (et son argument) pour filtrer les
+// nœuds dont le certificat est expiré ou expire sous `days` jours (par défaut
+// 30). Les nœuds sans certificat sont inclus.
+func certAtRiskClause(driver string, days int) (string, interface{}) {
+	if days <= 0 {
+		days = 30
+	}
+	cutoff := time.Now().UTC().AddDate(0, 0, days)
+	expr := certNotAfterExpr(driver)
+	if isMSSQLDriver(driver) {
+		return " AND (certificate_notafter IS NULL OR certificate_notafter = '' OR " + expr + " < ?)", cutoff
+	}
+	return " AND (certificate_notafter IS NULL OR certificate_notafter = '' OR " + expr + " < julianday(?))", cutoff.Format("2006-01-02 15:04:05")
 }
 
 // ListAgentsDataTableHandler implémente le protocole serverSide de DataTables
@@ -78,7 +103,8 @@ func ListAgentsDataTableHandler(w http.ResponseWriter, r *http.Request) {
 		2: "last_communication",
 		3: "certificate_thumbprint",
 		4: "state",
-		5: "agent_id",
+		5: "certificate_notafter",
+		6: "agent_id",
 	}
 	orderColIdx, _ := strconv.Atoi(r.URL.Query().Get("order[0][column]"))
 	orderDir := r.URL.Query().Get("order[0][dir]")
@@ -138,6 +164,14 @@ func ListAgentsDataTableHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Filtre "certificats à risque" : expiré ou expirant sous X jours.
+	if r.URL.Query().Get("cert_at_risk") == "true" {
+		days, _ := strconv.Atoi(r.URL.Query().Get("cert_expiring_days"))
+		clause, cutoff := certAtRiskClause(global.AppConfig.Database.Driver, days)
+		where += clause
+		args = append(args, cutoff)
+	}
+
 	if search != "" {
 		pattern := "%" + search + "%"
 		where += " AND (node_name LIKE ? OR agent_id LIKE ? OR COALESCE(certificate_thumbprint, '') LIKE ? OR COALESCE(state, '') LIKE ?)"
@@ -165,7 +199,7 @@ func ListAgentsDataTableHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	query := "SELECT agent_id, node_name, lcm_version, registration_type, state, certificate_thumbprint, last_communication, has_error_last_report, needs_recompile, deleted_at, deleted_by FROM agents" + where
+	query := "SELECT agent_id, node_name, lcm_version, registration_type, state, certificate_thumbprint, certificate_notafter, last_communication, has_error_last_report, needs_recompile, deleted_at, deleted_by FROM agents" + where
 	query += " ORDER BY " + orderCol + " " + orderDir
 
 	if isMSSQL {
@@ -186,9 +220,9 @@ func ListAgentsDataTableHandler(w http.ResponseWriter, r *http.Request) {
 	data := make([]agentDTRow, 0)
 	for rows.Next() {
 		var row agentDTRow
-		var lcmVersion, registrationType, state, certThumb, deletedAt, deletedBy *string
+		var lcmVersion, registrationType, state, certThumb, certNotAfter, deletedAt, deletedBy *string
 		var hasErr, needsRecompile bool
-		if err := rows.Scan(&row.AgentID, &row.NodeName, &lcmVersion, &registrationType, &state, &certThumb, &row.LastCommunication, &hasErr, &needsRecompile, &deletedAt, &deletedBy); err != nil {
+		if err := rows.Scan(&row.AgentID, &row.NodeName, &lcmVersion, &registrationType, &state, &certThumb, &certNotAfter, &row.LastCommunication, &hasErr, &needsRecompile, &deletedAt, &deletedBy); err != nil {
 			http.Error(w, "DB scan error", http.StatusInternalServerError)
 			return
 		}
@@ -196,6 +230,7 @@ func ListAgentsDataTableHandler(w http.ResponseWriter, r *http.Request) {
 		row.RegistrationType = registrationType
 		row.State = state
 		row.CertificateThumbprint = certThumb
+		row.CertificateNotAfter = certNotAfter
 		row.HasErrorLastReport = hasErr
 		row.NeedsRecompile = needsRecompile
 		row.DeletedAt = deletedAt

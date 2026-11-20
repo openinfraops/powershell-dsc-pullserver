@@ -417,12 +417,87 @@ function renderReportsDropdown() {
     return html;
 }
 
+function renderStatusHistory() {
+    var canvas = document.getElementById('status-history-chart');
+    if (!canvas) return;
+    if (!Array.isArray(state.reports) || state.reports.length === 0) {
+        if (window.statusHistoryChart) { window.statusHistoryChart.destroy(); window.statusHistoryChart = null; }
+        $(canvas).hide();
+        $('#status-history-empty').show();
+        return;
+    }
+    $('#status-history-empty').hide();
+    $(canvas).show();
+
+    // Les rapports sont triés par created_at DESC : on les remet en ordre chronologique.
+    var reps = state.reports.slice().reverse();
+    var labels = [];
+    var colors = [];
+    var tooltips = [];
+    reps.forEach(function(rep) {
+        var ts = rep.created_at || '';
+        var status = (rep.Status || rep.status || '').toLowerCase();
+        labels.push(ts ? formatStatusDate(ts) : '');
+        colors.push(status === 'success' ? '#28a745' : '#dc3545');
+        tooltips.push((rep.Status || rep.status || '') + '  ' + ts);
+    });
+
+    var ctx = canvas.getContext('2d');
+    if (window.statusHistoryChart) { window.statusHistoryChart.destroy(); }
+    window.statusHistoryChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: reps.map(function() { return 1; }),
+                backgroundColor: colors,
+                borderColor: colors,
+                borderWidth: 1,
+                borderRadius: 3,
+                barPercentage: 0.75
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        title: function(ctx) { return tooltips[ctx[0].dataIndex] || ''; },
+                        label: function() { return ''; }
+                    }
+                }
+            },
+            scales: {
+                y: { display: false, max: 1 },
+                x: {
+                    ticks: { maxRotation: 45, minRotation: 0, autoSkip: true, maxTicksLimit: 12 },
+                    grid: { display: false }
+                }
+            }
+        }
+    });
+}
+
+function formatStatusDate(ts) {
+    var t = String(ts).replace('T', ' ').replace('Z', '');
+    if (/^\d{4}-\d{2}-\d{2}/.test(t)) {
+        var d = new Date(t.replace(' ', 'T') + 'Z');
+        if (!isNaN(d.getTime())) {
+            return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+    }
+    return ts;
+}
+
 function renderAll() {
     fillAgentInfo();
     $('#agent-tags-block').html(renderAgentTags());
     $('#reports-dropdown-block').html(renderReportsDropdown());
     $('#last-report-block').html(renderSelectedReport());
     $('#node-action-block').html(renderNodeActionBlock());
+    renderStatusHistory();
 }
 
 $(document).ready(function() {

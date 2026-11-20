@@ -27,6 +27,14 @@ $(document).ready(function() {
         let pendingEnroll = (stats && typeof stats.pending_enroll !== 'undefined') ? stats.pending_enroll : 0;
         let pendingApply = (stats && typeof stats.pending_apply !== 'undefined') ? stats.pending_apply : 0;
 
+        // Badge "certificats à risque" (expirés + expirant sous 30 jours)
+        let certsExpired = (stats && typeof stats.certs_expired !== 'undefined') ? stats.certs_expired : 0;
+        let certsExpiring = (stats && typeof stats.certs_expiring !== 'undefined') ? stats.certs_expiring : 0;
+        let totalAtRisk = certsExpired + certsExpiring;
+        if ($('#total-certs-at-risk').length) {
+            $('#total-certs-at-risk').text(totalAtRisk > 0 ? totalAtRisk : '0');
+        }
+
         const ctx = document.getElementById('agents-pie').getContext('2d');
         const chart = new Chart(ctx, {
             type: 'pie',
