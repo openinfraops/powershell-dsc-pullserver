@@ -6,9 +6,13 @@ $(document).ready(function() {
                 $('#total-configurations').text(data.count);
             }
         });
+    var viewMode = 'active'; // 'active' | 'deleted' (corbeille)
+    function agentsEndpoint() {
+        return viewMode === 'deleted' ? '/api/v1/agents?deleted=true' : '/api/v1/agents';
+    }
     var dataTable = $('#agents-table').DataTable({
         ajax: {
-            url: '/api/v1/agents',
+            url: agentsEndpoint(),
             dataSrc: ''
         },
         columns: [
@@ -20,6 +24,9 @@ $(document).ready(function() {
                 title: 'Status',
                 className: 'text-center',
                 render: function(data, type, row) {
+                    if (row.deleted_at) {
+                        return `<span class="badge bg-dark" style="min-width:60px;">Corbeille</span>`;
+                    }
                     if (row.state) {
                         switch (row.state.toLowerCase()) {
                             case 'success':
@@ -43,6 +50,15 @@ $(document).ready(function() {
                 data: 'agent_id',
                 title: 'Detail',
                 render: function(data, type, row) {
+                    const isAdmin = window.currentUser && window.currentUser.role === 'admin';
+                    if (row.deleted_at) {
+                        // Nœud en corbeille : restaurer (admin) ou consulter.
+                        let actions = `<a class='btn btn-outline-secondary btn-sm' href="/web/node/${data}">Voir</a>`;
+                        if (isAdmin) {
+                            actions = `<button class="btn btn-outline-success btn-sm mr-1 restore-agent-btn" data-id="${data}">Restaurer</button>` + actions;
+                        }
+                        return actions;
+                    }
                     return `<a class='btn btn-info btn-sm' href="/web/node/${data}">View</a>`;
                 }
             }
@@ -142,6 +158,52 @@ $(document).ready(function() {
             },
             error: function(xhr) {
                 $('#preenroll-error').text(xhr.responseText || 'Error');
+            }
+        });
+    });
+
+    // Basculer entre la liste active et la corbeille
+    $('#toggle-trash-btn').click(function() {
+        viewMode = viewMode === 'deleted' ? 'active' : 'deleted';
+        dataTable.ajax.url(agentsEndpoint()).load();
+        if (viewMode === 'deleted') {
+            $(this).html('<i class="fas fa-server"></i> Voir les nœuds actifs');
+            $('#purge-trash-btn').show();
+        } else {
+            $(this).html('<i class="fas fa-trash"></i> Voir la corbeille');
+            $('#purge-trash-btn').hide();
+        }
+    });
+
+    // Purger la corbeille manuellement (admin)
+    $('#purge-trash-btn').click(function() {
+        if (!confirm('Purger définitivement tous les nœuds de la corbeille au-delà de la rétention ?')) return;
+        $.ajax({
+            url: '/api/v1/scheduler/agent-purge/run',
+            method: 'POST',
+            success: function(res) {
+                alert(res && typeof res.purged !== 'undefined' ? ('Purgé ' + res.purged + ' nœud(s).') : 'Corbeille purgée.');
+                dataTable.ajax.reload(null, false);
+            },
+            error: function(xhr) {
+                alert('Erreur purge: ' + (xhr.responseText || xhr.status));
+            }
+        });
+    });
+
+    // Restaurer un nœud depuis la corbeille (admin)
+    $(document).on('click', '.restore-agent-btn', function() {
+        const id = $(this).data('id');
+        if (!id) return;
+        if (!confirm('Restaurer ce nœud depuis la corbeille ?')) return;
+        $.ajax({
+            url: '/api/v1/agents/' + encodeURIComponent(id) + '/restore',
+            method: 'POST',
+            success: function() {
+                dataTable.ajax.reload(null, false);
+            },
+            error: function(xhr) {
+                alert('Erreur restauration: ' + (xhr.responseText || xhr.status));
             }
         });
     });

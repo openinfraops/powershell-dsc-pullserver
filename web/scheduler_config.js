@@ -15,7 +15,8 @@ $(function() {
         report_cleanup: '/api/v1/scheduler/cleanup/run',
         release_check: '/api/v1/scheduler/release-check/run',
         log_cleanup: '/api/v1/scheduler/logs/cleanup/run',
-        configuration_repo_sync: '/api/v1/scheduler/configuration-repo/run'
+        configuration_repo_sync: '/api/v1/scheduler/configuration-repo/run',
+        agent_purge: '/api/v1/scheduler/agent-purge/run'
     };
 
     function showStatus(text, color) {
@@ -41,7 +42,10 @@ $(function() {
             configuration_repo_directory: c.configuration_repo_directory || 'data/configuration-repository',
             configuration_compiler_script: c.configuration_compiler_script || 'scripts/Compile-Configurations.ps1',
             configuration_powershell_executable: c.configuration_powershell_executable || 'pwsh',
-            compile_configuration_on_node_registration: !!c.compile_configuration_on_node_registration
+            compile_configuration_on_node_registration: !!c.compile_configuration_on_node_registration,
+            enable_agent_purge: !!c.enable_agent_purge,
+            agent_purge_retention_days: c.agent_purge_retention_days || 30,
+            agent_purge_interval_mins: c.agent_purge_interval_mins || 1440
         };
     }
 
@@ -96,6 +100,14 @@ $(function() {
         $('#logsConfigModal').modal('show');
     }
 
+    function openAgentPurgeConfigModal() {
+        const cfg = normalizeConfig(schedulerConfig);
+        $('#modal_enable_agent_purge').prop('checked', cfg.enable_agent_purge);
+        $('#modal_agent_purge_retention_days').val(cfg.agent_purge_retention_days);
+        $('#modal_agent_purge_interval_mins').val(cfg.agent_purge_interval_mins);
+        $('#agentPurgeConfigModal').modal('show');
+    }
+
     function statusBadge(status) {
         const value = (status || '').toLowerCase();
         if (value === 'success') {
@@ -123,6 +135,9 @@ $(function() {
         }
         if (taskName === 'configuration_repo_sync') {
             return !!cfg.enable_configuration_repo_sync;
+        }
+        if (taskName === 'agent_purge') {
+            return !!cfg.enable_agent_purge;
         }
         return true;
     }
@@ -338,6 +353,10 @@ $(function() {
             $('#configurationRepoSyncModal').modal('show');
             return;
         }
+        if (task === 'agent_purge') {
+            openAgentPurgeConfigModal();
+            return;
+        }
     });
 
     $('#save-report-config').on('click', function() {
@@ -370,6 +389,17 @@ $(function() {
         });
         saveConfig(payload, function() {
             $('#logsConfigModal').modal('hide');
+        });
+    });
+
+    $('#save-agent-purge-config').on('click', function() {
+        const payload = buildPayload({
+            enable_agent_purge: $('#modal_enable_agent_purge').prop('checked'),
+            agent_purge_retention_days: parseInt($('#modal_agent_purge_retention_days').val(), 10),
+            agent_purge_interval_mins: parseInt($('#modal_agent_purge_interval_mins').val(), 10)
+        });
+        saveConfig(payload, function() {
+            $('#agentPurgeConfigModal').modal('hide');
         });
     });
 

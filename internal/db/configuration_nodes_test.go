@@ -15,7 +15,7 @@ func TestListNodeCompilationContextsUsesPropertyValues(t *testing.T) {
 	database.SetMaxOpenConns(1)
 
 	for _, statement := range []string{
-		`CREATE TABLE agents (agent_id TEXT PRIMARY KEY, node_name TEXT NOT NULL)`,
+		`CREATE TABLE agents (agent_id TEXT PRIMARY KEY, node_name TEXT NOT NULL, deleted_at TIMESTAMP NULL)`,
 		`CREATE TABLE agent_tags (agent_id TEXT NOT NULL, tag_key TEXT NOT NULL, tag_value TEXT NOT NULL)`,
 		`CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT NOT NULL)`,
 		`CREATE TABLE node_properties (node_id TEXT NOT NULL, property_id INTEGER NOT NULL, value TEXT)`,

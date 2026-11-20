@@ -110,6 +110,7 @@ func main() {
 			taskReleaseCheck          = "release_check"
 			taskLogCleanup            = "log_cleanup"
 			taskConfigurationRepoSync = "configuration_repo_sync"
+			taskAgentPurge            = "agent_purge"
 		)
 
 		const logMaintenanceInterval = time.Hour
@@ -118,6 +119,7 @@ func main() {
 		releaseDisplay := "Release check"
 		logDisplay := "Log rotate"
 		configurationRepoDisplay := "Configuration repository sync"
+		agentPurgeDisplay := "Corbeille (purge agents)"
 
 		var reportNext *time.Time
 		if global.AppConfig.DSCPullServer.EnableReportAutoCleanup {
@@ -147,6 +149,18 @@ func main() {
 			logNext = &n
 		}
 		_ = db.UpsertSchedulerTask(dbConn, global.AppConfig.Database.Driver, taskLogCleanup, logDisplay, logNext)
+
+		var agentPurgeNext *time.Time
+		if global.AppConfig.DSCPullServer.EnableAgentPurge {
+			intervalMins := global.AppConfig.DSCPullServer.AgentPurgeIntervalMins
+			if intervalMins <= 0 {
+				intervalMins = 1440
+			}
+			n := time.Now().UTC().Add(time.Duration(intervalMins) * time.Minute)
+			agentPurgeNext = &n
+		}
+		_ = db.UpsertSchedulerTask(dbConn, global.AppConfig.Database.Driver, taskAgentPurge, agentPurgeDisplay, agentPurgeNext)
+
 		repoCfg := service.ConfigurationRepoConfig{URL: repoSettings.URL, Branch: repoSettings.Branch, Directory: repoSettings.Directory, CompilerScript: repoSettings.CompilerScript, PowerShellExecutable: repoSettings.PowerShellExecutable}
 		repoSyncEnabled := repoSettings.Enabled
 		repoIntervalMins := repoSettings.SyncIntervalMins
@@ -189,6 +203,40 @@ func main() {
 						next := startedAt.Add(time.Duration(intervalMins) * time.Minute)
 						msg := fmt.Sprintf("Deleted %d old report(s)", deleted)
 						_ = db.CompleteSchedulerTaskRun(dbConn, global.AppConfig.Database.Driver, taskReportCleanup, "success", msg, time.Now().UTC(), &next)
+					},
+				)
+			}
+		}
+
+		if global.AppConfig.DSCPullServer.EnableAgentPurge {
+			retentionDays := global.AppConfig.DSCPullServer.AgentPurgeRetentionDays
+			intervalMins := global.AppConfig.DSCPullServer.AgentPurgeIntervalMins
+			if retentionDays <= 0 {
+				logs.WriteLogFile("WARN [AGENT PURGE] Disabled: agent_purge_retention_days must be > 0")
+			} else {
+				if intervalMins <= 0 {
+					intervalMins = 1440
+				}
+				logs.WriteLogFile(fmt.Sprintf("INFO [AGENT PURGE] Enabled: retention=%d day(s), interval=%d minute(s)", retentionDays, intervalMins))
+				db.StartAgentPurgeWorker(
+					dbConn,
+					global.AppConfig.Database.Driver,
+					retentionDays,
+					time.Duration(intervalMins)*time.Minute,
+					func(startedAt time.Time, nextRunAt *time.Time) {
+						_ = db.BeginSchedulerTaskRun(dbConn, global.AppConfig.Database.Driver, taskAgentPurge, agentPurgeDisplay, "automatic", startedAt, nextRunAt)
+					},
+					func(startedAt time.Time, purged int64, cleanupErr error) {
+						if cleanupErr != nil {
+							logs.WriteLogFile(fmt.Sprintf("ERROR [AGENT PURGE] %v", cleanupErr))
+							msg := cleanupErr.Error()
+							_ = db.CompleteSchedulerTaskRun(dbConn, global.AppConfig.Database.Driver, taskAgentPurge, "error", msg, time.Now().UTC(), nil)
+							return
+						}
+						logs.WriteLogFile(fmt.Sprintf("INFO [AGENT PURGE] Purged %d trashed agent(s)", purged))
+						next := startedAt.Add(time.Duration(intervalMins) * time.Minute)
+						msg := fmt.Sprintf("Purged %d trashed agent(s)", purged)
+						_ = db.CompleteSchedulerTaskRun(dbConn, global.AppConfig.Database.Driver, taskAgentPurge, "success", msg, time.Now().UTC(), &next)
 					},
 				)
 			}

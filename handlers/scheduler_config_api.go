@@ -23,6 +23,7 @@ const (
 	schedulerTaskReleaseCheck          = "release_check"
 	schedulerTaskLogCleanup            = "log_cleanup"
 	schedulerTaskConfigurationRepoSync = "configuration_repo_sync"
+	schedulerTaskAgentPurge            = "agent_purge"
 )
 
 func schedulerDisplayName(taskName string) string {
@@ -35,6 +36,8 @@ func schedulerDisplayName(taskName string) string {
 		return "Log rotate"
 	case schedulerTaskConfigurationRepoSync:
 		return "Configuration repository sync"
+	case schedulerTaskAgentPurge:
+		return "Corbeille (purge agents)"
 	default:
 		return taskName
 	}
@@ -85,6 +88,16 @@ func schedulerNextRunFromConfig(taskName string) *time.Time {
 		}
 		n := now.Add(time.Duration(mins) * time.Minute)
 		return &n
+	case schedulerTaskAgentPurge:
+		if !global.AppConfig.DSCPullServer.EnableAgentPurge {
+			return nil
+		}
+		mins := global.AppConfig.DSCPullServer.AgentPurgeIntervalMins
+		if mins <= 0 {
+			mins = 1440
+		}
+		n := now.Add(time.Duration(mins) * time.Minute)
+		return &n
 	default:
 		return nil
 	}
@@ -108,6 +121,9 @@ type SchedulerConfigDTO struct {
 	ConfigurationCompilerScript       string `json:"configuration_compiler_script"`
 	ConfigurationPowerShellExecutable string `json:"configuration_powershell_executable"`
 	CompileOnNodeRegistration         bool   `json:"compile_configuration_on_node_registration"`
+	EnableAgentPurge                  bool   `json:"enable_agent_purge"`
+	AgentPurgeRetentionDays           int    `json:"agent_purge_retention_days"`
+	AgentPurgeIntervalMins            int    `json:"agent_purge_interval_mins"`
 }
 
 func resolveConfigPath() (string, error) {
@@ -177,6 +193,9 @@ func SchedulerConfigAPIHandler(w http.ResponseWriter, r *http.Request) {
 			ConfigurationCompilerScript:       repoSettings.CompilerScript,
 			ConfigurationPowerShellExecutable: repoSettings.PowerShellExecutable,
 			CompileOnNodeRegistration:         repoSettings.CompileOnNodeRegistration,
+			EnableAgentPurge:                  cfg.DSCPullServer.EnableAgentPurge,
+			AgentPurgeRetentionDays:           cfg.DSCPullServer.AgentPurgeRetentionDays,
+			AgentPurgeIntervalMins:            cfg.DSCPullServer.AgentPurgeIntervalMins,
 		})
 
 	case http.MethodPut:
@@ -226,6 +245,16 @@ func SchedulerConfigAPIHandler(w http.ResponseWriter, r *http.Request) {
 			_ = json.NewEncoder(w).Encode(map[string]string{"error": "configuration repository URL, directory, and compiler script are required"})
 			return
 		}
+		if req.EnableAgentPurge && req.AgentPurgeRetentionDays <= 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "agent_purge_retention_days must be > 0 when agent purge is enabled"})
+			return
+		}
+		if req.EnableAgentPurge && req.AgentPurgeIntervalMins <= 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "agent_purge_interval_mins must be > 0 when agent purge is enabled"})
+			return
+		}
 
 		configPath, err := resolveConfigPath()
 		if err != nil {
@@ -261,6 +290,9 @@ func SchedulerConfigAPIHandler(w http.ResponseWriter, r *http.Request) {
 		dscPullRaw["log_rotate_max_size_mb"] = req.LogRotateMaxSizeMB
 		dscPullRaw["log_rotate_max_backups"] = req.LogRotateMaxBackups
 		dscPullRaw["log_rotate_max_age_days"] = req.LogRotateMaxAgeDays
+		dscPullRaw["enable_agent_purge"] = req.EnableAgentPurge
+		dscPullRaw["agent_purge_retention_days"] = req.AgentPurgeRetentionDays
+		dscPullRaw["agent_purge_interval_mins"] = req.AgentPurgeIntervalMins
 		fullConfig["dsc_pullserver"] = dscPullRaw
 
 		data, err := json.MarshalIndent(fullConfig, "", "  ")
@@ -305,11 +337,14 @@ func SchedulerConfigAPIHandler(w http.ResponseWriter, r *http.Request) {
 		global.AppConfig.DSCPullServer.LogRotateMaxSizeMB = req.LogRotateMaxSizeMB
 		global.AppConfig.DSCPullServer.LogRotateMaxBackups = req.LogRotateMaxBackups
 		global.AppConfig.DSCPullServer.LogRotateMaxAgeDays = req.LogRotateMaxAgeDays
+		global.AppConfig.DSCPullServer.EnableAgentPurge = req.EnableAgentPurge
+		global.AppConfig.DSCPullServer.AgentPurgeRetentionDays = req.AgentPurgeRetentionDays
+		global.AppConfig.DSCPullServer.AgentPurgeIntervalMins = req.AgentPurgeIntervalMins
 
 		if auditDB, auditErr := db.OpenDB(&global.AppConfig.Database); auditErr == nil {
 			driverName := global.AppConfig.Database.Driver
 			details := fmt.Sprintf(
-				"Updated scheduler config: report_cleanup(enable=%t, retention_days=%d, interval_mins=%d), release_check(enable=%t, interval_mins=%d), log_rotation(enable=%t, max_size_mb=%d, max_backups=%d, max_age_days=%d), configuration_repo_sync(enable=%t, interval_mins=%d)",
+				"Updated scheduler config: report_cleanup(enable=%t, retention_days=%d, interval_mins=%d), release_check(enable=%t, interval_mins=%d), log_rotation(enable=%t, max_size_mb=%d, max_backups=%d, max_age_days=%d), configuration_repo_sync(enable=%t, interval_mins=%d), agent_purge(enable=%t, retention_days=%d, interval_mins=%d)",
 				req.EnableReportAutoCleanup,
 				req.ReportRetentionDays,
 				req.ReportCleanupIntervalMins,
@@ -321,6 +356,9 @@ func SchedulerConfigAPIHandler(w http.ResponseWriter, r *http.Request) {
 				req.LogRotateMaxAgeDays,
 				req.EnableConfigurationRepoSync,
 				req.ConfigurationRepoSyncIntervalMins,
+				req.EnableAgentPurge,
+				req.AgentPurgeRetentionDays,
+				req.AgentPurgeIntervalMins,
 			)
 			_ = db.InsertAudit(auditDB, driverName, schedulerActorEmail(r), "update", "scheduler_config", details, r.RemoteAddr)
 			auditDB.Close()
@@ -369,6 +407,46 @@ func SchedulerRunCleanupAPIHandler(w http.ResponseWriter, r *http.Request) {
 	_ = db.CompleteSchedulerTaskRun(database, global.AppConfig.Database.Driver, schedulerTaskReportCleanup, "success", fmt.Sprintf("Deleted %d old report(s)", deleted), time.Now().UTC(), nextRun)
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]int64{"deleted": deleted})
+}
+
+// SchedulerRunAgentPurgeAPIHandler déclenche manuellement la purge des agents
+// présents en corbeille depuis plus que la rétention configurée.
+func SchedulerRunAgentPurgeAPIHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	retentionDays := global.AppConfig.DSCPullServer.AgentPurgeRetentionDays
+	if retentionDays <= 0 {
+		http.Error(w, "Invalid agent purge retention configuration", http.StatusBadRequest)
+		return
+	}
+
+	database, err := db.OpenDB(&global.AppConfig.Database)
+	if err != nil {
+		http.Error(w, "DB open error", http.StatusInternalServerError)
+		return
+	}
+	defer database.Close()
+
+	startedAt := time.Now().UTC()
+	nextRun := schedulerNextRunFromConfig(schedulerTaskAgentPurge)
+	_ = db.BeginSchedulerTaskRun(database, global.AppConfig.Database.Driver, schedulerTaskAgentPurge, schedulerDisplayName(schedulerTaskAgentPurge), "manual", startedAt, nextRun)
+
+	purged, err := db.PurgeDeletedAgents(database, global.AppConfig.Database.Driver, retentionDays)
+	if err != nil {
+		_ = db.InsertAudit(database, global.AppConfig.Database.Driver, schedulerActorEmail(r), "run", "scheduler_task", fmt.Sprintf("Manual run failed: %s, error=%s", schedulerTaskAgentPurge, err.Error()), r.RemoteAddr)
+		_ = db.CompleteSchedulerTaskRun(database, global.AppConfig.Database.Driver, schedulerTaskAgentPurge, "error", err.Error(), time.Now().UTC(), nextRun)
+		http.Error(w, "Agent purge failed", http.StatusInternalServerError)
+		return
+	}
+
+	logs.WriteLogFile(fmt.Sprintf("INFO [AGENT PURGE] Manual purge triggered from admin, purged=%d", purged))
+	_ = db.InsertAudit(database, global.AppConfig.Database.Driver, schedulerActorEmail(r), "run", "scheduler_task", fmt.Sprintf("Manual run: %s, purged=%d", schedulerTaskAgentPurge, purged), r.RemoteAddr)
+	_ = db.CompleteSchedulerTaskRun(database, global.AppConfig.Database.Driver, schedulerTaskAgentPurge, "success", fmt.Sprintf("Purged %d trashed agent(s)", purged), time.Now().UTC(), nextRun)
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]int64{"purged": purged})
 }
 
 func SchedulerConfigFromApp(cfg *schema.AppConfig) SchedulerConfigDTO {
@@ -558,6 +636,7 @@ func SchedulerTasksAPIHandler(w http.ResponseWriter, r *http.Request) {
 	_ = db.UpsertSchedulerTask(database, driver, schedulerTaskReportCleanup, schedulerDisplayName(schedulerTaskReportCleanup), schedulerNextRunFromConfig(schedulerTaskReportCleanup))
 	_ = db.UpsertSchedulerTask(database, driver, schedulerTaskReleaseCheck, schedulerDisplayName(schedulerTaskReleaseCheck), schedulerNextRunFromConfig(schedulerTaskReleaseCheck))
 	_ = db.UpsertSchedulerTask(database, driver, schedulerTaskLogCleanup, schedulerDisplayName(schedulerTaskLogCleanup), schedulerNextRunFromConfig(schedulerTaskLogCleanup))
+	_ = db.UpsertSchedulerTask(database, driver, schedulerTaskAgentPurge, schedulerDisplayName(schedulerTaskAgentPurge), schedulerNextRunFromConfig(schedulerTaskAgentPurge))
 
 	tasks, err := db.ListSchedulerTasks(database)
 	if err != nil {

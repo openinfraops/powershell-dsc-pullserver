@@ -23,6 +23,18 @@ func GetDscActionNodeHandlerWithId(w http.ResponseWriter, r *http.Request, agent
 	database, err := db.OpenDB(&global.AppConfig.Database)
 	log.Printf("[GETDSCACTION-NODE] Start for agentId=%q", agentId)
 
+	// Un nœud en corbeille ne doit plus recevoir sa configuration : on renvoie
+	// une erreur pour que le LCM cesse de tirer la config.
+	var notDeleted int
+	if err == nil && database != nil {
+		_ = database.QueryRow(`SELECT COUNT(*) FROM agents WHERE agent_id = ? AND deleted_at IS NULL`, agentId).Scan(&notDeleted)
+		if notDeleted == 0 {
+			log.Printf("[GETDSCACTION-NODE] agentId=%q est en corbeille ou inexistant, config non servie", agentId)
+			http.Error(w, "Configuration not found", http.StatusNotFound)
+			return
+		}
+	}
+
 	// Si une compilation est en cours pour ce nœud (enregistrement ou recompilation),
 	// on attend qu'elle se termine : la configuration doit être prête avant le pull.
 	var waitingNode string

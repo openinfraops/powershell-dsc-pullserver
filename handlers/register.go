@@ -83,7 +83,7 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 
 			// Vérifie si NodeName existe avec un AgentId TEMP
 			var tempAgentId string
-			err = database.QueryRow(`SELECT agent_id FROM agents WHERE node_name = ? AND agent_id LIKE 'TEMP-%'`, nodeName).Scan(&tempAgentId)
+			err = database.QueryRow(`SELECT agent_id FROM agents WHERE node_name = ? AND agent_id LIKE 'TEMP-%' AND deleted_at IS NULL`, nodeName).Scan(&tempAgentId)
 			if err == nil && tempAgentId != "" {
 				// Migration TEMP → réel.
 				// SQL Server interdit de modifier la PK agents.agent_id lorsqu'une table
