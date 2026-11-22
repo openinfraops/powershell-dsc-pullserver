@@ -96,16 +96,11 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 					logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][DB] Migration agent TEMP %s vers %s impossible: %v", tempAgentId, agentId, migrateErr))
 				}
 			} else {
-				// Insertion normale, compatible SQLite/MSSQL
-				if driver == "sqlite" {
-					_, err = database.Exec(`INSERT OR REPLACE INTO agents (agent_id, node_name, lcm_version, registration_type, certificate_thumbprint, certificate_subject, certificate_issuer, certificate_notbefore, certificate_notafter, state) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-						agentId, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter, "pending_apply")
-				} else {
-					_, err = database.Exec(`IF NOT EXISTS (SELECT 1 FROM agents WHERE agent_id = ?) INSERT INTO agents (agent_id, node_name, lcm_version, registration_type, certificate_thumbprint, certificate_subject, certificate_issuer, certificate_notbefore, certificate_notafter, registered_at, last_communication, has_error_last_report) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-						agentId, agentId, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter, nil, nil, 0)
-				}
+				// Upsert de la ligne principale de l'agent (enrôlement ou
+				// ré-enregistrement / renouvellement de certificat).
+				err = upsertAgent(database, driver, agentId, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter, isNewNode)
 				if err != nil {
-					logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][DB] Erreur insertion agent: %v", err))
+					logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][DB] Erreur upsert agent: %v", err))
 				}
 			}
 
@@ -171,6 +166,32 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("ProtocolVersion", "2.0")
 	_ = json.NewEncoder(w).Encode(resp)
+}
+
+// upsertAgent insère ou met à jour la ligne principale d'un agent selon qu'il
+// s'agit d'un nouvel enregistrement (enrôlement) ou d'un ré-enregistrement
+// (ex. renouvellement du certificat du nœud).
+//
+//   - Nouvel agent : insertion, avec state='pending_apply'.
+//   - Agent déjà enregistré : mise à jour des champs du nœud et du certificat
+//     (thumbprint, subject, issuer, notbefore, notafter) SANS écraser
+//     registered_at, last_communication, has_error_last_report, needs_recompile,
+//     state ni deleted_at. C'est ce qui permet le renouvellement de certificat.
+func upsertAgent(database *sql.DB, driver, agentId, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter string, isNewNode bool) error {
+	if isNewNode {
+		if driver == "sqlite" {
+			_, err := database.Exec(`INSERT OR REPLACE INTO agents (agent_id, node_name, lcm_version, registration_type, certificate_thumbprint, certificate_subject, certificate_issuer, certificate_notbefore, certificate_notafter, state) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				agentId, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter, "pending_apply")
+			return err
+		}
+		_, err := database.Exec(`IF NOT EXISTS (SELECT 1 FROM agents WHERE agent_id = ?) INSERT INTO agents (agent_id, node_name, lcm_version, registration_type, certificate_thumbprint, certificate_subject, certificate_issuer, certificate_notbefore, certificate_notafter, registered_at, last_communication, has_error_last_report) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			agentId, agentId, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter, nil, nil, 0)
+		return err
+	}
+	// Ré-enregistrement : mise à jour (le renouvellement de certificat aboutit ici).
+	_, err := database.Exec(`UPDATE agents SET node_name=?, lcm_version=?, registration_type=?, certificate_thumbprint=?, certificate_subject=?, certificate_issuer=?, certificate_notbefore=?, certificate_notafter=? WHERE agent_id=?`,
+		nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter, agentId)
+	return err
 }
 
 // migrateTempAgentToRealID remplace une pré-inscription TEMP-* par l'ID réel d'un

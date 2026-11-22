@@ -97,9 +97,9 @@ Set-DscLocalConfigurationManager -Path ./PullLCMConfig
 
 The node's certificate information (thumbprint, subject, issuer, `notBefore`/`notAfter`) is captured **at registration** from `RegistrationInformation.CertificateInformation` and stored in the `agents` table. When a node's certificate is renewed, the node **re-registers** with the pull server (same registration endpoint, same registration key): the stored certificate information is refreshed and the new thumbprint becomes the one checked by the middleware.
 
-> **Backend behaviour on re-registration:**
-> - **SQLite:** the registration handler uses `INSERT OR REPLACE`, so the certificate row (including the thumbprint) is refreshed. Note that this recreates the row, so columns not supplied in the insert (e.g. `last_communication`, `has_error_last_report`) are reset.
-> - **MSSQL:** the registration handler uses `IF NOT EXISTS ... INSERT`, so an **already-registered agent is not updated**. A renewed certificate is therefore **not** reflected in the `agents` table and the thumbprint check will reject the new certificate until the agent is removed and registered again.
+> **Backend behaviour on re-registration (both SQLite and MSSQL):**
+> - A **new** agent (first enrollment) is **inserted** with `state = pending_apply`.
+> - An **already-registered** agent (e.g. certificate renewal) is **updated in place**: `node_name`, `lcm_version`, `registration_type` and the certificate fields (`certificate_thumbprint`, `certificate_subject`, `certificate_issuer`, `certificate_notbefore`, `certificate_notafter`) are refreshed, while `state`, `last_communication`, `has_error_last_report`, `needs_recompile` and `registered_at` are preserved.
 
 4. **Successful registration:**
 - Upon successful registration, the agent will appear in the web interface and can receive configurations.
