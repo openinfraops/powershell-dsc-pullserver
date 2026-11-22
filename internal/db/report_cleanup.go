@@ -22,7 +22,7 @@ func CleanupOldReports(database *sql.DB, driver string, retentionDays int) (int6
 
 	switch driver {
 	case "mssql", "sqlserver":
-		result, err = database.Exec(`DELETE FROM reports WHERE created_at < DATEADD(day, -?, GETDATE())`, retentionDays)
+		result, err = database.Exec(`DELETE FROM reports WHERE created_at < DATEADD(day, -?, `+NowExpr(driver)+`)`, retentionDays)
 	default:
 		modifier := fmt.Sprintf("-%d days", retentionDays)
 		result, err = database.Exec(`DELETE FROM reports WHERE datetime(created_at) < datetime('now', ?)`, modifier)

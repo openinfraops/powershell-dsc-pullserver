@@ -18,7 +18,7 @@ CREATE TABLE users (
     email NVARCHAR(255) NOT NULL UNIQUE,
     password_hash NVARCHAR(255) NOT NULL,
     is_active BIT DEFAULT 1,
-    created_at DATETIME DEFAULT GETDATE(),
+    created_at DATETIME DEFAULT GETUTCDATE(),
     last_logon_date DATETIME,
     role NVARCHAR(50) DEFAULT 'user',
     source NVARCHAR(50) DEFAULT 'local'
@@ -31,7 +31,7 @@ CREATE TABLE user_api_tokens (
     token_hash NVARCHAR(255) NOT NULL,
     label NVARCHAR(255),
     is_active BIT DEFAULT 1,
-    created_at DATETIME DEFAULT GETDATE(),
+    created_at DATETIME DEFAULT GETUTCDATE(),
     revoked_at DATETIME,
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
@@ -43,7 +43,7 @@ CREATE TABLE modules (
     version NVARCHAR(50) NOT NULL,
     checksum NVARCHAR(255) NOT NULL,
     zip_blob VARBINARY(MAX) NOT NULL,
-    uploaded_at DATETIME DEFAULT GETDATE()
+    uploaded_at DATETIME DEFAULT GETUTCDATE()
 );
 
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='reports' AND xtype='U')
@@ -62,7 +62,7 @@ CREATE TABLE reports (
     status_data NVARCHAR(MAX),      -- JSON array
     additional_data NVARCHAR(MAX),  -- JSON array
     mof_applied BIT DEFAULT 0,      -- Indique si un MOF a été appliqué (0 ou 1)
-    created_at DATETIME DEFAULT GETDATE(),
+    created_at DATETIME DEFAULT GETUTCDATE(),
     raw_json NVARCHAR(MAX)
 );
 
@@ -82,10 +82,10 @@ CREATE TABLE dsc_infra_info (
     update_available BIT DEFAULT 0,
     release_check_ok BIT DEFAULT 0,
     release_checked_at DATETIME NULL,
-    updated_at DATETIME DEFAULT GETDATE()
+    updated_at DATETIME DEFAULT GETUTCDATE()
 );
 IF NOT EXISTS (SELECT 1 FROM dsc_infra_info WHERE id = 1)
-    INSERT INTO dsc_infra_info (id, web_version, db_version, updated_at) VALUES (1, '0.0.1', '1.2.0', GETDATE());
+    INSERT INTO dsc_infra_info (id, web_version, db_version, updated_at) VALUES (1, '0.0.1', '1.2.0', GETUTCDATE());
 
 IF EXISTS (SELECT * FROM sysobjects WHERE name='dsc_infra_info' AND xtype='U')
 BEGIN
@@ -109,7 +109,7 @@ CREATE TABLE scheduler_tasks (
     last_run_at DATETIME NULL,
     last_status NVARCHAR(32) NOT NULL DEFAULT 'idle',
     last_message NVARCHAR(512) NULL,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at DATETIME NOT NULL DEFAULT GETUTCDATE()
 );
 
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='configuration_repo_settings' AND xtype='U')
@@ -126,7 +126,7 @@ CREATE TABLE configuration_repo_settings (
     sync_interval_mins INT NOT NULL DEFAULT 60,
     compile_on_node_registration BIT NOT NULL DEFAULT 0,
     legacy_imported BIT NOT NULL DEFAULT 0,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at DATETIME NOT NULL DEFAULT GETUTCDATE()
 );
 IF NOT EXISTS (SELECT 1 FROM configuration_repo_settings WHERE id = 1)
     INSERT INTO configuration_repo_settings (id) VALUES (1);
@@ -140,14 +140,14 @@ CREATE TABLE scheduler_task_runs (
     status NVARCHAR(32) NOT NULL,
     message NVARCHAR(512) NULL,
     trigger_source NVARCHAR(32) NOT NULL,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME NOT NULL DEFAULT GETUTCDATE()
 );
 
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_scheduler_runs_task_started' AND object_id = OBJECT_ID('scheduler_task_runs'))
     CREATE INDEX idx_scheduler_runs_task_started ON scheduler_task_runs(task_name, started_at DESC);
 
 -- To update version:
--- UPDATE dsc_infra_info SET db_version = '1.1.3p2', updated_at = GETDATE() WHERE id = 1;
+-- UPDATE dsc_infra_info SET db_version = '1.1.3p2', updated_at = GETUTCDATE() WHERE id = 1;
 
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='agents' AND xtype='U')
 CREATE TABLE agents (
@@ -160,8 +160,8 @@ CREATE TABLE agents (
     certificate_issuer NVARCHAR(255) NULL,
     certificate_notbefore NVARCHAR(50) NULL,
     certificate_notafter NVARCHAR(50) NULL,
-    registered_at DATETIME DEFAULT GETDATE(),
-    last_communication DATETIME DEFAULT GETDATE(),
+    registered_at DATETIME DEFAULT GETUTCDATE(),
+    last_communication DATETIME DEFAULT GETUTCDATE(),
     needs_recompile BIT NOT NULL DEFAULT 0,
     deleted_at DATETIME NULL,
     deleted_by NVARCHAR(200) NULL,
@@ -208,7 +208,7 @@ CREATE TABLE configuration_model (
     name NVARCHAR(128) NOT NULL,
     original_name NVARCHAR(128) NULL,
     previous_id INT NULL,
-    upload_date DATETIME DEFAULT GETDATE(),
+    upload_date DATETIME DEFAULT GETUTCDATE(),
     uploaded_by NVARCHAR(128) NOT NULL,
     mof_file VARBINARY(MAX) NOT NULL,
     last_usage DATETIME,

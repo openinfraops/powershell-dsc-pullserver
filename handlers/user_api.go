@@ -162,7 +162,7 @@ func RevokeUserAPITokenHandler(db *sql.DB) http.HandlerFunc {
 
 		var err error
 		if driver == "mssql" || driver == "sqlserver" {
-			_, err = db.Exec("UPDATE user_api_tokens SET is_active=0, revoked_at=CURRENT_TIMESTAMP WHERE id=?", tokenId)
+			_, err = db.Exec("UPDATE user_api_tokens SET is_active=0, revoked_at="+internaldb.NowExpr(driver)+" WHERE id=?", tokenId)
 		} else {
 			_, err = db.Exec("UPDATE user_api_tokens SET is_active=0, revoked_at=? WHERE id=?", time.Now(), tokenId)
 		}

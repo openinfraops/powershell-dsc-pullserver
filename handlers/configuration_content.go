@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"go-dsc-pull/internal/db"
+	"go-dsc-pull/internal/global"
 	"go-dsc-pull/utils"
 	"log"
 	"net/http"
@@ -62,8 +63,8 @@ func ConfigurationContentHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// Recherche par nom (sans extension)
 	log.Printf("[CONFIGURATIONCONTENT] Looking up MOF in database for configName='%s'", configName)
-	// Met à jour last_usage à CURRENT_TIMESTAMP pour cette configuration (insensible à la casse)
-	_, err := dbConn.Exec("UPDATE configuration_model SET last_usage = CURRENT_TIMESTAMP WHERE LOWER(name) = LOWER(?)", configName)
+	// Met à jour last_usage à l'heure UTC courante pour cette configuration (insensible à la casse)
+	_, err := dbConn.Exec("UPDATE configuration_model SET last_usage = "+db.NowExpr(global.AppConfig.Database.Driver)+" WHERE LOWER(name) = LOWER(?)", configName)
 	if err != nil {
 		log.Printf("[CONFIGURATIONCONTENT] Error updating last_usage: %v", err)
 	}

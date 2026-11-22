@@ -46,8 +46,8 @@ func StoreAPIToken(db *sql.DB, userId int64, plainToken, label string) error {
 		driver = global.AppConfig.Database.Driver
 	}
 	if driver == "mssql" || driver == "sqlserver" {
-		// Use CURRENT_TIMESTAMP for SQL Server
-		_, err = db.Exec(`INSERT INTO user_api_tokens (user_id, token_hash, label, is_active, created_at) VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP)`,
+		// Use GETUTCDATE() for SQL Server (CURRENT_TIMESTAMP is server-local time).
+		_, err = db.Exec(`INSERT INTO user_api_tokens (user_id, token_hash, label, is_active, created_at) VALUES (?, ?, ?, 1, `+NowExpr(driver)+`)`,
 			userId, string(hash), label)
 	} else {
 		// Use formatted string for SQLite

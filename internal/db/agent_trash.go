@@ -35,7 +35,7 @@ func PurgeDeletedAgents(database *sql.DB, driver string, retentionDays int) (int
 	var err error
 
 	if driver == "mssql" || driver == "sqlserver" {
-		ids, err = collectDeletedAgentIDs(database, `SELECT agent_id FROM agents WHERE deleted_at IS NOT NULL AND deleted_at < DATEADD(day, -?, GETDATE())`, retentionDays)
+		ids, err = collectDeletedAgentIDs(database, `SELECT agent_id FROM agents WHERE deleted_at IS NOT NULL AND deleted_at < DATEADD(day, -?, `+NowExpr(driver)+`)`, retentionDays)
 	} else {
 		modifier := fmt.Sprintf("-%d days", retentionDays)
 		ids, err = collectDeletedAgentIDs(database, `SELECT agent_id FROM agents WHERE deleted_at IS NOT NULL AND datetime(deleted_at) < datetime('now', ?)`, modifier)

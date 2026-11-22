@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"go-dsc-pull/internal/db"
+	"go-dsc-pull/internal/global"
 	"go-dsc-pull/internal/schema"
 	"go-dsc-pull/internal/service"
 	"io"
@@ -131,7 +132,7 @@ func GetDscActionNodeHandlerWithId(w http.ResponseWriter, r *http.Request, agent
 				} else {
 					hash := sha256SumHex(mofBytes)
 					log.Printf("[GETDSCACTION-NODE] Config=%s, Hash sent=%s, Hash computed=%s", configName, cs.Checksum, hash)
-					_, err := database.Exec("UPDATE configuration_model SET last_usage = CURRENT_TIMESTAMP WHERE LOWER(name) = LOWER(?)", configName)
+					_, err := database.Exec("UPDATE configuration_model SET last_usage = "+db.NowExpr(global.AppConfig.Database.Driver)+" WHERE LOWER(name) = LOWER(?)", configName)
 					log.Printf("[GETDSCACTION-NODE] Updating last_usage for configName='%s', err=%v", configName, err)
 					if hash != "" && strings.EqualFold(hash, cs.Checksum) {
 						status = "OK"
@@ -152,7 +153,7 @@ func GetDscActionNodeHandlerWithId(w http.ResponseWriter, r *http.Request, agent
 		}
 		if allOk {
 			nodeStatus = "OK"
-			_, err = database.Exec("UPDATE agents SET last_communication = CURRENT_TIMESTAMP, state = 'OK' WHERE agent_id = ?", agentId)
+			_, err = database.Exec("UPDATE agents SET last_communication = "+db.NowExpr(global.AppConfig.Database.Driver)+", state = 'OK' WHERE agent_id = ?", agentId)
 			if err != nil {
 				log.Printf("[GETDSCACTION-NODE] Error updating last_communication state OK: %v", err)
 			}

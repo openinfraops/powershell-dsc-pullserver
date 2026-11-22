@@ -124,7 +124,7 @@ func ModuleUploadHandler(db *sql.DB) http.HandlerFunc {
 					driverName := global.AppConfig.Database.Driver
 					if driverName != "" {
 						// Insert audit log
-						_, _ = db.Exec(`INSERT INTO audit (user, action, object, details, extra, timestamp) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`, user, "create", "module", fmt.Sprintf("Ajout module: %s v%s (zip)", name, version), "")
+						_, _ = db.Exec(`INSERT INTO audit (user, action, object, details, extra, timestamp) VALUES (?, ?, ?, ?, ?, `+internaldb.NowExpr(driverName)+`)`, user, "create", "module", fmt.Sprintf("Ajout module: %s v%s (zip)", name, version), "")
 					}
 					w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 					fmt.Fprintf(w, "Module %s v%s uploaded and processed as zip.\n", name, version)

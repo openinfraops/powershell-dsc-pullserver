@@ -16,7 +16,7 @@ type ReleaseCheckState struct {
 
 func PersistReleaseCheckSuccess(db *sql.DB, driverName string, latestRelease, latestReleaseURL string, updateAvailable bool) error {
 	if driverName == "mssql" || driverName == "sqlserver" {
-		_, err := db.Exec(`UPDATE dsc_infra_info SET latest_release = ?, latest_release_url = ?, update_available = ?, release_check_ok = 1, release_checked_at = CURRENT_TIMESTAMP WHERE id = 1`,
+		_, err := db.Exec(`UPDATE dsc_infra_info SET latest_release = ?, latest_release_url = ?, update_available = ?, release_check_ok = 1, release_checked_at = `+NowExpr(driverName)+` WHERE id = 1`,
 			latestRelease, latestReleaseURL, updateAvailable)
 		return err
 	}
@@ -27,7 +27,7 @@ func PersistReleaseCheckSuccess(db *sql.DB, driverName string, latestRelease, la
 
 func PersistReleaseCheckFailure(db *sql.DB, driverName string) error {
 	if driverName == "mssql" || driverName == "sqlserver" {
-		_, err := db.Exec(`UPDATE dsc_infra_info SET release_check_ok = 0, release_checked_at = CURRENT_TIMESTAMP WHERE id = 1`)
+		_, err := db.Exec(`UPDATE dsc_infra_info SET release_check_ok = 0, release_checked_at = `+NowExpr(driverName)+` WHERE id = 1`)
 		return err
 	}
 	_, err := db.Exec(`UPDATE dsc_infra_info SET release_check_ok = 0, release_checked_at = ? WHERE id = 1`, time.Now().Format("2006-01-02 15:04:05"))

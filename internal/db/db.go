@@ -18,7 +18,7 @@ import (
 // Insert an audit entry (generic)
 func InsertAudit(db *sql.DB, driverName string, userEmail, action, target, details, ip string) error {
 	if driverName == "mssql" || driverName == "sqlserver" {
-		_, err := db.Exec("INSERT INTO audit (user_email, action, target, details, ip_address, created_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
+		_, err := db.Exec("INSERT INTO audit (user_email, action, target, details, ip_address, created_at) VALUES (?, ?, ?, ?, ?, "+NowExpr(driverName)+")",
 			userEmail, action, target, details, ip)
 		return err
 	}
@@ -37,7 +37,7 @@ func UpdateLastLogon(db *sql.DB, userId interface{}) error {
 	}
 	driverName := appCfg.Database.Driver
 	if driverName == "mssql" || driverName == "sqlserver" {
-		_, err = db.Exec("UPDATE users SET last_logon_date=CURRENT_TIMESTAMP WHERE id=?", userId)
+		_, err = db.Exec("UPDATE users SET last_logon_date="+NowExpr(driverName)+" WHERE id=?", userId)
 	} else {
 		_, err = db.Exec("UPDATE users SET last_logon_date=? WHERE id=?", time.Now().Format("2006-01-02 15:04:05"), userId)
 	}
@@ -62,7 +62,7 @@ func TouchLastLogon(db *sql.DB, userId interface{}) error {
 	}
 	driverName := appCfg.Database.Driver
 	if driverName == "mssql" || driverName == "sqlserver" {
-		_, err = db.Exec("UPDATE users SET last_logon_date=CURRENT_TIMESTAMP WHERE id=?", userId)
+		_, err = db.Exec("UPDATE users SET last_logon_date="+NowExpr(driverName)+" WHERE id=?", userId)
 	} else {
 		_, err = db.Exec("UPDATE users SET last_logon_date=? WHERE id=?", time.Now().Format("2006-01-02 15:04:05"), userId)
 	}

@@ -35,7 +35,7 @@ func GetAgentsHandler(w http.ResponseWriter, r *http.Request) {
 		expr := certNotAfterExpr(global.AppConfig.Database.Driver)
 		nowExpr := "julianday('now')"
 		if isMSSQL {
-			nowExpr = "GETDATE()"
+			nowExpr = "GETUTCDATE()"
 		}
 		certBase := " FROM agents WHERE deleted_at IS NULL AND certificate_notafter IS NOT NULL AND certificate_notafter <> ''"
 		cutoff := time.Now().UTC().AddDate(0, 0, 30)

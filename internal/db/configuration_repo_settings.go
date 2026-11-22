@@ -35,9 +35,10 @@ func GetConfigurationRepoSettings(database *sql.DB) (ConfigurationRepoSettings, 
 }
 
 func SaveConfigurationRepoSettings(database *sql.DB, driver string, settings ConfigurationRepoSettings) error {
+	nowExpr := NowExpr(driver)
 	if driver == "mssql" || driver == "sqlserver" {
 		_, err := database.Exec(`IF EXISTS (SELECT 1 FROM configuration_repo_settings WHERE id = 1)
-UPDATE configuration_repo_settings SET enabled = ?, repository_url = ?, branch = ?, checkout_directory = ?, compiler_script = ?, powershell_executable = ?, repository_username = ?, repository_password = ?, sync_interval_mins = ?, compile_on_node_registration = ?, legacy_imported = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1
+UPDATE configuration_repo_settings SET enabled = ?, repository_url = ?, branch = ?, checkout_directory = ?, compiler_script = ?, powershell_executable = ?, repository_username = ?, repository_password = ?, sync_interval_mins = ?, compile_on_node_registration = ?, legacy_imported = ?, updated_at = `+nowExpr+` WHERE id = 1
 ELSE
 INSERT INTO configuration_repo_settings (id, enabled, repository_url, branch, checkout_directory, compiler_script, powershell_executable, repository_username, repository_password, sync_interval_mins, compile_on_node_registration, legacy_imported) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			settings.Enabled, settings.URL, settings.Branch, settings.Directory, settings.CompilerScript, settings.PowerShellExecutable, settings.RepositoryUsername, settings.RepositoryPassword, settings.SyncIntervalMins, settings.CompileOnNodeRegistration, settings.LegacyImported,
@@ -46,8 +47,8 @@ INSERT INTO configuration_repo_settings (id, enabled, repository_url, branch, ch
 		return err
 	}
 	_, err := database.Exec(`INSERT INTO configuration_repo_settings (id, enabled, repository_url, branch, checkout_directory, compiler_script, powershell_executable, repository_username, repository_password, sync_interval_mins, compile_on_node_registration, legacy_imported, updated_at)
-VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-ON CONFLICT(id) DO UPDATE SET enabled = excluded.enabled, repository_url = excluded.repository_url, branch = excluded.branch, checkout_directory = excluded.checkout_directory, compiler_script = excluded.compiler_script, powershell_executable = excluded.powershell_executable, repository_username = excluded.repository_username, repository_password = excluded.repository_password, sync_interval_mins = excluded.sync_interval_mins, compile_on_node_registration = excluded.compile_on_node_registration, legacy_imported = excluded.legacy_imported, updated_at = CURRENT_TIMESTAMP`,
+VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, `+nowExpr+`)
+ON CONFLICT(id) DO UPDATE SET enabled = excluded.enabled, repository_url = excluded.repository_url, branch = excluded.branch, checkout_directory = excluded.checkout_directory, compiler_script = excluded.compiler_script, powershell_executable = excluded.powershell_executable, repository_username = excluded.repository_username, repository_password = excluded.repository_password, sync_interval_mins = excluded.sync_interval_mins, compile_on_node_registration = excluded.compile_on_node_registration, legacy_imported = excluded.legacy_imported, updated_at = `+nowExpr+``,
 		settings.Enabled, settings.URL, settings.Branch, settings.Directory, settings.CompilerScript, settings.PowerShellExecutable, settings.RepositoryUsername, settings.RepositoryPassword, settings.SyncIntervalMins, settings.CompileOnNodeRegistration, settings.LegacyImported,
 	)
 	return err

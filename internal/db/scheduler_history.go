@@ -62,25 +62,26 @@ func UpsertSchedulerTask(db *sql.DB, driver, taskName, displayName string, nextR
 	if nextRunAt != nil {
 		nextAny = formatTS(*nextRunAt)
 	}
+	nowExpr := NowExpr(driver)
 	if driver == "mssql" || driver == "sqlserver" {
 		_, err := db.Exec(`
 IF EXISTS (SELECT 1 FROM scheduler_tasks WHERE task_name = ?)
 BEGIN
-	UPDATE scheduler_tasks SET display_name = ?, next_run_at = ?, updated_at = CURRENT_TIMESTAMP WHERE task_name = ?
+	UPDATE scheduler_tasks SET display_name = ?, next_run_at = ?, updated_at = `+nowExpr+` WHERE task_name = ?
 END
 ELSE
 BEGIN
-	INSERT INTO scheduler_tasks (task_name, display_name, next_run_at, last_status, updated_at) VALUES (?, ?, ?, 'idle', CURRENT_TIMESTAMP)
+	INSERT INTO scheduler_tasks (task_name, display_name, next_run_at, last_status, updated_at) VALUES (?, ?, ?, 'idle', `+nowExpr+`)
 END`, taskName, displayName, nextAny, taskName, taskName, displayName, nextAny)
 		return err
 	}
 	_, err := db.Exec(`
 INSERT INTO scheduler_tasks (task_name, display_name, next_run_at, last_status, updated_at)
-VALUES (?, ?, ?, 'idle', CURRENT_TIMESTAMP)
+VALUES (?, ?, ?, 'idle', `+nowExpr+`)
 ON CONFLICT(task_name) DO UPDATE SET
 	display_name=excluded.display_name,
 	next_run_at=excluded.next_run_at,
-	updated_at=CURRENT_TIMESTAMP`, taskName, displayName, nextAny)
+	updated_at=`+nowExpr+``, taskName, displayName, nextAny)
 	return err
 }
 
@@ -93,22 +94,24 @@ func BeginSchedulerTaskRun(db *sql.DB, driver, taskName, displayName, triggerSou
 	if nextRunAt != nil {
 		nextAny = formatTS(*nextRunAt)
 	}
+	nowExpr := NowExpr(driver)
 	if driver == "mssql" || driver == "sqlserver" {
-		if _, err := db.Exec(`UPDATE scheduler_tasks SET last_run_at = ?, next_run_at = ?, last_status = 'running', last_message = NULL, updated_at = CURRENT_TIMESTAMP WHERE task_name = ?`, started, nextAny, taskName); err != nil {
+		if _, err := db.Exec(`UPDATE scheduler_tasks SET last_run_at = ?, next_run_at = ?, last_status = 'running', last_message = NULL, updated_at = `+nowExpr+` WHERE task_name = ?`, started, nextAny, taskName); err != nil {
 			return err
 		}
-		_, err := db.Exec(`INSERT INTO scheduler_task_runs (task_name, started_at, status, trigger_source, created_at) VALUES (?, ?, 'running', ?, CURRENT_TIMESTAMP)`, taskName, started, triggerSource)
+		_, err := db.Exec(`INSERT INTO scheduler_task_runs (task_name, started_at, status, trigger_source, created_at) VALUES (?, ?, 'running', ?, `+nowExpr+`)`, taskName, started, triggerSource)
 		return err
 	}
-	if _, err := db.Exec(`UPDATE scheduler_tasks SET last_run_at = ?, next_run_at = ?, last_status = 'running', last_message = NULL, updated_at = CURRENT_TIMESTAMP WHERE task_name = ?`, started, nextAny, taskName); err != nil {
+	if _, err := db.Exec(`UPDATE scheduler_tasks SET last_run_at = ?, next_run_at = ?, last_status = 'running', last_message = NULL, updated_at = `+nowExpr+` WHERE task_name = ?`, started, nextAny, taskName); err != nil {
 		return err
 	}
-	_, err := db.Exec(`INSERT INTO scheduler_task_runs (task_name, started_at, status, trigger_source, created_at) VALUES (?, ?, 'running', ?, CURRENT_TIMESTAMP)`, taskName, started, triggerSource)
+	_, err := db.Exec(`INSERT INTO scheduler_task_runs (task_name, started_at, status, trigger_source, created_at) VALUES (?, ?, 'running', ?, `+nowExpr+`)`, taskName, started, triggerSource)
 	return err
 }
 
 func CompleteSchedulerTaskRun(db *sql.DB, driver, taskName, status, message string, finishedAt time.Time, nextRunAt *time.Time) error {
 	finished := formatTS(finishedAt)
+	nowExpr := NowExpr(driver)
 	var nextAny interface{}
 	if nextRunAt != nil {
 		nextAny = formatTS(*nextRunAt)
@@ -122,7 +125,7 @@ UPDATE scheduler_task_runs SET finished_at = ?, status = ?, message = ? WHERE id
 `, taskName, finished, status, message); err != nil {
 			return err
 		}
-		_, err := db.Exec(`UPDATE scheduler_tasks SET next_run_at = ?, last_status = ?, last_message = ?, updated_at = CURRENT_TIMESTAMP WHERE task_name = ?`, nextAny, status, message, taskName)
+		_, err := db.Exec(`UPDATE scheduler_tasks SET next_run_at = ?, last_status = ?, last_message = ?, updated_at = `+nowExpr+` WHERE task_name = ?`, nextAny, status, message, taskName)
 		return err
 	}
 	if _, err := db.Exec(`
@@ -133,7 +136,7 @@ WHERE id = (
 )`, finished, status, message, taskName); err != nil {
 		return err
 	}
-	_, err := db.Exec(`UPDATE scheduler_tasks SET next_run_at = ?, last_status = ?, last_message = ?, updated_at = CURRENT_TIMESTAMP WHERE task_name = ?`, nextAny, status, message, taskName)
+	_, err := db.Exec(`UPDATE scheduler_tasks SET next_run_at = ?, last_status = ?, last_message = ?, updated_at = `+nowExpr+` WHERE task_name = ?`, nextAny, status, message, taskName)
 	return err
 }
 
@@ -265,6 +268,7 @@ func CancelRunningSchedulerTasks(db *sql.DB, driver string, cancelledAt time.Tim
 
 	finished := formatTS(cancelledAt)
 	finishedMSSQL := cancelledAt.UTC()
+	nowExpr := NowExpr(driver)
 	driver = strings.ToLower(driver)
 
 	var result sql.Result
@@ -295,13 +299,13 @@ WHERE status = 'running'
 		if driver == "mssql" || driver == "sqlserver" {
 			_, err = db.Exec(`
 UPDATE scheduler_tasks
-SET last_status = 'cancelled', last_message = ?, updated_at = CURRENT_TIMESTAMP
+SET last_status = 'cancelled', last_message = ?, updated_at = `+nowExpr+`
 WHERE last_status = 'running'
 `, message)
 		} else {
 			_, err = db.Exec(`
 UPDATE scheduler_tasks
-SET last_status = 'cancelled', last_message = ?, updated_at = CURRENT_TIMESTAMP
+SET last_status = 'cancelled', last_message = ?, updated_at = `+nowExpr+`
 WHERE last_status = 'running'
 `, message)
 		}

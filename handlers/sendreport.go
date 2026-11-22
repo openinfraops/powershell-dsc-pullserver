@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"go-dsc-pull/internal/db"
+	"go-dsc-pull/internal/global"
 	"go-dsc-pull/internal/schema"
 	"go-dsc-pull/utils"
 	"log"
@@ -90,8 +91,8 @@ func SendReportHandler(w http.ResponseWriter, r *http.Request) {
 		} else {
 			log.Printf("[SENDREPORT] Inserting report in database: agent_id=%s, job_id=%s, operation_type=%s", agentId, report.JobId, report.OperationType)
 			_, err := database.Exec(`INSERT INTO reports (
-					agent_id, job_id, report_format_version, operation_type, refresh_mode, status, start_time, end_time, reboot_requested, errors, status_data, additional_data, mof_applied, raw_json
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+					agent_id, job_id, report_format_version, operation_type, refresh_mode, status, start_time, end_time, reboot_requested, errors, status_data, additional_data, mof_applied, raw_json, created_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, `+db.NowExpr(global.AppConfig.Database.Driver)+`)`,
 				agentId,
 				report.JobId,
 				report.ReportFormatVersion,
@@ -111,8 +112,10 @@ func SendReportHandler(w http.ResponseWriter, r *http.Request) {
 				log.Printf("[SENDREPORT] Error inserting report in database: %v", err)
 			}
 		}
-		// Toujours mettre a jour le heartbeat agent.
-		_, err = database.Exec("UPDATE agents SET last_communication = CURRENT_TIMESTAMP WHERE agent_id = ?", agentId)
+		// Toujours mettre à jour le heartbeat agent. Le front suppose un stockage
+		// UTC (parseUtc ajoute 'Z') ; MSSQL CURRENT_TIMESTAMP est local, d'où
+		// GETUTCDATE() via db.NowExpr.
+		_, err = database.Exec("UPDATE agents SET last_communication = "+db.NowExpr(global.AppConfig.Database.Driver)+" WHERE agent_id = ?", agentId)
 		if err != nil {
 			log.Printf("[SENDREPORT] Error updating last_communication: %v", err)
 		}
