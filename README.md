@@ -30,26 +30,31 @@ Detailed documentation is organized into two main sections:
 - [Roles & Access](doc/webui/droits.md)
 - [Storage Modes](doc/webui/stockage.md)
 
-## Build (Windows)
+## Getting started
 
-To generate a Windows executable with:
+The server ships as a single self-contained **Go** executable — no Go runtime is needed on the target host. Grab the latest pre-built binary from the [GitHub Releases page](https://github.com/openinfraops/powershell-dsc-pullserver/releases) (the release zip keeps the required `web/`, `templates/` and `db/` directories).
 
-- metadata visible in the file properties (Product Version, File Version, etc.)
-- build metadata injected into the logs (version, commit, date)
-
-use:
+To install or update on Windows, use the provided scripts (run as Administrator):
 
 ```powershell
-./scripts/build-windows.ps1
+# install from the extracted release folder; -CreateService registers the Windows service
+./scripts/install-windows.ps1 -SourcePath <extracted-release-folder> -CreateService
+
+# update an existing installation
+./scripts/update-windows.ps1 -SourcePath <new-extracted-release-folder>
 ```
 
-The `build/version.json` file is read automatically by default and serves as the local source of versioning and product metadata.
+Then:
 
-From a non-Windows environment you can also target Windows by setting `GOOS=windows` and `GOARCH` before running the script (PowerShell 7 required).
+- Edit `config.json` (database, SAML, web UI, DSC settings) — use [`config_example.json`](config_example.json) as a starting point.
+- Bootstrap the initial admin account: `DSC-Admin-Console.exe init-bootstrap-admin`.
+- See the full [installation guide](doc/installation.md) and [configuration reference](doc/Configuration.md).
 
-## Contribution
+To build the binary yourself, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
-To contribute, open an issue or submit a pull request. Any help to improve the documentation or code is welcome.
+## Contributing
+
+Contributions to the code or documentation are welcome. Open an issue for bug reports and ideas; to build, test and open a pull request, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
