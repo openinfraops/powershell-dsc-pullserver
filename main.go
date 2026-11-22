@@ -141,107 +141,79 @@ func main() {
 
 		const logMaintenanceInterval = time.Hour
 
-		reportDisplay := "Report cleanup"
-		releaseDisplay := "Release check"
-		logDisplay := "Log rotate"
-		configurationRepoDisplay := "Configuration repository sync"
-		agentPurgeDisplay := "Corbeille (purge agents)"
-		configurationVersionCleanupDisplay := "Rétention versions de configuration"
-
-		var reportNext *time.Time
-		if global.AppConfig.DSCPullServer.EnableReportAutoCleanup {
-			intervalMins := global.AppConfig.DSCPullServer.ReportCleanupIntervalMins
-			if intervalMins <= 0 {
-				intervalMins = 1440
-			}
-			n := time.Now().UTC().Add(time.Duration(intervalMins) * time.Minute)
-			reportNext = &n
+		// Déclaration des tâches planifiées. La planification (première exécution,
+		// enregistrement dans scheduler_tasks) et l'enregistrement des runs
+		// (begin/complete) sont factorisés dans taskMeta.
+		reportCleanup := taskMeta{
+			key:      taskReportCleanup,
+			display:  "Report cleanup",
+			enabled:  global.AppConfig.DSCPullServer.EnableReportAutoCleanup,
+			interval: intervalFromMins(global.AppConfig.DSCPullServer.ReportCleanupIntervalMins, 1440),
 		}
-		_ = db.UpsertSchedulerTask(dbConn, global.AppConfig.Database.Driver, taskReportCleanup, reportDisplay, reportNext)
+		reportCleanup.register(dbConn, global.AppConfig.Database.Driver)
 
-		var releaseNext *time.Time
-		if global.AppConfig.DSCPullServer.EnableReleaseCheck {
-			intervalMins := global.AppConfig.DSCPullServer.ReleaseCheckIntervalMins
-			if intervalMins <= 0 {
-				intervalMins = 1440
-			}
-			n := time.Now().UTC().Add(time.Duration(intervalMins) * time.Minute)
-			releaseNext = &n
+		releaseCheck := taskMeta{
+			key:      taskReleaseCheck,
+			display:  "Release check",
+			enabled:  global.AppConfig.DSCPullServer.EnableReleaseCheck,
+			interval: intervalFromMins(global.AppConfig.DSCPullServer.ReleaseCheckIntervalMins, 1440),
 		}
-		_ = db.UpsertSchedulerTask(dbConn, global.AppConfig.Database.Driver, taskReleaseCheck, releaseDisplay, releaseNext)
+		releaseCheck.register(dbConn, global.AppConfig.Database.Driver)
 
-		var logNext *time.Time
-		if global.AppConfig.DSCPullServer.EnableLogRotation {
-			n := time.Now().UTC().Add(logMaintenanceInterval)
-			logNext = &n
+		logCleanup := taskMeta{
+			key:      taskLogCleanup,
+			display:  "Log rotate",
+			enabled:  global.AppConfig.DSCPullServer.EnableLogRotation,
+			interval: logMaintenanceInterval,
 		}
-		_ = db.UpsertSchedulerTask(dbConn, global.AppConfig.Database.Driver, taskLogCleanup, logDisplay, logNext)
+		logCleanup.register(dbConn, global.AppConfig.Database.Driver)
 
-		var agentPurgeNext *time.Time
-		if global.AppConfig.DSCPullServer.EnableAgentPurge {
-			intervalMins := global.AppConfig.DSCPullServer.AgentPurgeIntervalMins
-			if intervalMins <= 0 {
-				intervalMins = 1440
-			}
-			n := time.Now().UTC().Add(time.Duration(intervalMins) * time.Minute)
-			agentPurgeNext = &n
+		agentPurge := taskMeta{
+			key:      taskAgentPurge,
+			display:  "Agent trash purge",
+			enabled:  global.AppConfig.DSCPullServer.EnableAgentPurge,
+			interval: intervalFromMins(global.AppConfig.DSCPullServer.AgentPurgeIntervalMins, 1440),
 		}
-		_ = db.UpsertSchedulerTask(dbConn, global.AppConfig.Database.Driver, taskAgentPurge, agentPurgeDisplay, agentPurgeNext)
+		agentPurge.register(dbConn, global.AppConfig.Database.Driver)
 
-		var configVersionCleanupNext *time.Time
-		if global.AppConfig.DSCPullServer.EnableConfigurationVersionCleanup {
-			intervalMins := global.AppConfig.DSCPullServer.ConfigurationVersionCleanupIntervalMins
-			if intervalMins <= 0 {
-				intervalMins = 1440
-			}
-			n := time.Now().UTC().Add(time.Duration(intervalMins) * time.Minute)
-			configVersionCleanupNext = &n
+		configVersionCleanup := taskMeta{
+			key:      taskConfigurationVersionCleanup,
+			display:  "Configuration version retention",
+			enabled:  global.AppConfig.DSCPullServer.EnableConfigurationVersionCleanup,
+			interval: intervalFromMins(global.AppConfig.DSCPullServer.ConfigurationVersionCleanupIntervalMins, 1440),
 		}
-		_ = db.UpsertSchedulerTask(dbConn, global.AppConfig.Database.Driver, taskConfigurationVersionCleanup, configurationVersionCleanupDisplay, configVersionCleanupNext)
+		configVersionCleanup.register(dbConn, global.AppConfig.Database.Driver)
 
 		repoCfg := service.ConfigurationRepoConfig{URL: repoSettings.URL, Branch: repoSettings.Branch, Directory: repoSettings.Directory, CompilerScript: repoSettings.CompilerScript, PowerShellExecutable: repoSettings.PowerShellExecutable, RepositoryUsername: repoSettings.RepositoryUsername, RepositoryPassword: repoSettings.RepositoryPassword}
-		repoSyncEnabled := repoSettings.Enabled
-		repoIntervalMins := repoSettings.SyncIntervalMins
-		if repoIntervalMins <= 0 {
-			repoIntervalMins = 60
+		repoSync := taskMeta{
+			key:      taskConfigurationRepoSync,
+			display:  "Configuration repository sync",
+			enabled:  repoSettings.Enabled,
+			interval: intervalFromMins(repoSettings.SyncIntervalMins, 60),
 		}
-		var repoNext *time.Time
-		if repoSyncEnabled {
-			n := time.Now().UTC().Add(time.Duration(repoIntervalMins) * time.Minute)
-			repoNext = &n
-		}
-		_ = db.UpsertSchedulerTask(dbConn, global.AppConfig.Database.Driver, taskConfigurationRepoSync, configurationRepoDisplay, repoNext)
+		repoSync.register(dbConn, global.AppConfig.Database.Driver)
 
 		if global.AppConfig.DSCPullServer.EnableReportAutoCleanup {
 			retentionDays := global.AppConfig.DSCPullServer.ReportRetentionDays
-			intervalMins := global.AppConfig.DSCPullServer.ReportCleanupIntervalMins
 			if retentionDays <= 0 {
 				logs.WriteLogFile("WARN [REPORT CLEANUP] Disabled: report_retention_days must be > 0")
 			} else {
-				if intervalMins <= 0 {
-					intervalMins = 1440
-				}
-				logs.WriteLogFile(fmt.Sprintf("INFO [REPORT CLEANUP] Enabled: retention=%d day(s), interval=%d minute(s)", retentionDays, intervalMins))
+				logs.WriteLogFile(fmt.Sprintf("INFO [REPORT CLEANUP] Enabled: retention=%d day(s), interval=%d minute(s)", retentionDays, reportCleanup.interval/time.Minute))
 				db.StartReportCleanupWorker(
 					ctx,
 					dbConn,
 					global.AppConfig.Database.Driver,
 					retentionDays,
-					time.Duration(intervalMins)*time.Minute,
-					func(startedAt time.Time, nextRunAt *time.Time) {
-						_ = db.BeginSchedulerTaskRun(dbConn, global.AppConfig.Database.Driver, taskReportCleanup, reportDisplay, "automatic", startedAt, nextRunAt)
-					},
+					reportCleanup.interval,
+					reportCleanup.beginRecord(dbConn, global.AppConfig.Database.Driver),
 					func(startedAt time.Time, deleted int64, cleanupErr error) {
 						if cleanupErr != nil {
 							logs.WriteLogFile(fmt.Sprintf("ERROR [REPORT CLEANUP] %v", cleanupErr))
-							msg := cleanupErr.Error()
-							_ = db.CompleteSchedulerTaskRun(dbConn, global.AppConfig.Database.Driver, taskReportCleanup, "error", msg, time.Now().UTC(), nil)
+							reportCleanup.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, cleanupErr.Error(), cleanupErr)
 							return
 						}
 						logs.WriteLogFile(fmt.Sprintf("INFO [REPORT CLEANUP] Deleted %d old report(s)", deleted))
-						next := startedAt.Add(time.Duration(intervalMins) * time.Minute)
-						msg := fmt.Sprintf("Deleted %d old report(s)", deleted)
-						_ = db.CompleteSchedulerTaskRun(dbConn, global.AppConfig.Database.Driver, taskReportCleanup, "success", msg, time.Now().UTC(), &next)
+						reportCleanup.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, fmt.Sprintf("Deleted %d old report(s)", deleted), nil)
 					},
 				)
 			}
@@ -249,34 +221,25 @@ func main() {
 
 		if global.AppConfig.DSCPullServer.EnableAgentPurge {
 			retentionDays := global.AppConfig.DSCPullServer.AgentPurgeRetentionDays
-			intervalMins := global.AppConfig.DSCPullServer.AgentPurgeIntervalMins
 			if retentionDays <= 0 {
 				logs.WriteLogFile("WARN [AGENT PURGE] Disabled: agent_purge_retention_days must be > 0")
 			} else {
-				if intervalMins <= 0 {
-					intervalMins = 1440
-				}
-				logs.WriteLogFile(fmt.Sprintf("INFO [AGENT PURGE] Enabled: retention=%d day(s), interval=%d minute(s)", retentionDays, intervalMins))
+				logs.WriteLogFile(fmt.Sprintf("INFO [AGENT PURGE] Enabled: retention=%d day(s), interval=%d minute(s)", retentionDays, agentPurge.interval/time.Minute))
 				db.StartAgentPurgeWorker(
 					ctx,
 					dbConn,
 					global.AppConfig.Database.Driver,
 					retentionDays,
-					time.Duration(intervalMins)*time.Minute,
-					func(startedAt time.Time, nextRunAt *time.Time) {
-						_ = db.BeginSchedulerTaskRun(dbConn, global.AppConfig.Database.Driver, taskAgentPurge, agentPurgeDisplay, "automatic", startedAt, nextRunAt)
-					},
+					agentPurge.interval,
+					agentPurge.beginRecord(dbConn, global.AppConfig.Database.Driver),
 					func(startedAt time.Time, purged int64, cleanupErr error) {
 						if cleanupErr != nil {
 							logs.WriteLogFile(fmt.Sprintf("ERROR [AGENT PURGE] %v", cleanupErr))
-							msg := cleanupErr.Error()
-							_ = db.CompleteSchedulerTaskRun(dbConn, global.AppConfig.Database.Driver, taskAgentPurge, "error", msg, time.Now().UTC(), nil)
+							agentPurge.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, cleanupErr.Error(), cleanupErr)
 							return
 						}
 						logs.WriteLogFile(fmt.Sprintf("INFO [AGENT PURGE] Purged %d trashed agent(s)", purged))
-						next := startedAt.Add(time.Duration(intervalMins) * time.Minute)
-						msg := fmt.Sprintf("Purged %d trashed agent(s)", purged)
-						_ = db.CompleteSchedulerTaskRun(dbConn, global.AppConfig.Database.Driver, taskAgentPurge, "success", msg, time.Now().UTC(), &next)
+						agentPurge.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, fmt.Sprintf("Purged %d trashed agent(s)", purged), nil)
 					},
 				)
 			}
@@ -284,96 +247,75 @@ func main() {
 
 		if global.AppConfig.DSCPullServer.EnableConfigurationVersionCleanup {
 			maxKeep := global.AppConfig.DSCPullServer.ConfigurationVersionMaxKeep
-			intervalMins := global.AppConfig.DSCPullServer.ConfigurationVersionCleanupIntervalMins
 			if maxKeep < 1 {
 				logs.WriteLogFile("WARN [CONFIG VERSION CLEANUP] Disabled: configuration_version_max_keep must be >= 1")
 			} else {
-				if intervalMins <= 0 {
-					intervalMins = 1440
-				}
-				logs.WriteLogFile(fmt.Sprintf("INFO [CONFIG VERSION CLEANUP] Enabled: max_keep=%d version(s), interval=%d minute(s)", maxKeep, intervalMins))
+				logs.WriteLogFile(fmt.Sprintf("INFO [CONFIG VERSION CLEANUP] Enabled: max_keep=%d version(s), interval=%d minute(s)", maxKeep, configVersionCleanup.interval/time.Minute))
 				db.StartConfigurationVersionCleanupWorker(
 					ctx,
 					dbConn,
 					maxKeep,
-					time.Duration(intervalMins)*time.Minute,
-					func(startedAt time.Time, nextRunAt *time.Time) {
-						_ = db.BeginSchedulerTaskRun(dbConn, global.AppConfig.Database.Driver, taskConfigurationVersionCleanup, configurationVersionCleanupDisplay, "automatic", startedAt, nextRunAt)
-					},
+					configVersionCleanup.interval,
+					configVersionCleanup.beginRecord(dbConn, global.AppConfig.Database.Driver),
 					func(startedAt time.Time, pruned int64, cleanupErr error) {
 						if cleanupErr != nil {
 							logs.WriteLogFile(fmt.Sprintf("ERROR [CONFIG VERSION CLEANUP] %v", cleanupErr))
-							msg := cleanupErr.Error()
-							_ = db.CompleteSchedulerTaskRun(dbConn, global.AppConfig.Database.Driver, taskConfigurationVersionCleanup, "error", msg, time.Now().UTC(), nil)
+							configVersionCleanup.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, cleanupErr.Error(), cleanupErr)
 							return
 						}
 						logs.WriteLogFile(fmt.Sprintf("INFO [CONFIG VERSION CLEANUP] Pruned %d old configuration version(s)", pruned))
-						next := startedAt.Add(time.Duration(intervalMins) * time.Minute)
-						msg := fmt.Sprintf("Pruned %d old configuration version(s)", pruned)
-						_ = db.CompleteSchedulerTaskRun(dbConn, global.AppConfig.Database.Driver, taskConfigurationVersionCleanup, "success", msg, time.Now().UTC(), &next)
+						configVersionCleanup.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, fmt.Sprintf("Pruned %d old configuration version(s)", pruned), nil)
 					},
 				)
 			}
 		}
 
 		if global.AppConfig.DSCPullServer.EnableReleaseCheck {
-			intervalMins := global.AppConfig.DSCPullServer.ReleaseCheckIntervalMins
-			if intervalMins <= 0 {
-				intervalMins = 1440
-			}
-			logs.WriteLogFile(fmt.Sprintf("INFO [RELEASE CHECK] Enabled: interval=%d minute(s)", intervalMins))
+			logs.WriteLogFile(fmt.Sprintf("INFO [RELEASE CHECK] Enabled: interval=%d minute(s)", releaseCheck.interval/time.Minute))
 			service.StartReleaseCheckWorker(
 				ctx,
 				buildinfo.Version,
-				time.Duration(intervalMins)*time.Minute,
-				func(startedAt time.Time, nextRunAt *time.Time) {
-					_ = db.BeginSchedulerTaskRun(dbConn, global.AppConfig.Database.Driver, taskReleaseCheck, releaseDisplay, "automatic", startedAt, nextRunAt)
-				},
+				releaseCheck.interval,
+				releaseCheck.beginRecord(dbConn, global.AppConfig.Database.Driver),
 				func(startedAt time.Time, result service.ReleaseCheckResult, checkErr error) {
 					if checkErr != nil {
 						logs.WriteLogFile(fmt.Sprintf("WARN [RELEASE CHECK] %v", checkErr))
 						_ = db.PersistReleaseCheckFailure(dbConn, global.AppConfig.Database.Driver)
-						next := startedAt.Add(time.Duration(intervalMins) * time.Minute)
-						_ = db.CompleteSchedulerTaskRun(dbConn, global.AppConfig.Database.Driver, taskReleaseCheck, "error", checkErr.Error(), time.Now().UTC(), &next)
+						releaseCheck.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, checkErr.Error(), checkErr)
 						return
 					}
 					_ = db.PersistReleaseCheckSuccess(dbConn, global.AppConfig.Database.Driver, result.LatestRelease, result.LatestReleaseURL, result.UpdateAvailable)
 					if result.UpdateAvailable {
 						logs.WriteLogFile(fmt.Sprintf("INFO [RELEASE CHECK] Update available: current=%s latest=%s", result.CurrentVersion, result.LatestRelease))
-						next := startedAt.Add(time.Duration(intervalMins) * time.Minute)
-						_ = db.CompleteSchedulerTaskRun(dbConn, global.AppConfig.Database.Driver, taskReleaseCheck, "success", fmt.Sprintf("Update available: %s", result.LatestRelease), time.Now().UTC(), &next)
+						releaseCheck.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, fmt.Sprintf("Update available: %s", result.LatestRelease), nil)
 					} else {
 						logs.WriteLogFile(fmt.Sprintf("INFO [RELEASE CHECK] Up to date: current=%s", result.CurrentVersion))
-						next := startedAt.Add(time.Duration(intervalMins) * time.Minute)
-						_ = db.CompleteSchedulerTaskRun(dbConn, global.AppConfig.Database.Driver, taskReleaseCheck, "success", "Already up to date", time.Now().UTC(), &next)
+						releaseCheck.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, "Already up to date", nil)
 					}
 				},
 			)
 		}
 
 		if global.AppConfig.DSCPullServer.EnableLogRotation {
-			logs.WriteLogFile(fmt.Sprintf("INFO [LOG ROTATION] Enabled: maintenance interval=%s", logMaintenanceInterval))
+			logs.WriteLogFile(fmt.Sprintf("INFO [LOG ROTATION] Enabled: maintenance interval=%s", logCleanup.interval))
 			logs.StartLogMaintenanceWorker(
 				ctx,
-				logMaintenanceInterval,
-				func(startedAt time.Time, nextRunAt *time.Time) {
-					_ = db.BeginSchedulerTaskRun(dbConn, global.AppConfig.Database.Driver, taskLogCleanup, logDisplay, "automatic", startedAt, nextRunAt)
-				},
+				logCleanup.interval,
+				logCleanup.beginRecord(dbConn, global.AppConfig.Database.Driver),
 				func(startedAt time.Time, deleted int, runErr error) {
-					next := startedAt.Add(logMaintenanceInterval)
 					if runErr != nil {
 						logs.WriteLogFile(fmt.Sprintf("ERROR [LOG ROTATION] %v", runErr))
-						_ = db.CompleteSchedulerTaskRun(dbConn, global.AppConfig.Database.Driver, taskLogCleanup, "error", runErr.Error(), time.Now().UTC(), &next)
+						logCleanup.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, runErr.Error(), runErr)
 						return
 					}
 					msg := fmt.Sprintf("Deleted %d backup(s)", deleted)
-					_ = db.CompleteSchedulerTaskRun(dbConn, global.AppConfig.Database.Driver, taskLogCleanup, "success", msg, time.Now().UTC(), &next)
+					logCleanup.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, msg, nil)
 				},
 			)
 		}
 
-		if repoSyncEnabled {
-			logs.WriteLogFile(fmt.Sprintf("INFO [CONFIGURATION REPO] Enabled: interval=%d minute(s)", repoIntervalMins))
+		if repoSync.enabled {
+			logs.WriteLogFile(fmt.Sprintf("INFO [CONFIGURATION REPO] Enabled: interval=%d minute(s)", repoSync.interval/time.Minute))
 			service.StartConfigurationRepoWorkerWithConfig(
 				ctx,
 				func() (service.ConfigurationRepoConfig, error) {
@@ -385,7 +327,7 @@ func main() {
 					runConfig.NodeContexts = contexts
 					return runConfig, nil
 				},
-				time.Duration(repoIntervalMins)*time.Minute,
+				repoSync.interval,
 				func(compiled []service.CompiledConfiguration) (int, error) {
 					_, nodeAgentIDs, contextErr := db.ListNodeCompilationContextsWithAgentIDs(dbConn)
 					if contextErr != nil {
@@ -393,18 +335,15 @@ func main() {
 					}
 					return db.ImportCompiledConfigurationsAndAssign(dbConn, compiled, nodeAgentIDs)
 				},
-				func(startedAt time.Time, nextRunAt *time.Time) {
-					_ = db.BeginSchedulerTaskRun(dbConn, global.AppConfig.Database.Driver, taskConfigurationRepoSync, configurationRepoDisplay, "automatic", startedAt, nextRunAt)
-				},
+				repoSync.beginRecord(dbConn, global.AppConfig.Database.Driver),
 				func(startedAt time.Time, changed int, syncErr error) {
-					next := startedAt.Add(time.Duration(repoIntervalMins) * time.Minute)
 					if syncErr != nil {
 						logs.WriteLogFile(fmt.Sprintf("ERROR [CONFIGURATION REPO] %v", syncErr))
-						_ = db.CompleteSchedulerTaskRun(dbConn, global.AppConfig.Database.Driver, taskConfigurationRepoSync, "error", syncErr.Error(), time.Now().UTC(), &next)
+						repoSync.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, syncErr.Error(), syncErr)
 						return
 					}
 					message := fmt.Sprintf("Updated configurations: %d", changed)
-					_ = db.CompleteSchedulerTaskRun(dbConn, global.AppConfig.Database.Driver, taskConfigurationRepoSync, "success", message, time.Now().UTC(), &next)
+					repoSync.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, message, nil)
 				},
 			)
 		} else {
