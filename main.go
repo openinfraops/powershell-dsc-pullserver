@@ -459,9 +459,21 @@ func main() {
 				tlsConfig := &tls.Config{
 					MinVersion: tls.VersionTLS12,
 				}
+				// Vérifie si la validation du certificat client est activée.
 				if global.AppConfig.DSCPullServer.EnableClientCertValidation {
+					// Toujours exiger un certificat client : le middleware d'empreinte
+					// (enrôlement du nœud) ne s'exécute que si un certificat est présenté.
+					// bypass_ca_validation ne conditionne que la validation de la chaîne CA,
+					// pas l'exigence d'un certificat.
 					if global.AppConfig.DSCPullServer.BypassCAValidation {
+						// Aucune validation de la signature/CA : seuls l'empreinte du
+						// certificat (enrôlement du nœud) compte. Modèle DSC avec des
+						// certificats potentiellement auto-signés.
 						tlsConfig.ClientAuth = tls.RequireAnyClientCert
+					} else {
+						// Validation de la chaîne/signature contre le magasin d'autorités
+						// du système, en plus du contrôle d'empreinte (enrôlement).
+						tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 					}
 				} else {
 					logs.WriteLogFile(fmt.Sprintf("WARN [DSC Core Server] Client certificate validation is disabled."))
