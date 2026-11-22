@@ -68,7 +68,7 @@ This page explains how to install and deploy the Go DSC Pull Server.
 
 6. **Certificate management:**
    - Use a trusted certificate for production.
-   - You can disable client certificate validation in `config.json` for testing.
+   - Client certificate validation is disabled by default in `config.json` for testing. When you enable `enable_client_cert_validation`, the DSC endpoint **always** requires a client certificate; `bypass_ca_validation` then only controls whether the chain/CA is validated (`true` = accept self-signed node certs and rely on the enrolled thumbprint; `false` = also validate the chain against the OS system trust store). A client certificate requires HTTPS.
 
 7. **Web UI access:**
    - Open your browser and go to `https://your-server:443/web` (or the port specified).

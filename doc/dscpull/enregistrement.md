@@ -87,8 +87,19 @@ Set-DscLocalConfigurationManager -Path ./PullLCMConfig
 > Note: Using HTTP is only suitable for testing or isolated environments. Always use HTTPS in production for security.
 
 3. **Certificate requirements:**
-- If client certificate validation is enabled, ensure the agent presents a valid certificate.
-- The server may require HTTPS and certificate validation depending on your config.json settings.
+- Client certificate validation is controlled by `enable_client_cert_validation` in `config.json` (`dsc_pullserver` section). When `true`, the DSC endpoint **always** requires a client certificate.
+- `bypass_ca_validation` only controls the **CA/chain validation** of that certificate, not whether it is required:
+  - `bypass_ca_validation: true` → any certificate is accepted at the TLS layer; the node is identified **only** by its **enrolled thumbprint** (self-signed node certificates work). Classic DSC model.
+  - `bypass_ca_validation: false` → the certificate chain/signature is additionally validated against the **OS system trust store** (`RequireAndVerifyClientCert`), and the enrolled thumbprint is still checked. No extra config field is needed.
+- HTTPS is required to present a client certificate. In pure HTTP mode (`enable_https: false`) no certificate is negotiated, so the endpoints are unauthenticated at the transport level — only use for testing/isolated networks.
+
+#### Certificate renewal / rollover
+
+The node's certificate information (thumbprint, subject, issuer, `notBefore`/`notAfter`) is captured **at registration** from `RegistrationInformation.CertificateInformation` and stored in the `agents` table. When a node's certificate is renewed, the node **re-registers** with the pull server (same registration endpoint, same registration key): the stored certificate information is refreshed and the new thumbprint becomes the one checked by the middleware.
+
+> **Backend behaviour on re-registration:**
+> - **SQLite:** the registration handler uses `INSERT OR REPLACE`, so the certificate row (including the thumbprint) is refreshed. Note that this recreates the row, so columns not supplied in the insert (e.g. `last_communication`, `has_error_last_report`) are reset.
+> - **MSSQL:** the registration handler uses `IF NOT EXISTS ... INSERT`, so an **already-registered agent is not updated**. A renewed certificate is therefore **not** reflected in the `agents` table and the thumbprint check will reject the new certificate until the agent is removed and registered again.
 
 4. **Successful registration:**
 - Upon successful registration, the agent will appear in the web interface and can receive configurations.

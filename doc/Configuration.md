@@ -38,8 +38,8 @@ This page describes all configuration options available in `config.json` for the
 | cert_file                  | string  | Path to SSL certificate                             | `"dsc-dev.local.crt"`  |
 | key_file                   | string  | Path to SSL private key                             | `"dsc-dev.local.key"`  |
 | enable_https               | bool    | Enable HTTPS                                        | `true`                 |
-| enable_client_cert_validation | bool | Require client certificate                          | `false`                |
-| bypass_ca_validation       | bool    | Bypass CA validation for client certs               | `true`                 |
+| enable_client_cert_validation | bool | Always require a client certificate on the DSC endpoint | `false`                |
+| bypass_ca_validation       | bool    | `true` = accept any client cert (no chain/CA check), identify the node by the enrolled thumbprint only. `false` = also validate the chain against the OS system trust store | `true`                 |
 | port                       | int     | API server port                                     | `8484`                 |
 | registrationKey            | string  | Key for agent registration (DSC)                    | `"AnyString"`          |
 | jwt_secret                 | string  | Secret for signing JWT tokens                       | `"your-strong-secret"` |
@@ -52,6 +52,9 @@ This page describes all configuration options available in `config.json` for the
 | log_rotate_max_size_mb     | int     | Rotate log file when size reaches this value (MB)   | `10`                   |
 | log_rotate_max_backups     | int     | Number of rotated log backups to keep               | `5`                    |
 | log_rotate_max_age_days    | int     | Delete rotated log backups older than this age       | `30`                   |
+
+> **Client certificate validation (DSC endpoint).** When `enable_client_cert_validation` is `true`, the DSC endpoint **always** requires a client certificate. `bypass_ca_validation` only controls the CA/chain validation of that certificate: `true` accepts any certificate (self-signed node certs work, the node is identified by its enrolled thumbprint only — classic DSC model); `false` additionally validates the chain/signature against the **OS system trust store** (`RequireAndVerifyClientCert`) and still checks the enrolled thumbprint. A client certificate requires HTTPS; in pure HTTP mode (`enable_https: false`) no certificate is negotiated.
+
 Configuration repository settings are stored in the database and managed from the Scheduler administration page. The compiler must accept `-SourcePath` and `-OutputPath` and write `.mof` files into the output directory. Changed MOFs are versioned in the configuration model store and assigned agents are marked `pending_apply`. See [the DSC configuration repository example](../powershell/DSCConfigurationRepo/README.md) for a manifest/module/compiler layout and its priority rule.
 
 ---

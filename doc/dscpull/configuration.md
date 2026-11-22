@@ -24,8 +24,10 @@ Example:
 - **cert_file**: Path to the server's SSL certificate file. Required for HTTPS.
 - **key_file**: Path to the server's private key file. Required for HTTPS.
 - **enable_https**: Set to `true` to enable HTTPS. If `false`, the server will run in HTTP mode.
-- **enable_client_cert_validation**: If `true`, the server will require client certificates for authentication. Recommended for production.
-- **bypass_ca_validation**: If `true`, disables CA validation for client certificates (useful for testing/self-signed certs).
+- **enable_client_cert_validation**: If `true`, the DSC endpoint **always** requires a client certificate. Recommended for production.
+- **bypass_ca_validation**: Controls the **CA/chain validation** of the presented client certificate, **not** whether a certificate is required. A client certificate is always required when `enable_client_cert_validation` is `true`, whatever this value:
+  - `true`: the server accepts any certificate without validating its signature/chain (suitable for self-signed node certificates). The node is identified **only** by its enrolled certificate thumbprint. This is the classic DSC model.
+  - `false`: the server additionally validates the certificate chain/signature against the **OS system trust store** (`RequireAndVerifyClientCert`), **and** still checks the enrolled thumbprint. No extra config field is required.
 - **port**: Port number the server listens on (default: 8484).
 - **registrationKey**: Key required for agent registration. Set any string value; agents must provide this key to register.
 
