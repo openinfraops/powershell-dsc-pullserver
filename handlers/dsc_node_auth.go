@@ -41,7 +41,7 @@ func verifyNodeCertBinding(r *http.Request, dbConn *sql.DB, agentId string) (boo
 	}
 	var registered string
 	if err := dbConn.QueryRow(
-		`SELECT LOWER(certificate_thumbprint) FROM agents WHERE agent_id = ?`, agentId,
+		`SELECT certificate_thumbprint FROM agents WHERE agent_id = ?`, agentId,
 	).Scan(&registered); err != nil {
 		return false, "unknown agent or missing certificate"
 	}

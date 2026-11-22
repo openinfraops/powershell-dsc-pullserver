@@ -30,7 +30,7 @@ func main() {
 	// mot de passe aléatoire. Intercepté avant le démarrage du serveur / service.
 	if len(os.Args) > 1 {
 		switch strings.TrimLeft(os.Args[1], "-") {
-		case "init-bootstrap-admin", "bootstrap-admin":
+		case "init-bootstrap-admin":
 			os.Exit(runInitBootstrapAdmin())
 		}
 	}
@@ -445,15 +445,15 @@ func main() {
 					// On ne fait PAS ce contrôle pour la route de registration DSC (PUT /PSDSCPullServer.svc/{node})
 					isRegister := r.Method == "PUT" && strings.HasPrefix(r.URL.Path, "/PSDSCPullServer.svc/") && len(strings.Split(r.URL.Path, "/")) == 3
 					if global.AppConfig.DSCPullServer.EnableClientCertValidation && !isRegister {
-						// Vérifier la présence de l'empreinte dans la base de données (en minuscules)
-						var count int
-						err := dbConn.QueryRow("SELECT COUNT(*) FROM agents WHERE LOWER(certificate_thumbprint) = ?", sha1sumLower).Scan(&count)
+						// Vérifie la présence de l'empreinte en base (les empreintes
+						// sont stockées en minuscules, la comparaison reste index-friendly).
+						registered, err := db.IsCertificateThumbprintRegistered(dbConn, sha1sumLower)
 						if err != nil {
 							logs.WriteLogFile(fmt.Sprintf("[DSC][TLS] Error verifying thumbprint: %v", err))
 							http.Error(w, "Internal error verifying certificate", http.StatusInternalServerError)
 							return
 						}
-						if count == 0 {
+						if !registered {
 							logs.WriteLogFile(fmt.Sprintf("[DSC][TLS] Certificate thumbprint not recognized: %s", sha1sumLower))
 							http.Error(w, "Certificate unauthorized", http.StatusUnauthorized)
 							return
@@ -479,8 +479,12 @@ func main() {
 
 		// Serveur DSC (endpoints MS-DSCPM)
 		dscServer := &http.Server{
-			Addr:    fmt.Sprintf(":%d", global.AppConfig.DSCPullServer.Port),
-			Handler: dscHandler,
+			Addr:              fmt.Sprintf(":%d", global.AppConfig.DSCPullServer.Port),
+			Handler:           dscHandler,
+			ReadHeaderTimeout: 10 * time.Second,
+			ReadTimeout:       120 * time.Second,
+			WriteTimeout:      180 * time.Second,
+			IdleTimeout:       120 * time.Second,
 		}
 		if global.AppConfig.DSCPullServer.EnableHTTPS {
 			certFile, keyFile := resolveCertKeyPath(global.AppConfig.DSCPullServer.CertFile, global.AppConfig.DSCPullServer.KeyFile)
@@ -530,8 +534,12 @@ func main() {
 
 		// Serveur WebUI / API
 		webServer := &http.Server{
-			Addr:    fmt.Sprintf(":%d", global.AppConfig.WebUI.Port),
-			Handler: webHandler,
+			Addr:              fmt.Sprintf(":%d", global.AppConfig.WebUI.Port),
+			Handler:           webHandler,
+			ReadHeaderTimeout: 10 * time.Second,
+			ReadTimeout:       120 * time.Second,
+			WriteTimeout:      180 * time.Second,
+			IdleTimeout:       120 * time.Second,
 		}
 		if global.AppConfig.WebUI.EnableHTTPS {
 			certFile, keyFile := resolveCertKeyPath(global.AppConfig.WebUI.CertFile, global.AppConfig.WebUI.KeyFile)

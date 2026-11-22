@@ -13,6 +13,7 @@ import (
 	utils "go-dsc-pull/utils"
 	"log"
 	"net/http"
+	"strings"
 )
 
 // RegisterHandler gère l'enregistrement initial (POST /PSDSCPullServer.svc/Nodes)
@@ -67,6 +68,9 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	certInfo, _ := regInfo["CertificateInformation"].(map[string]interface{})
 	registrationType, _ := regInfo["RegistrationMessageType"].(string)
 	thumbprint, _ := certInfo["Thumbprint"].(string)
+	// Normalise l'empreinte en minuscules : la base la compare sans LOWER()
+	// (index-friendly) et la requête du middleware DSC s'appuie dessus.
+	thumbprint = strings.ToLower(thumbprint)
 	subject, _ := certInfo["Subject"].(string)
 	issuer, _ := certInfo["Issuer"].(string)
 	notbefore, _ := certInfo["NotBefore"].(string)
