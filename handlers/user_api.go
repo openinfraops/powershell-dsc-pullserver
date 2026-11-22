@@ -17,6 +17,50 @@ import (
 	"go-dsc-pull/internal/schema"
 )
 
+// callerUserID résout l'identifiant numérique de l'utilisateur courant depuis le
+// contexte du middleware d'authentification. Le middleware y stocke soit l'email
+// (JWT, chaîne) soit l'id utilisateur (API token, entier). Retourne 0 si non résolu.
+func callerUserID(db *sql.DB, r *http.Request) int64 {
+	v := r.Context().Value("userId")
+	switch id := v.(type) {
+	case string:
+		var uid int64
+		_ = db.QueryRow("SELECT id FROM users WHERE email = ?", id).Scan(&uid)
+		return uid
+	case int:
+		return int64(id)
+	case int64:
+		return id
+	case float64:
+		return int64(id)
+	}
+	return 0
+}
+
+// isAdminOrSelf retourne vrai si l'utilisateur courant est admin, ou si son id
+// correspond à targetID (id utilisateur cible, au format chaîne).
+func isAdminOrSelf(db *sql.DB, r *http.Request, targetID string) bool {
+	if auth.IsAdmin(r, db) {
+		return true
+	}
+	uid := callerUserID(db, r)
+	return uid > 0 && targetID != "" && strconv.FormatInt(uid, 10) == targetID
+}
+
+// isAdminOrSelfByToken retourne vrai si l'utilisateur courant est admin, ou si le
+// token (par son id) appartient à l'utilisateur courant.
+func isAdminOrSelfByToken(db *sql.DB, r *http.Request, tokenID string) bool {
+	if auth.IsAdmin(r, db) {
+		return true
+	}
+	var ownerID int64
+	if err := db.QueryRow("SELECT user_id FROM user_api_tokens WHERE id = ?", tokenID).Scan(&ownerID); err != nil {
+		return false
+	}
+	uid := callerUserID(db, r)
+	return uid > 0 && ownerID == uid
+}
+
 // Retourne les infos de l'utilisateur courant (d'après le JWT)
 func MyUserInfoHandler(db *sql.DB) http.HandlerFunc {
 	       return func(w http.ResponseWriter, r *http.Request) {
@@ -46,6 +90,10 @@ func MyUserInfoHandler(db *sql.DB) http.HandlerFunc {
 func ListUserAPITokensHandler(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userId := r.PathValue("id")
+		if !isAdminOrSelf(db, r, userId) {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
 		rows, err := db.Query("SELECT id, user_id, label, is_active, created_at, revoked_at FROM user_api_tokens WHERE user_id = ?", userId)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -74,6 +122,10 @@ func ListUserAPITokensHandler(db *sql.DB) http.HandlerFunc {
 func CreateUserAPITokenHandler(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userId := r.PathValue("id")
+		if !isAdminOrSelf(db, r, userId) {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
 		var req struct{ Label string `json:"label"` }
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "Bad request", http.StatusBadRequest)
@@ -99,6 +151,10 @@ func CreateUserAPITokenHandler(db *sql.DB) http.HandlerFunc {
 func RevokeUserAPITokenHandler(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		tokenId := r.PathValue("tokenid")
+		if !isAdminOrSelfByToken(db, r, tokenId) {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
 		driver := "sqlite"
 		if global.AppConfig != nil && global.AppConfig.Database.Driver != "" {
 			driver = global.AppConfig.Database.Driver
@@ -122,6 +178,10 @@ func RevokeUserAPITokenHandler(db *sql.DB) http.HandlerFunc {
 func DeleteUserAPITokenHandler(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		tokenId := r.PathValue("tokenid")
+		if !isAdminOrSelfByToken(db, r, tokenId) {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
 		_, err := db.Exec("DELETE FROM user_api_tokens WHERE id=?", tokenId)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)

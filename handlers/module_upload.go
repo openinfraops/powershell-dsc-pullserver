@@ -41,6 +41,13 @@ func extractModuleInfo(psd1Content string) (name, version string) {
 // Handler: upload nupkg, process, store as DSC module
 func ModuleUploadHandler(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Contrôle d'accès : la publication de module est réservée aux admins,
+		// quel que soit le format (zip natif ou nupkg). Le contrôle doit être fait
+		// AVANT toute branche (auparavant le chemin .zip le contournait).
+		if !auth.IsAdmin(r, db) {
+			http.Error(w, "Forbidden: admin only", http.StatusForbidden)
+			return
+		}
 		log.Printf("[DEBUG] ParseMultipartForm...")
 		err := r.ParseMultipartForm(32 << 20)
 		if err != nil {
@@ -149,10 +156,6 @@ func ModuleUploadHandler(db *sql.DB) http.HandlerFunc {
 					   }
 				   }
 			   }
-		   }
-		   if !auth.IsAdmin(r, db) {
-			   http.Error(w, "Forbidden: admin only", http.StatusForbidden)
-			   return
 		   }
 		   if name == "" || version == "" {
 			http.Error(w, "Module info not found in root psd1", http.StatusBadRequest)
