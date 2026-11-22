@@ -4,7 +4,6 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
-	"log"
 	"go-dsc-pull/internal/db"
 	"go-dsc-pull/internal/global"
 )
@@ -17,13 +16,7 @@ func AgentConfigsAPIHandlerPostDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	database, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		log.Printf("[API][DB] Erreur ouverture DB: %v", err)
-		http.Error(w, "DB open error", http.StatusInternalServerError)
-		return
-	}
-	defer database.Close()
+	database := db.Shared()
 
 	switch r.Method {
 	case http.MethodPost, http.MethodDelete:

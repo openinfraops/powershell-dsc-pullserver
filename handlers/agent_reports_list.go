@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"go-dsc-pull/internal/db"
 	"go-dsc-pull/internal/schema"
-	"go-dsc-pull/internal/global"
 	"net/http"
 	"database/sql"
 	"strings"
@@ -17,12 +16,7 @@ func AgentReportsListHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "AgentId manquant", http.StatusBadRequest)
 		return
 	}
-	database, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		http.Error(w, "DB open error", http.StatusInternalServerError)
-		return
-	}
-	defer database.Close()
+	database := db.Shared()
 
 	// Récupère le filtre operationType et mofApplied si présents
 	opType := r.URL.Query().Get("operationtype")
@@ -45,7 +39,7 @@ func AgentReportsListHandler(w http.ResponseWriter, r *http.Request) {
 		debugMsg += ", mof_applied=" + mofApplied
 	}
 	query += " ORDER BY created_at DESC"
-	rows, err = database.Query(query, params...)
+	rows, err := database.Query(query, params...)
 	if err != nil {
 		http.Error(w, "DB query error", http.StatusInternalServerError)
 		return

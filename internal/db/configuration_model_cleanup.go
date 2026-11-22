@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"time"
@@ -55,7 +56,7 @@ func PruneOldConfigurationVersions(database *sql.DB, maxKeep int) (int64, error)
 
 // StartConfigurationVersionCleanupWorker lance le nettoyage immédiatement puis
 // à intervalle fixe.
-func StartConfigurationVersionCleanupWorker(database *sql.DB, maxKeep int, interval time.Duration, onRunStart func(startedAt time.Time, nextRunAt *time.Time), onResult func(startedAt time.Time, pruned int64, err error)) {
+func StartConfigurationVersionCleanupWorker(ctx context.Context, database *sql.DB, maxKeep int, interval time.Duration, onRunStart func(startedAt time.Time, nextRunAt *time.Time), onResult func(startedAt time.Time, pruned int64, err error)) {
 	run := func() {
 		startedAt := time.Now().UTC()
 		var nextRunAt *time.Time
@@ -79,8 +80,14 @@ func StartConfigurationVersionCleanupWorker(database *sql.DB, maxKeep int, inter
 
 	ticker := time.NewTicker(interval)
 	go func() {
-		for range ticker.C {
-			run()
+		for {
+			select {
+			case <-ctx.Done():
+				ticker.Stop()
+				return
+			case <-ticker.C:
+				run()
+			}
 		}
 	}()
 }

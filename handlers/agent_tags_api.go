@@ -13,13 +13,7 @@ import (
 // GET /api/v1/agents/{id}/tags : liste tous les tags clé/valeur d'un agent
 func AgentTagsListHandler(w http.ResponseWriter, r *http.Request) {
 	agentId := r.PathValue("id")
-	database, err := db.OpenDB(&global.AppConfig.Database)
-	       if err != nil {
-			   logs.WriteLogFile("AgentTagsListHandler: DB open error: " + err.Error())
-		       http.Error(w, "DB open error", http.StatusInternalServerError)
-		       return
-	       }
-	       defer database.Close()
+	database := db.Shared()
 	       tags, err := db.GetAgentTags(database, agentId)
 	       if err != nil {
 			   logs.WriteLogFile("AgentTagsListHandler: DB query error: " + err.Error())
@@ -33,13 +27,7 @@ func AgentTagsListHandler(w http.ResponseWriter, r *http.Request) {
 // PUT /api/v1/agents/{id}/tags : ajoute une valeur à un tag clé pour un agent
 func AgentTagsSetHandler(w http.ResponseWriter, r *http.Request) {
 	   agentId := r.PathValue("id")
-	   database, err := db.OpenDB(&global.AppConfig.Database)
-	   if err != nil {
-		   logs.WriteLogFile("AgentTagsSetHandler: DB open error: " + err.Error())
-		   http.Error(w, "DB open error", http.StatusInternalServerError)
-		   return
-	   }
-	   defer database.Close()
+	   database := db.Shared()
 	if !auth.IsAdmin(r, database) {
 		   http.Error(w, "Forbidden: admin only", http.StatusForbidden)
 		   return
@@ -70,13 +58,7 @@ func AgentTagsSetHandler(w http.ResponseWriter, r *http.Request) {
 // DELETE /api/v1/agents/{id}/tags : supprime une valeur précise d'un tag (key/value) ou tous les tags
 func AgentTagsDeleteHandler(w http.ResponseWriter, r *http.Request) {
 	   agentId := r.PathValue("id")
-	   database, err := db.OpenDB(&global.AppConfig.Database)
-	   if err != nil {
-		   logs.WriteLogFile("AgentTagsDeleteHandler: DB open error: " + err.Error())
-		   http.Error(w, "DB open error", http.StatusInternalServerError)
-		   return
-	   }
-	   defer database.Close()
+	   database := db.Shared()
 	if !auth.IsAdmin(r, database) {
 		   http.Error(w, "Forbidden: admin only", http.StatusForbidden)
 		   return

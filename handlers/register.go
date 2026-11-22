@@ -52,113 +52,103 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 
 	// --- Insertion en base ---
 	// Charger la config DB
-	database, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		log.Printf("[REGISTER][DB] Erreur ouverture DB: %v", err)
-		// On continue, mais pas d'insertion DB
+	database := db.Shared()
+	driver := global.AppConfig.Database.Driver
+	var existingAgentCount int
+	_ = database.QueryRow(`SELECT COUNT(*) FROM agents WHERE agent_id = ?`, agentId).Scan(&existingAgentCount)
+	isNewNode := existingAgentCount == 0
+	// Insertion ou mise à jour agent principal. On extrait les champs via
+	// des assertions comma-ok (jamais de panic sur un payload malformé ou
+	// un corps vide). Les champs manquants prennent la valeur zéro.
+	agentInfo, _ := req["AgentInformation"].(map[string]interface{})
+	nodeName, _ := agentInfo["NodeName"].(string)
+	lcmVersion, _ := agentInfo["LCMVersion"].(string)
+	regInfo, _ := req["RegistrationInformation"].(map[string]interface{})
+	certInfo, _ := regInfo["CertificateInformation"].(map[string]interface{})
+	registrationType, _ := regInfo["RegistrationMessageType"].(string)
+	thumbprint, _ := certInfo["Thumbprint"].(string)
+	subject, _ := certInfo["Subject"].(string)
+	issuer, _ := certInfo["Issuer"].(string)
+	notbefore, _ := certInfo["NotBefore"].(string)
+	notafter, _ := certInfo["NotAfter"].(string)
+
+	// Vérifie si NodeName existe avec un AgentId TEMP
+	var tempAgentId string
+	err = database.QueryRow(`SELECT agent_id FROM agents WHERE node_name = ? AND agent_id LIKE 'TEMP-%' AND deleted_at IS NULL`, nodeName).Scan(&tempAgentId)
+	if err == nil && tempAgentId != "" {
+		// Migration TEMP → réel.
+		// SQL Server interdit de modifier la PK agents.agent_id lorsqu'une table
+		// enfant (agent_tags, agent_configurations, agent_ips) la référence via une
+		// FOREIGN KEY : un `UPDATE agents SET agent_id = ...` échoue avec une erreur
+		// de contrainte (constaté en production sur MSSQL). On insère donc une
+		// nouvelle ligne avec l'ID réel, on ré-attache les lignes enfants, puis on
+		// supprime la ligne TEMP, le tout dans une transaction.
+		if migrateErr := migrateTempAgentToRealID(database, driver, tempAgentId, agentId, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter); migrateErr != nil {
+			logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][DB] Migration agent TEMP %s vers %s impossible: %v", tempAgentId, agentId, migrateErr))
+		}
 	} else {
+		// Upsert de la ligne principale de l'agent (enrôlement ou
+		// ré-enregistrement / renouvellement de certificat).
+		err = upsertAgent(database, driver, agentId, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter, isNewNode)
 		if err != nil {
-			logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][DB] Erreur ouverture DB: %v", err))
-		} else {
-			defer database.Close()
-			driver := global.AppConfig.Database.Driver
-			var existingAgentCount int
-			_ = database.QueryRow(`SELECT COUNT(*) FROM agents WHERE agent_id = ?`, agentId).Scan(&existingAgentCount)
-			isNewNode := existingAgentCount == 0
-			// Insertion ou mise à jour agent principal. On extrait les champs via
-			// des assertions comma-ok (jamais de panic sur un payload malformé ou
-			// un corps vide). Les champs manquants prennent la valeur zéro.
-			agentInfo, _ := req["AgentInformation"].(map[string]interface{})
-			nodeName, _ := agentInfo["NodeName"].(string)
-			lcmVersion, _ := agentInfo["LCMVersion"].(string)
-			regInfo, _ := req["RegistrationInformation"].(map[string]interface{})
-			certInfo, _ := regInfo["CertificateInformation"].(map[string]interface{})
-			registrationType, _ := regInfo["RegistrationMessageType"].(string)
-			thumbprint, _ := certInfo["Thumbprint"].(string)
-			subject, _ := certInfo["Subject"].(string)
-			issuer, _ := certInfo["Issuer"].(string)
-			notbefore, _ := certInfo["NotBefore"].(string)
-			notafter, _ := certInfo["NotAfter"].(string)
+			logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][DB] Erreur upsert agent: %v", err))
+		}
+	}
 
-			// Vérifie si NodeName existe avec un AgentId TEMP
-			var tempAgentId string
-			err = database.QueryRow(`SELECT agent_id FROM agents WHERE node_name = ? AND agent_id LIKE 'TEMP-%' AND deleted_at IS NULL`, nodeName).Scan(&tempAgentId)
-			if err == nil && tempAgentId != "" {
-				// Migration TEMP → réel.
-				// SQL Server interdit de modifier la PK agents.agent_id lorsqu'une table
-				// enfant (agent_tags, agent_configurations, agent_ips) la référence via une
-				// FOREIGN KEY : un `UPDATE agents SET agent_id = ...` échoue avec une erreur
-				// de contrainte (constaté en production sur MSSQL). On insère donc une
-				// nouvelle ligne avec l'ID réel, on ré-attache les lignes enfants, puis on
-				// supprime la ligne TEMP, le tout dans une transaction.
-				if migrateErr := migrateTempAgentToRealID(database, driver, tempAgentId, agentId, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter); migrateErr != nil {
-					logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][DB] Migration agent TEMP %s vers %s impossible: %v", tempAgentId, agentId, migrateErr))
-				}
-			} else {
-				// Upsert de la ligne principale de l'agent (enrôlement ou
-				// ré-enregistrement / renouvellement de certificat).
-				err = upsertAgent(database, driver, agentId, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter, isNewNode)
-				if err != nil {
-					logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][DB] Erreur upsert agent: %v", err))
-				}
-			}
-
-			// Only replace config links when registration payload actually contains ConfigurationNames.
-			extractedConfigNames := []string{}
-			if err == nil {
-				if configNames, ok := req["ConfigurationNames"]; ok {
-					switch vv := configNames.(type) {
-					case []interface{}:
-						for _, n := range vv {
-							if s, ok := n.(string); ok && s != "" {
-								extractedConfigNames = append(extractedConfigNames, s)
-							}
-						}
-					case string:
-						if vv != "" {
-							extractedConfigNames = append(extractedConfigNames, vv)
-						}
+	// Only replace config links when registration payload actually contains ConfigurationNames.
+	extractedConfigNames := []string{}
+	if err == nil {
+		if configNames, ok := req["ConfigurationNames"]; ok {
+			switch vv := configNames.(type) {
+			case []interface{}:
+				for _, n := range vv {
+					if s, ok := n.(string); ok && s != "" {
+						extractedConfigNames = append(extractedConfigNames, s)
 					}
 				}
-
-				if len(extractedConfigNames) == 0 {
-					logs.WriteLogFile(fmt.Sprintf("[INFO][REGISTER][DB] Aucun ConfigurationNames fourni, conservation des liens existants pour agentId=%s", agentId))
-				} else {
-					_, err := database.Exec(`DELETE FROM agent_configurations WHERE agent_id = ?`, agentId)
-					if err != nil {
-						logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][DB] Erreur suppression configs existantes: %v", err))
-					}
-					for _, configName := range extractedConfigNames {
-						if driver == "sqlite" {
-							logs.WriteLogFile(fmt.Sprintf("[INFO][REGISTER][DB] Insertion config (SQLite): agentId=%s, config=%s", agentId, configName))
-							_, err := database.Exec(`INSERT OR REPLACE INTO agent_configurations (agent_id, configuration_name) VALUES (?, ?)`, agentId, configName)
-							if err != nil {
-								logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][DB] Erreur insertion config: %v (agentId=%s, config=%s)", err, agentId, configName))
-							}
-						} else {
-							logs.WriteLogFile(fmt.Sprintf("[INFO][REGISTER][DB] Insertion config (MSSQL): agentId=%s, config=%s", agentId, configName))
-							_, err := database.Exec(`IF NOT EXISTS (SELECT 1 FROM agent_configurations WHERE agent_id = ? AND configuration_name = ?) INSERT INTO agent_configurations (agent_id, configuration_name) VALUES (?, ?)`, agentId, configName, agentId, configName)
-							if err != nil {
-								logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][DB] Erreur insertion config: %v (agentId=%s, config=%s)", err, agentId, configName))
-							}
-						}
-					}
+			case string:
+				if vv != "" {
+					extractedConfigNames = append(extractedConfigNames, vv)
 				}
-			}
-			if isNewNode && len(extractedConfigNames) == 0 {
-				if driver == "sqlite" {
-					_, err = database.Exec(`INSERT OR REPLACE INTO agent_configurations (agent_id, configuration_name) VALUES (?, ?)`, agentId, nodeName)
-				} else {
-					_, err = database.Exec(`IF NOT EXISTS (SELECT 1 FROM agent_configurations WHERE agent_id = ? AND configuration_name = ?) INSERT INTO agent_configurations (agent_id, configuration_name) VALUES (?, ?)`, agentId, nodeName, agentId, nodeName)
-				}
-				if err != nil {
-					logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][CONFIG] Failed to assign node configuration %s: %v", nodeName, err))
-				}
-			}
-			if isNewNode && tempAgentId == "" {
-				triggerNodeRecompileAsync(agentId, nodeName)
 			}
 		}
+
+		if len(extractedConfigNames) == 0 {
+			logs.WriteLogFile(fmt.Sprintf("[INFO][REGISTER][DB] Aucun ConfigurationNames fourni, conservation des liens existants pour agentId=%s", agentId))
+		} else {
+			_, err := database.Exec(`DELETE FROM agent_configurations WHERE agent_id = ?`, agentId)
+			if err != nil {
+				logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][DB] Erreur suppression configs existantes: %v", err))
+			}
+			for _, configName := range extractedConfigNames {
+				if driver == "sqlite" {
+					logs.WriteLogFile(fmt.Sprintf("[INFO][REGISTER][DB] Insertion config (SQLite): agentId=%s, config=%s", agentId, configName))
+					_, err := database.Exec(`INSERT OR REPLACE INTO agent_configurations (agent_id, configuration_name) VALUES (?, ?)`, agentId, configName)
+					if err != nil {
+						logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][DB] Erreur insertion config: %v (agentId=%s, config=%s)", err, agentId, configName))
+					}
+				} else {
+					logs.WriteLogFile(fmt.Sprintf("[INFO][REGISTER][DB] Insertion config (MSSQL): agentId=%s, config=%s", agentId, configName))
+					_, err := database.Exec(`IF NOT EXISTS (SELECT 1 FROM agent_configurations WHERE agent_id = ? AND configuration_name = ?) INSERT INTO agent_configurations (agent_id, configuration_name) VALUES (?, ?)`, agentId, configName, agentId, configName)
+					if err != nil {
+						logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][DB] Erreur insertion config: %v (agentId=%s, config=%s)", err, agentId, configName))
+					}
+				}
+			}
+		}
+	}
+	if isNewNode && len(extractedConfigNames) == 0 {
+		if driver == "sqlite" {
+			_, err = database.Exec(`INSERT OR REPLACE INTO agent_configurations (agent_id, configuration_name) VALUES (?, ?)`, agentId, nodeName)
+		} else {
+			_, err = database.Exec(`IF NOT EXISTS (SELECT 1 FROM agent_configurations WHERE agent_id = ? AND configuration_name = ?) INSERT INTO agent_configurations (agent_id, configuration_name) VALUES (?, ?)`, agentId, nodeName, agentId, nodeName)
+		}
+		if err != nil {
+			logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][CONFIG] Failed to assign node configuration %s: %v", nodeName, err))
+		}
+	}
+	if isNewNode && tempAgentId == "" {
+		triggerNodeRecompileAsync(agentId, nodeName)
 	}
 
 	resp := schema.RegisterResponse{AgentId: agentId}

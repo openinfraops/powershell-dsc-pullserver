@@ -20,13 +20,7 @@ import (
 
 // POST /api/v1/configuration_models
 func CreateConfigurationModelHandler(w http.ResponseWriter, r *http.Request) {
-	dbConn, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("DB open error"))
-		return
-	}
-	defer dbConn.Close()
+	dbConn := db.Shared()
 	// Borne la taille du corps multipart d'upload MOF.
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadRequestBody)
 	file, header, err := r.FormFile("mof_file")
@@ -146,17 +140,7 @@ func CreateConfigurationModelHandler(w http.ResponseWriter, r *http.Request) {
 
 // GET /api/v1/configuration_models/{id}
 func GetConfigurationModelHandler(w http.ResponseWriter, r *http.Request) {
-	dbCfg, err := db.LoadDBConfig("config.json")
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	dbConn, err := db.OpenDB(dbCfg)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	defer dbConn.Close()
+	dbConn := db.Shared()
 	// Extract id from URL path: /api/v1/configuration_models/{id}
 	parts := strings.Split(r.URL.Path, "/")
 	idStr := parts[len(parts)-1]
@@ -183,12 +167,7 @@ func ListConfigurationModelsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dbConn, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	defer dbConn.Close()
+	dbConn := db.Shared()
 
 	// Support de l'option ?count=1
 	if r.URL.Query().Get("count") == "1" {
@@ -261,12 +240,7 @@ func ListConfigurationModelsHandler(w http.ResponseWriter, r *http.Request) {
 
 // PUT /api/v1/configuration_models/{id}
 func UpdateConfigurationModelHandler(w http.ResponseWriter, r *http.Request) {
-	dbConn, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	defer dbConn.Close()
+	dbConn := db.Shared()
 	// Extract id from URL path: /api/v1/configuration_models/{id}
 	parts := strings.Split(r.URL.Path, "/")
 	idStr := parts[len(parts)-1]
@@ -305,12 +279,7 @@ func UpdateConfigurationModelHandler(w http.ResponseWriter, r *http.Request) {
 
 // DELETE /api/v1/configuration_models/{id}
 func DeleteConfigurationModelHandler(w http.ResponseWriter, r *http.Request) {
-	dbConn, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	defer dbConn.Close()
+	dbConn := db.Shared()
 	// Récupère l'id soit dans le chemin, soit en paramètre
 	var idStr string
 	parts := strings.Split(r.URL.Path, "/")
@@ -367,12 +336,7 @@ func DeleteConfigurationModelHandler(w http.ResponseWriter, r *http.Request) {
 
 // GET /api/v1/configuration_models/{id}/detail
 func GetConfigurationModelDetailHandler(w http.ResponseWriter, r *http.Request) {
-	dbConn, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	defer dbConn.Close()
+	dbConn := db.Shared()
 	// Extract name from URL path: /api/v1/configuration_models/{name}/detail
 	parts := strings.Split(r.URL.Path, "/")
 	if len(parts) < 5 {
@@ -395,7 +359,7 @@ func GetConfigurationModelDetailHandler(w http.ResponseWriter, r *http.Request) 
 	var prevID sql.NullInt64
 	var uploadDate string
 	var lastUsage sql.NullTime
-	err = row.Scan(&cm.ID, &cm.Name, &origName, &prevID, &uploadDate, &cm.UploadedBy, &cm.MofFile, &lastUsage)
+	err := row.Scan(&cm.ID, &cm.Name, &origName, &prevID, &uploadDate, &cm.UploadedBy, &cm.MofFile, &lastUsage)
 	if err != nil {
 		log.Printf("[CONFIG DETAIL] Configuration '%s' not found: %v", name, err)
 		w.WriteHeader(http.StatusNotFound)
@@ -484,12 +448,7 @@ func GetConfigurationModelDetailHandler(w http.ResponseWriter, r *http.Request) 
 
 // GET /api/v1/configuration_models/{id}/download
 func DownloadConfigurationModelHandler(w http.ResponseWriter, r *http.Request) {
-	dbConn, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	defer dbConn.Close()
+	dbConn := db.Shared()
 	// Extract id from URL path: /api/v1/configuration_models/{id}/download
 	parts := strings.Split(r.URL.Path, "/")
 	if len(parts) < 5 {

@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"go-dsc-pull/internal/db"
-	"go-dsc-pull/internal/global"
 )
 
 // AgentTagsOptionsHandler retourne les clés de tag distinctes présentes sur les
@@ -17,12 +16,7 @@ func AgentTagsOptionsHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	database, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		http.Error(w, "DB open error", http.StatusInternalServerError)
-		return
-	}
-	defer database.Close()
+	database := db.Shared()
 
 	rows, err := database.Query(`SELECT DISTINCT tag_key FROM agent_tags WHERE tag_key IS NOT NULL AND tag_key <> '' ORDER BY tag_key`)
 	if err != nil {

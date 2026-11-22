@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/sha1"
 	"crypto/tls"
 	"encoding/hex"
@@ -34,7 +35,7 @@ func main() {
 		}
 	}
 
-	runApp := func() {
+	runApp := func(ctx context.Context) {
 		logs.WriteLogFile(fmt.Sprintf("INFO [BUILD] %s", buildinfo.Short()))
 		// Résout dynamiquement les chemins de cert/key si nécessaire
 		resolveCertKeyPath := func(certFile, keyFile string) (string, string) {
@@ -105,6 +106,9 @@ func main() {
 			logs.WriteLogFile(fmt.Sprintf("ERROR [INITDB] Failed to open DB: %v", err))
 			os.Exit(1)
 		}
+		// Register the process-wide pool so handlers reuse it instead of opening a
+		// new pool per request (Q2). Handlers must never Close() this handle.
+		db.SetShared(dbConn)
 		if cancelledRuns, cancelErr := db.CancelRunningSchedulerTasks(dbConn, global.AppConfig.Database.Driver, time.Now().UTC(), "Cancelled on application startup"); cancelErr != nil {
 			logs.WriteLogFile(fmt.Sprintf("WARN [SCHEDULER] Failed to cancel stale running tasks on startup: %v", cancelErr))
 		} else if cancelledRuns > 0 {
@@ -219,6 +223,7 @@ func main() {
 				}
 				logs.WriteLogFile(fmt.Sprintf("INFO [REPORT CLEANUP] Enabled: retention=%d day(s), interval=%d minute(s)", retentionDays, intervalMins))
 				db.StartReportCleanupWorker(
+					ctx,
 					dbConn,
 					global.AppConfig.Database.Driver,
 					retentionDays,
@@ -253,6 +258,7 @@ func main() {
 				}
 				logs.WriteLogFile(fmt.Sprintf("INFO [AGENT PURGE] Enabled: retention=%d day(s), interval=%d minute(s)", retentionDays, intervalMins))
 				db.StartAgentPurgeWorker(
+					ctx,
 					dbConn,
 					global.AppConfig.Database.Driver,
 					retentionDays,
@@ -287,6 +293,7 @@ func main() {
 				}
 				logs.WriteLogFile(fmt.Sprintf("INFO [CONFIG VERSION CLEANUP] Enabled: max_keep=%d version(s), interval=%d minute(s)", maxKeep, intervalMins))
 				db.StartConfigurationVersionCleanupWorker(
+					ctx,
 					dbConn,
 					maxKeep,
 					time.Duration(intervalMins)*time.Minute,
@@ -316,6 +323,7 @@ func main() {
 			}
 			logs.WriteLogFile(fmt.Sprintf("INFO [RELEASE CHECK] Enabled: interval=%d minute(s)", intervalMins))
 			service.StartReleaseCheckWorker(
+				ctx,
 				buildinfo.Version,
 				time.Duration(intervalMins)*time.Minute,
 				func(startedAt time.Time, nextRunAt *time.Time) {
@@ -346,6 +354,7 @@ func main() {
 		if global.AppConfig.DSCPullServer.EnableLogRotation {
 			logs.WriteLogFile(fmt.Sprintf("INFO [LOG ROTATION] Enabled: maintenance interval=%s", logMaintenanceInterval))
 			logs.StartLogMaintenanceWorker(
+				ctx,
 				logMaintenanceInterval,
 				func(startedAt time.Time, nextRunAt *time.Time) {
 					_ = db.BeginSchedulerTaskRun(dbConn, global.AppConfig.Database.Driver, taskLogCleanup, logDisplay, "automatic", startedAt, nextRunAt)
@@ -366,6 +375,7 @@ func main() {
 		if repoSyncEnabled {
 			logs.WriteLogFile(fmt.Sprintf("INFO [CONFIGURATION REPO] Enabled: interval=%d minute(s)", repoIntervalMins))
 			service.StartConfigurationRepoWorkerWithConfig(
+				ctx,
 				func() (service.ConfigurationRepoConfig, error) {
 					contexts, _, contextErr := db.ListNodeCompilationContextsWithAgentIDs(dbConn)
 					if contextErr != nil {
@@ -461,79 +471,96 @@ func main() {
 		dscHandler := logs.LoggingMiddleware(dscCertLogMiddleware(dscMux))
 		webHandler := logs.LoggingMiddleware(webMux)
 
-		// Lancer les deux serveurs sur des ports différents avec HTTPS optionnel
-		go func() {
-			if global.AppConfig.DSCPullServer.EnableHTTPS {
-				logs.WriteLogFile(fmt.Sprintf("INFO [DSC Core Server] DSC Server (HTTPS) on :%d ...", global.AppConfig.DSCPullServer.Port))
-				certFile, keyFile := resolveCertKeyPath(global.AppConfig.DSCPullServer.CertFile, global.AppConfig.DSCPullServer.KeyFile)
-				// Bypass CA verification: accepter tout certificat client présenté
-				tlsConfig := &tls.Config{
-					MinVersion: tls.VersionTLS12,
-				}
-				// Vérifie si la validation du certificat client est activée.
-				if global.AppConfig.DSCPullServer.EnableClientCertValidation {
-					// Toujours exiger un certificat client : le middleware d'empreinte
-					// (enrôlement du nœud) ne s'exécute que si un certificat est présenté.
-					// bypass_ca_validation ne conditionne que la validation de la chaîne CA,
-					// pas l'exigence d'un certificat.
-					if global.AppConfig.DSCPullServer.BypassCAValidation {
-						// Aucune validation de la signature/CA : seuls l'empreinte du
-						// certificat (enrôlement du nœud) compte. Modèle DSC avec des
-						// certificats potentiellement auto-signés.
-						tlsConfig.ClientAuth = tls.RequireAnyClientCert
-					} else {
-						// Validation de la chaîne/signature contre le magasin d'autorités
-						// du système, en plus du contrôle d'empreinte (enrôlement).
-						tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
-					}
+		// --- Serveurs HTTP avec arrêt propre (drivé par ctx.Done()) ---
+		// Chaque serveur est démarré dans une goroutine. À la réception d'un
+		// Stop/Shutdown du service Windows (annulation du contexte), runApp
+		// déclenche un Shutdown gracieux des deux serveurs puis retourne, ce qui
+		// permet à la couche service de finaliser l'arrêt sans tuer les requêtes.
+
+		// Serveur DSC (endpoints MS-DSCPM)
+		dscServer := &http.Server{
+			Addr:    fmt.Sprintf(":%d", global.AppConfig.DSCPullServer.Port),
+			Handler: dscHandler,
+		}
+		if global.AppConfig.DSCPullServer.EnableHTTPS {
+			certFile, keyFile := resolveCertKeyPath(global.AppConfig.DSCPullServer.CertFile, global.AppConfig.DSCPullServer.KeyFile)
+			// Bypass CA verification: accepter tout certificat client présenté
+			tlsConfig := &tls.Config{
+				MinVersion: tls.VersionTLS12,
+			}
+			// Vérifie si la validation du certificat client est activée.
+			if global.AppConfig.DSCPullServer.EnableClientCertValidation {
+				// Toujours exiger un certificat client : le middleware d'empreinte
+				// (enrôlement du nœud) ne s'exécute que si un certificat est présenté.
+				// bypass_ca_validation ne conditionne que la validation de la chaîne CA,
+				// pas l'exigence d'un certificat.
+				if global.AppConfig.DSCPullServer.BypassCAValidation {
+					// Aucune validation de la signature/CA : seuls l'empreinte du
+					// certificat (enrôlement du nœud) compte. Modèle DSC avec des
+					// certificats potentiellement auto-signés.
+					tlsConfig.ClientAuth = tls.RequireAnyClientCert
 				} else {
-					logs.WriteLogFile(fmt.Sprintf("WARN [DSC Core Server] Client certificate validation is disabled."))
+					// Validation de la chaîne/signature contre le magasin d'autorités
+					// du système, en plus du contrôle d'empreinte (enrôlement).
+					tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 				}
-				server := &http.Server{
-					Addr:      fmt.Sprintf(":%d", global.AppConfig.DSCPullServer.Port),
-					Handler:   dscHandler,
-					TLSConfig: tlsConfig,
-				}
-				err := server.ListenAndServeTLS(certFile, keyFile)
-				if err != nil {
+			} else {
+				logs.WriteLogFile(fmt.Sprintf("WARN [DSC Core Server] Client certificate validation is disabled."))
+			}
+			dscServer.TLSConfig = tlsConfig
+			go func() {
+				logs.WriteLogFile(fmt.Sprintf("INFO [DSC Core Server] DSC Server (HTTPS) on :%d ...", global.AppConfig.DSCPullServer.Port))
+				if err := dscServer.ListenAndServeTLS(certFile, keyFile); err != nil && err != http.ErrServerClosed {
 					logs.WriteLogFile(fmt.Sprintf("ERROR [DSC Core Server] Error starting HTTPS server: %v", err))
 					os.Exit(1)
 				}
-			} else {
-				logs.WriteLogFile(fmt.Sprintf("WARN [DSC Core Server] DSC Server is listening in HTTP (no TLS) on :%d ...", global.AppConfig.DSCPullServer.Port))
-				if global.AppConfig.DSCPullServer.EnableClientCertValidation {
-					logs.WriteLogFile(fmt.Sprintf("WARN [SECURITY] enable_client_cert_validation is true but the DSC endpoint is served over plain HTTP. No client certificate is exchanged, so the pull endpoints are NOT protected by mutual TLS."))
-				}
-				err := http.ListenAndServe(fmt.Sprintf(":%d", global.AppConfig.DSCPullServer.Port), dscHandler)
-				if err != nil {
+			}()
+		} else {
+			logs.WriteLogFile(fmt.Sprintf("WARN [DSC Core Server] DSC Server is listening in HTTP (no TLS) on :%d ...", global.AppConfig.DSCPullServer.Port))
+			if global.AppConfig.DSCPullServer.EnableClientCertValidation {
+				logs.WriteLogFile(fmt.Sprintf("WARN [SECURITY] enable_client_cert_validation is true but the DSC endpoint is served over plain HTTP. No client certificate is exchanged, so the pull endpoints are NOT protected by mutual TLS."))
+			}
+			go func() {
+				if err := dscServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 					logs.WriteLogFile(fmt.Sprintf("ERROR [DSC WebUi] Error starting HTTP server: %v", err))
 					os.Exit(1)
 				}
-			}
-		}()
+			}()
+		}
 
+		// Serveur WebUI / API
+		webServer := &http.Server{
+			Addr:    fmt.Sprintf(":%d", global.AppConfig.WebUI.Port),
+			Handler: webHandler,
+		}
 		if global.AppConfig.WebUI.EnableHTTPS {
-			logs.WriteLogFile(fmt.Sprintf("INFO [DSC WebUI] IHM/API (HTTPS) on :%d ... (IHM on /web/)", global.AppConfig.WebUI.Port))
 			certFile, keyFile := resolveCertKeyPath(global.AppConfig.WebUI.CertFile, global.AppConfig.WebUI.KeyFile)
-			err := http.ListenAndServeTLS(
-				fmt.Sprintf(":%d", global.AppConfig.WebUI.Port),
-				certFile,
-				keyFile,
-				webHandler,
-			)
-			if err != nil {
-				logs.WriteLogFile(fmt.Sprintf("ERROR [DSC WebUI] Error starting HTTPS server: %v", err))
-				os.Exit(1)
-			}
+			go func() {
+				logs.WriteLogFile(fmt.Sprintf("INFO [DSC WebUI] IHM/API (HTTPS) on :%d ... (IHM on /web/)", global.AppConfig.WebUI.Port))
+				if err := webServer.ListenAndServeTLS(certFile, keyFile); err != nil && err != http.ErrServerClosed {
+					logs.WriteLogFile(fmt.Sprintf("ERROR [DSC WebUI] Error starting HTTPS server: %v", err))
+					os.Exit(1)
+				}
+			}()
 		} else {
 			logs.WriteLogFile(fmt.Sprintf("WARN [DSC WebUI] IHM/API is listening in HTTP (no TLS) on :%d ... (IHM on /web/)", global.AppConfig.WebUI.Port))
 			logs.WriteLogFile("WARN [SECURITY] The Web UI / API is served over plain HTTP. Credentials and JWT tokens transit unencrypted. Use HTTPS (enable_https: true) in production.")
-			err := http.ListenAndServe(fmt.Sprintf(":%d", global.AppConfig.WebUI.Port), webHandler)
-			if err != nil {
-				logs.WriteLogFile(fmt.Sprintf("ERROR [DSC WebUI] Error starting HTTP server: %v", err))
-				os.Exit(1)
-			}
+			go func() {
+				if err := webServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+					logs.WriteLogFile(fmt.Sprintf("ERROR [DSC WebUI] Error starting HTTP server: %v", err))
+					os.Exit(1)
+				}
+			}()
 		}
+
+		// Bloque jusqu'à l'arrêt, puis ferme gracieusement les deux serveurs.
+		<-ctx.Done()
+		logs.WriteLogFile("INFO [SHUTDOWN] Arrêt demandé, fermeture des serveurs HTTP...")
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer shutdownCancel()
+		_ = dscServer.Shutdown(shutdownCtx)
+		_ = webServer.Shutdown(shutdownCtx)
+		logs.WriteLogFile("INFO [SHUTDOWN] Serveurs HTTP arrêtés proprement.")
 	}
 
 	if runtime.GOOS == "windows" {
@@ -543,6 +570,9 @@ func main() {
 			os.Exit(1)
 		}
 	} else {
-		runApp()
+		// Le contexte n'est jamais annulé en mode hors-service : le processus
+		// tourne jusqu'à son arrêt (kill). La closure runApp bloque sur
+		// ctx.Done() comme le faisait auparavant le ListenAndServe du serveur.
+		runApp(context.Background())
 	}
 }

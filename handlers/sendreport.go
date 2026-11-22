@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"go-dsc-pull/internal/db"
 	"go-dsc-pull/internal/schema"
-	"go-dsc-pull/internal/global"
 	"go-dsc-pull/utils"
 )
 
@@ -49,7 +48,7 @@ func SendReportHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Insérer en base
 	if err == nil {
-		database, err := db.OpenDB(&global.AppConfig.Database)
+		database := db.Shared()
 		if err == nil {
 			// Vérifie si un rapport existe déjà pour ce job_id
 			var count int
@@ -125,7 +124,6 @@ func SendReportHandler(w http.ResponseWriter, r *http.Request) {
 			} else {
 				log.Printf("[SENDREPORT] Rapport ignore pour l etat web (mof_applied=0): agent_id=%s, job_id=%s, operation_type=%s", agentId, report.JobId, report.OperationType)
 			}
-			database.Close()
 		}
 	}
 

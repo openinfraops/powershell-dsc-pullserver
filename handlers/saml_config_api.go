@@ -70,11 +70,8 @@ func SAMLConfigAPIHandler(w http.ResponseWriter, r *http.Request) {
 					   user = sub
 				   }
 			   }
-			   dbConn, err := internaldb.OpenDB(&global.AppConfig.Database)
-			   if err == nil {
-				   _ = internaldb.InsertAudit(dbConn, driverName, user, "update", "saml_config", "Updated SAML configuration", "")
-				   dbConn.Close()
-			   }
+			   dbConn := internaldb.Shared()
+			   _ = internaldb.InsertAudit(dbConn, driverName, user, "update", "saml_config", "Updated SAML configuration", "")
 
 			   w.WriteHeader(http.StatusNoContent)
 		default:

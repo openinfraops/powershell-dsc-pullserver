@@ -7,7 +7,6 @@ import (
 
 	"go-dsc-pull/internal/auth"
 	"go-dsc-pull/internal/db"
-	"go-dsc-pull/internal/global"
 )
 
 // AgentRecompileHandler déclenche la recompilation de la configuration d'un
@@ -23,12 +22,7 @@ func AgentRecompileHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "AgentId manquant", http.StatusBadRequest)
 		return
 	}
-	database, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		http.Error(w, "DB open error", http.StatusInternalServerError)
-		return
-	}
-	defer database.Close()
+	database := db.Shared()
 	if !auth.IsAdmin(r, database) {
 		http.Error(w, "Forbidden: admin only", http.StatusForbidden)
 		return

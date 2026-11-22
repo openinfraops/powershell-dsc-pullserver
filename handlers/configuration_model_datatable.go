@@ -51,12 +51,7 @@ func ListConfigurationModelsDataTableHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	dbConn, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		http.Error(w, "DB open error", http.StatusInternalServerError)
-		return
-	}
-	defer dbConn.Close()
+	dbConn := db.Shared()
 
 	draw, _ := strconv.Atoi(r.URL.Query().Get("draw"))
 	start, _ := strconv.Atoi(r.URL.Query().Get("start"))

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -68,7 +69,7 @@ func CheckLatestRelease(currentVersion string) (ReleaseCheckResult, error) {
 	return result, nil
 }
 
-func StartReleaseCheckWorker(currentVersion string, interval time.Duration, onRunStart func(startedAt time.Time, nextRunAt *time.Time), onResult func(startedAt time.Time, result ReleaseCheckResult, err error)) {
+func StartReleaseCheckWorker(ctx context.Context, currentVersion string, interval time.Duration, onRunStart func(startedAt time.Time, nextRunAt *time.Time), onResult func(startedAt time.Time, result ReleaseCheckResult, err error)) {
 	run := func() {
 		startedAt := time.Now().UTC()
 		var nextRunAt *time.Time
@@ -92,8 +93,14 @@ func StartReleaseCheckWorker(currentVersion string, interval time.Duration, onRu
 
 	ticker := time.NewTicker(interval)
 	go func() {
-		for range ticker.C {
-			run()
+		for {
+			select {
+			case <-ctx.Done():
+				ticker.Stop()
+				return
+			case <-ticker.C:
+				run()
+			}
 		}
 	}()
 }

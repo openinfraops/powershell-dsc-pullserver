@@ -13,12 +13,7 @@ import (
 )
 
 func GetModuleVersionHandler(w http.ResponseWriter, r *http.Request) {
-	dbConn, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	defer dbConn.Close()
+	dbConn := db.Shared()
 
 	// Récupère le nom du module depuis l'URL
 	parts := strings.Split(r.URL.Path, "/")

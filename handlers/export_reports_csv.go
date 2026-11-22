@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"go-dsc-pull/internal/db"
-	"go-dsc-pull/internal/global"
 )
 
 // ExportAgentReportsCSVHandler exports the DSC reports of a single agent as a
@@ -32,12 +31,7 @@ func ExportAgentReportsCSVHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	database, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		http.Error(w, "DB open error", http.StatusInternalServerError)
-		return
-	}
-	defer database.Close()
+	database := db.Shared()
 
 	query := `SELECT job_id, created_at, status, operation_type, mof_applied, start_time, end_time FROM reports WHERE agent_id = ?`
 	params := []interface{}{agentID}

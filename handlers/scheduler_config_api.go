@@ -76,11 +76,7 @@ func schedulerNextRunFromConfig(taskName string) *time.Time {
 		n := now.Add(time.Hour)
 		return &n
 	case schedulerTaskConfigurationRepoSync:
-		database, err := db.OpenDB(&global.AppConfig.Database)
-		if err != nil {
-			return nil
-		}
-		defer database.Close()
+		database := db.Shared()
 		settings, err := db.GetConfigurationRepoSettings(database)
 		if err != nil || !settings.Enabled {
 			return nil
@@ -182,12 +178,7 @@ func SchedulerConfigAPIHandler(w http.ResponseWriter, r *http.Request) {
 			logRotateMaxBackups = 5
 			logRotateMaxAgeDays = 30
 		}
-		database, err := db.OpenDB(&cfg.Database)
-		if err != nil {
-			http.Error(w, "DB open error", http.StatusInternalServerError)
-			return
-		}
-		defer database.Close()
+		database := db.Shared()
 		repoSettings, err := db.GetConfigurationRepoSettings(database)
 		if err != nil {
 			http.Error(w, "Failed to load configuration repository settings", http.StatusInternalServerError)
@@ -344,12 +335,7 @@ func SchedulerConfigAPIHandler(w http.ResponseWriter, r *http.Request) {
 			_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to write config"})
 			return
 		}
-		database, err := db.OpenDB(&global.AppConfig.Database)
-		if err != nil {
-			http.Error(w, "DB open error", http.StatusInternalServerError)
-			return
-		}
-		defer database.Close()
+		database := db.Shared()
 		if err := db.SaveConfigurationRepoSettings(database, global.AppConfig.Database.Driver, db.ConfigurationRepoSettings{
 			Enabled:                   req.EnableConfigurationRepoSync,
 			URL:                       req.ConfigurationRepoURL,
@@ -384,7 +370,8 @@ func SchedulerConfigAPIHandler(w http.ResponseWriter, r *http.Request) {
 		global.AppConfig.DSCPullServer.ConfigurationVersionMaxKeep = req.ConfigurationVersionMaxKeep
 		global.AppConfig.DSCPullServer.ConfigurationVersionCleanupIntervalMins = req.ConfigurationVersionCleanupIntervalMins
 
-		if auditDB, auditErr := db.OpenDB(&global.AppConfig.Database); auditErr == nil {
+		{
+			auditDB := db.Shared()
 			driverName := global.AppConfig.Database.Driver
 			details := fmt.Sprintf(
 				"Updated scheduler config: report_cleanup(enable=%t, retention_days=%d, interval_mins=%d), release_check(enable=%t, interval_mins=%d), log_rotation(enable=%t, max_size_mb=%d, max_backups=%d, max_age_days=%d), configuration_repo_sync(enable=%t, interval_mins=%d, username=%q), agent_purge(enable=%t, retention_days=%d, interval_mins=%d), configuration_version_cleanup(enable=%t, max_keep=%d, interval_mins=%d)",
@@ -408,7 +395,6 @@ func SchedulerConfigAPIHandler(w http.ResponseWriter, r *http.Request) {
 				req.ConfigurationVersionCleanupIntervalMins,
 			)
 			_ = db.InsertAudit(auditDB, driverName, schedulerActorEmail(r), "update", "scheduler_config", details, r.RemoteAddr)
-			auditDB.Close()
 		}
 
 		w.WriteHeader(http.StatusNoContent)
@@ -424,12 +410,7 @@ func SchedulerRunCleanupAPIHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	database, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		http.Error(w, "DB open error", http.StatusInternalServerError)
-		return
-	}
-	defer database.Close()
+	database := db.Shared()
 
 	retentionDays := global.AppConfig.DSCPullServer.ReportRetentionDays
 	if retentionDays <= 0 {
@@ -470,12 +451,7 @@ func SchedulerRunAgentPurgeAPIHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	database, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		http.Error(w, "DB open error", http.StatusInternalServerError)
-		return
-	}
-	defer database.Close()
+	database := db.Shared()
 
 	startedAt := time.Now().UTC()
 	nextRun := schedulerNextRunFromConfig(schedulerTaskAgentPurge)
@@ -510,12 +486,7 @@ func SchedulerRunConfigurationVersionCleanupAPIHandler(w http.ResponseWriter, r 
 		return
 	}
 
-	database, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		http.Error(w, "DB open error", http.StatusInternalServerError)
-		return
-	}
-	defer database.Close()
+	database := db.Shared()
 
 	startedAt := time.Now().UTC()
 	nextRun := schedulerNextRunFromConfig(schedulerTaskConfigurationVersionCleanup)
@@ -574,24 +545,23 @@ func SchedulerRunReleaseCheckAPIHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	startedAt := time.Now().UTC()
 	nextRun := schedulerNextRunFromConfig(schedulerTaskReleaseCheck)
-	database, dbErr := db.OpenDB(&global.AppConfig.Database)
-	if dbErr == nil {
-		defer database.Close()
+	database := db.Shared()
+	{
 		_ = db.BeginSchedulerTaskRun(database, driverName, schedulerTaskReleaseCheck, schedulerDisplayName(schedulerTaskReleaseCheck), "manual", startedAt, nextRun)
 	}
 	if err != nil {
 		http.Error(w, "Release check failed", http.StatusInternalServerError)
 		logs.WriteLogFile("WARN [RELEASE CHECK] Manual release check failed: " + err.Error())
-		if dbErr == nil {
+		{
 			_ = db.InsertAudit(database, driverName, schedulerActorEmail(r), "run", "scheduler_task", fmt.Sprintf("Manual run failed: %s, error=%s", schedulerTaskReleaseCheck, err.Error()), r.RemoteAddr)
 			_ = db.CompleteSchedulerTaskRun(database, driverName, schedulerTaskReleaseCheck, "error", err.Error(), time.Now().UTC(), nextRun)
 		}
-		if dbErr == nil {
+		{
 			_ = db.PersistReleaseCheckFailure(database, driverName)
 		}
 		return
 	}
-	if dbErr == nil {
+	{
 		_ = db.PersistReleaseCheckSuccess(database, driverName, result.LatestRelease, result.LatestReleaseURL, result.UpdateAvailable)
 		msg := "Already up to date"
 		if result.UpdateAvailable {
@@ -605,7 +575,7 @@ func SchedulerRunReleaseCheckAPIHandler(w http.ResponseWriter, r *http.Request) 
 	} else {
 		logs.WriteLogFile("INFO [RELEASE CHECK] Manual check: already up to date current=" + result.CurrentVersion)
 	}
-	if dbErr == nil {
+	{
 		_ = db.InsertAudit(database, driverName, schedulerActorEmail(r), "run", "scheduler_task", fmt.Sprintf("Manual run: %s, update_available=%t, latest=%s", schedulerTaskReleaseCheck, result.UpdateAvailable, result.LatestRelease), r.RemoteAddr)
 	}
 
@@ -623,12 +593,7 @@ func SchedulerRunConfigurationRepoAPIHandler(w http.ResponseWriter, r *http.Requ
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	database, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		http.Error(w, "DB open error", http.StatusInternalServerError)
-		return
-	}
-	defer database.Close()
+	database := db.Shared()
 	repoSettings, err := db.GetConfigurationRepoSettings(database)
 	if err != nil {
 		http.Error(w, "Failed to load configuration repository settings", http.StatusInternalServerError)
@@ -679,29 +644,27 @@ func SchedulerRunLogCleanupAPIHandler(w http.ResponseWriter, r *http.Request) {
 	startedAt := time.Now().UTC()
 	nextRun := schedulerNextRunFromConfig(schedulerTaskLogCleanup)
 	driverName := global.AppConfig.Database.Driver
-	database, dbErr := db.OpenDB(&global.AppConfig.Database)
-	if dbErr == nil {
+	database := db.Shared()
+	{
 		_ = db.BeginSchedulerTaskRun(database, driverName, schedulerTaskLogCleanup, schedulerDisplayName(schedulerTaskLogCleanup), "manual", startedAt, nextRun)
 	}
 
 	deleted, err := logs.RunLogBackupCleanupNow()
 	if err != nil {
-		if dbErr == nil {
+		{
 			_ = db.InsertAudit(database, driverName, schedulerActorEmail(r), "run", "scheduler_task", fmt.Sprintf("Manual run failed: %s, error=%s", schedulerTaskLogCleanup, err.Error()), r.RemoteAddr)
 			_ = db.CompleteSchedulerTaskRun(database, driverName, schedulerTaskLogCleanup, "error", err.Error(), time.Now().UTC(), nextRun)
-			database.Close()
 		}
 		http.Error(w, "Log cleanup failed", http.StatusInternalServerError)
 		return
 	}
 
 	_ = logs.WriteLogFile("INFO [LOG ROTATION] Manual backup cleanup triggered from admin")
-	if dbErr == nil {
+	{
 		_ = db.InsertAudit(database, driverName, schedulerActorEmail(r), "run", "scheduler_task", fmt.Sprintf("Manual run: %s, deleted=%d", schedulerTaskLogCleanup, deleted), r.RemoteAddr)
 	}
-	if dbErr == nil {
+	{
 		_ = db.CompleteSchedulerTaskRun(database, driverName, schedulerTaskLogCleanup, "success", fmt.Sprintf("Deleted %d backup(s)", deleted), time.Now().UTC(), nextRun)
-		database.Close()
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]int{"deleted": deleted})
@@ -712,12 +675,7 @@ func SchedulerTasksAPIHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	database, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		http.Error(w, "DB open error", http.StatusInternalServerError)
-		return
-	}
-	defer database.Close()
+	database := db.Shared()
 
 	driver := global.AppConfig.Database.Driver
 	_ = db.UpsertSchedulerTask(database, driver, schedulerTaskReportCleanup, schedulerDisplayName(schedulerTaskReportCleanup), schedulerNextRunFromConfig(schedulerTaskReportCleanup))
@@ -745,12 +703,7 @@ func SchedulerTaskHistoryAPIHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Missing task", http.StatusBadRequest)
 		return
 	}
-	database, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		http.Error(w, "DB open error", http.StatusInternalServerError)
-		return
-	}
-	defer database.Close()
+	database := db.Shared()
 
 	limit := 20
 	offset := 0

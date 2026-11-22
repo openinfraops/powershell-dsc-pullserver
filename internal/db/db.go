@@ -130,3 +130,21 @@ func OpenDB(cfg *schema.DBConfig) (*sql.DB, error) {
 	}
 	return sql.Open(cfg.Driver, dsn)
 }
+
+// shared is the process-wide connection pool created once at startup.
+//
+// Handlers must reuse this pool via Shared() instead of opening a brand new pool
+// per request through OpenDB (which would exhaust connections and file handles).
+var shared *sql.DB
+
+// SetShared registers the process-wide connection pool. It must be called once
+// during startup, before any handler runs. bootstrap_admin.go opens and closes
+// its own dedicated connection and must NOT call this.
+func SetShared(dbConn *sql.DB) { shared = dbConn }
+
+// Shared returns the process-wide connection pool registered by SetShared.
+//
+// The returned handle is owned by the process and must never be closed by a
+// handler: closing it would invalidate the shared pool for every subsequent
+// request.
+func Shared() *sql.DB { return shared }

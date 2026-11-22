@@ -187,12 +187,7 @@ func AuditListHandler(w http.ResponseWriter, r *http.Request) {
 
 	orderClause := fmt.Sprintf(" ORDER BY %s %s", orderBy, orderDir)
 
-	database, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		http.Error(w, "DB open error", http.StatusInternalServerError)
-		return
-	}
-	defer database.Close()
+	database := db.Shared()
 
 	var total int64
 	if err := database.QueryRow("SELECT COUNT(*) FROM audit").Scan(&total); err != nil {
@@ -291,12 +286,7 @@ func AuditListHandler(w http.ResponseWriter, r *http.Request) {
 
 // AuditFilterOptionsHandler returns distinct users/actions for audit filters.
 func AuditFilterOptionsHandler(w http.ResponseWriter, r *http.Request) {
-	database, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		http.Error(w, "DB open error", http.StatusInternalServerError)
-		return
-	}
-	defer database.Close()
+	database := db.Shared()
 
 	users := make([]string, 0)
 	userRows, err := database.Query("SELECT DISTINCT user_email FROM audit WHERE user_email IS NOT NULL AND user_email <> '' ORDER BY user_email")
@@ -335,12 +325,7 @@ func AuditFilterOptionsHandler(w http.ResponseWriter, r *http.Request) {
 
 // AuditExportCSVHandler exports audit rows as CSV and applies optional search filter.
 func AuditExportCSVHandler(w http.ResponseWriter, r *http.Request) {
-	database, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		http.Error(w, "DB open error", http.StatusInternalServerError)
-		return
-	}
-	defer database.Close()
+	database := db.Shared()
 
 	search := strings.TrimSpace(r.URL.Query().Get("search"))
 	users := splitCSVValues(r.URL.Query().Get("users"))

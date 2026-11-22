@@ -25,12 +25,7 @@ func ExportAgentsCSVHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	database, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		http.Error(w, "DB open error", http.StatusInternalServerError)
-		return
-	}
-	defer database.Close()
+	database := db.Shared()
 
 	q := `SELECT node_name, agent_id, lcm_version, registration_type, state, registered_at, last_communication, certificate_notafter, needs_recompile, deleted_at, deleted_by FROM agents WHERE 1=1`
 	args := []interface{}{}

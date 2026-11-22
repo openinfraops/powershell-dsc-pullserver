@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -38,7 +39,8 @@ func CleanupOldReports(database *sql.DB, driver string, retentionDays int) (int6
 }
 
 // StartReportCleanupWorker runs cleanup immediately and then at a fixed interval.
-func StartReportCleanupWorker(database *sql.DB, driver string, retentionDays int, interval time.Duration, onRunStart func(startedAt time.Time, nextRunAt *time.Time), onResult func(startedAt time.Time, deleted int64, err error)) {
+// It stops cleanly when ctx is cancelled (arrêt propre du service).
+func StartReportCleanupWorker(ctx context.Context, database *sql.DB, driver string, retentionDays int, interval time.Duration, onRunStart func(startedAt time.Time, nextRunAt *time.Time), onResult func(startedAt time.Time, deleted int64, err error)) {
 	run := func() {
 		startedAt := time.Now().UTC()
 		var nextRunAt *time.Time
@@ -62,8 +64,14 @@ func StartReportCleanupWorker(database *sql.DB, driver string, retentionDays int
 
 	ticker := time.NewTicker(interval)
 	go func() {
-		for range ticker.C {
-			run()
+		for {
+			select {
+			case <-ctx.Done():
+				ticker.Stop()
+				return
+			case <-ticker.C:
+				run()
+			}
 		}
 	}()
 }

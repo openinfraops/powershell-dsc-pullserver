@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"strings"
 	"go-dsc-pull/internal/db"
-	"go-dsc-pull/internal/global"
 )
 
 // ConfigurationContentHandler gère GET /PSDSCPullServer.svc/{node}/{config}/ConfigurationContent
@@ -34,16 +33,11 @@ func ConfigurationContentHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	log.Printf("[CONFIGURATIONCONTENT] AgentId=%s ConfigName=%s", agentId, configName)
-	dbConn, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		http.Error(w, "DB open error", http.StatusInternalServerError)
-		return
-	}
-	defer dbConn.Close()
+	dbConn := db.Shared()
 	// Recherche par nom (sans extension)
 	log.Printf("[CONFIGURATIONCONTENT] Recherche MOF en base pour configName='%s'", configName)
 	// Met à jour last_usage à CURRENT_TIMESTAMP pour cette configuration (insensible à la casse)
-	_, err = dbConn.Exec("UPDATE configuration_model SET last_usage = CURRENT_TIMESTAMP WHERE LOWER(name) = LOWER(?)", configName)
+	_, err := dbConn.Exec("UPDATE configuration_model SET last_usage = CURRENT_TIMESTAMP WHERE LOWER(name) = LOWER(?)", configName)
 	if err != nil {
 		log.Printf("[CONFIGURATIONCONTENT] Erreur lors de la mise à jour de last_usage: %v", err)
 	}

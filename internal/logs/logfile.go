@@ -2,6 +2,7 @@ package logs
 
 import (
 	"bufio"
+    "context"
     "fmt"
     "os"
     "path/filepath"
@@ -179,7 +180,7 @@ func RunLogBackupCleanupNow() (int, error) {
 }
 
 // StartLogMaintenanceWorker runs log maintenance immediately then at fixed intervals.
-func StartLogMaintenanceWorker(interval time.Duration, onRunStart func(startedAt time.Time, nextRunAt *time.Time), onResult func(startedAt time.Time, deleted int, err error)) {
+func StartLogMaintenanceWorker(ctx context.Context, interval time.Duration, onRunStart func(startedAt time.Time, nextRunAt *time.Time), onResult func(startedAt time.Time, deleted int, err error)) {
     run := func() {
         startedAt := time.Now().UTC()
         var nextRunAt *time.Time
@@ -203,8 +204,14 @@ func StartLogMaintenanceWorker(interval time.Duration, onRunStart func(startedAt
 
     ticker := time.NewTicker(interval)
     go func() {
-        for range ticker.C {
-            run()
+        for {
+            select {
+            case <-ctx.Done():
+                ticker.Stop()
+                return
+            case <-ticker.C:
+                run()
+            }
         }
     }()
 }

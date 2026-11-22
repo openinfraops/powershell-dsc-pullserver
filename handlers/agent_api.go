@@ -13,13 +13,7 @@ import (
 
 // GET /api/v1/agents
 func GetAgentsHandler(w http.ResponseWriter, r *http.Request) {
-	database, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		log.Printf("[API][DB] Erreur ouverture DB: %v", err)
-		http.Error(w, "DB open error", http.StatusInternalServerError)
-		return
-	}
-	defer database.Close()
+	database := db.Shared()
 
 	// Support de l'option ?stats (avec ou sans valeur), ex: /api/v1/agents?stats
 	if _, statsRequested := r.URL.Query()["stats"]; statsRequested {
@@ -200,12 +194,7 @@ func GetAgentsHandler(w http.ResponseWriter, r *http.Request) {
 // Place le nœud dans la corbeille (soft delete) : la ligne est conservée, marquée
 // deleted_at/deleted_by. Réversible via POST /api/v1/agents/{id}/restore.
 func DeleteNodeHandler(w http.ResponseWriter, r *http.Request) {
-	dbConn, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	defer dbConn.Close()
+	dbConn := db.Shared()
 
 	agentId := r.PathValue("id")
 	if agentId == "" {
@@ -248,12 +237,7 @@ func RestoreNodeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	dbConn, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		http.Error(w, "DB open error", http.StatusInternalServerError)
-		return
-	}
-	defer dbConn.Close()
+	dbConn := db.Shared()
 
 	agentId := r.PathValue("id")
 	if agentId == "" {

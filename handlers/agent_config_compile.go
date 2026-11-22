@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"go-dsc-pull/internal/db"
-	"go-dsc-pull/internal/global"
 	"go-dsc-pull/internal/logs"
 	"go-dsc-pull/internal/service"
 )
@@ -67,12 +66,7 @@ func triggerNodeRecompileAsync(agentId, nodeName string) {
 	finish := service.MarkNodeCompileStart(nodeName)
 	go func() {
 		defer finish()
-		database, err := db.OpenDB(&global.AppConfig.Database)
-		if err != nil {
-			_ = logs.WriteLogFile(fmt.Sprintf("[RECOMPILE] Ouverture DB impossible pour %s: %v", nodeName, err))
-			return
-		}
-		defer database.Close()
+		database := db.Shared()
 		if err := compileNodeConfig(database, agentId, nodeName); err != nil {
 			_ = logs.WriteLogFile(fmt.Sprintf("[RECOMPILE] Compilation échouée pour %s: %v", nodeName, err))
 			return
