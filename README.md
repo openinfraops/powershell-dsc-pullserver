@@ -19,6 +19,7 @@ Detailed documentation is organized into two main sections:
 - [Configuration reference](doc/Configuration.md)
 - [Database schema](doc/DatabaseSchema.md)
 - [DSC Pull Server Configuration](doc/dscpull/configuration.md)
+- [Configuration repository (Git) & Scheduler](doc/dscpull/configuration-repo.md)
 - [Node Registration](doc/dscpull/enregistrement.md)
 - [Security](doc/dscpull/securite.md)
 - [API v1 Reference](doc/APIv1.md)
