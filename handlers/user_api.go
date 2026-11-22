@@ -201,7 +201,8 @@ func LoginHandler(db *sql.DB) http.HandlerFunc {
 			Password string `json:"password"`
 		}
 		// Protection brute-force : bloque l'IP si trop d'échecs dans la fenêtre.
-		ip := auth.ClientIP(r)
+		// N'honore X-Forwarded-For que derrière un proxy configuré (trusted_proxies).
+		ip := auth.ClientIP(r, global.AppConfig.WebUI.TrustedProxies)
 		if !limiter.LoginAllowed(ip) {
 			w.Header().Set("Retry-After", "900")
 			w.Header().Set("X-RateLimit-Limit", "5")

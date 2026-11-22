@@ -108,28 +108,71 @@ func (l *LoginRateLimiter) RemainingAttempts(ip string) int {
 	return remaining
 }
 
-// ClientIP extracts the client IP address from a request, honoring the
-// X-Forwarded-For / X-Real-IP headers in addition to RemoteAddr. It returns a
-// bare IP (without port) suitable for use as a rate-limiting key.
-func ClientIP(r *http.Request) string {
+// ClientIP extracts the client IP address from a request, suitable for use as a
+// rate-limiting key. It returns a bare IP (without port).
+//
+// Les en-têtes X-Forwarded-For / X-Real-IP ne sont honorés que si le client
+// direct (RemoteAddr) appartient à la liste des proxies de confiance
+// (trustedProxies, adresses exactes ou CIDR). Dans le cas contraire, ces
+// en-têtes sont ignorés afin qu'un attaquant ne puisse pas contourner le
+// rate-limit en envoyant un en-tête différent à chaque tentative.
+func ClientIP(r *http.Request, trustedProxies []string) string {
 	if r == nil {
 		return ""
 	}
-	// When behind a reverse proxy, prefer the forwarded headers.
-	for _, h := range []string{"X-Forwarded-For", "X-Real-IP"} {
-		val := strings.TrimSpace(r.Header.Get(h))
-		if val == "" {
-			continue
+	peer := peerIP(r.RemoteAddr)
+	if isTrustedProxy(peer, trustedProxies) {
+		for _, h := range []string{"X-Forwarded-For", "X-Real-IP"} {
+			val := strings.TrimSpace(r.Header.Get(h))
+			if val == "" {
+				continue
+			}
+			// X-Forwarded-For may be a comma-separated list; take the first entry.
+			if i := strings.IndexByte(val, ','); i >= 0 {
+				val = val[:i]
+			}
+			val = strings.TrimSpace(val)
+			if val != "" {
+				return val
+			}
 		}
-		// X-Forwarded-For may be a comma-separated list; take the first entry.
-		if i := strings.IndexByte(val, ','); i >= 0 {
-			val = val[:i]
-		}
-		return strings.TrimSpace(val)
 	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	return peer
+}
+
+// peerIP extrait l'adresse IP brute (sans port) depuis RemoteAddr.
+func peerIP(remoteAddr string) string {
+	host, _, err := net.SplitHostPort(remoteAddr)
 	if err != nil {
-		return r.RemoteAddr
+		return remoteAddr
 	}
 	return host
+}
+
+// isTrustedProxy reporte si ip correspond à l'une des entrées de trusted
+// (adresse IP exacte ou réseau CIDR).
+func isTrustedProxy(ip string, trusted []string) bool {
+	if ip == "" || len(trusted) == 0 {
+		return false
+	}
+	for _, t := range trusted {
+		t = strings.TrimSpace(t)
+		if t == "" {
+			continue
+		}
+		if strings.Contains(t, "/") {
+			_, ipnet, err := net.ParseCIDR(t)
+			if err != nil {
+				continue
+			}
+			if parsed := net.ParseIP(ip); parsed != nil && ipnet.Contains(parsed) {
+				return true
+			}
+			continue
+		}
+		if strings.EqualFold(ip, t) {
+			return true
+		}
+	}
+	return false
 }

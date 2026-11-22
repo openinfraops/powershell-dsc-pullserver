@@ -24,9 +24,15 @@ type HTTPConfig struct {
 	LegacyConfigurationRepoDirectory        string `json:"configuration_repo_directory"`
 	LegacyConfigurationCompilerScript       string `json:"configuration_compiler_script"`
 	LegacyConfigurationPowerShellExecutable string `json:"configuration_powershell_executable"`
-	LegacyConfigurationRepoUsername         string `json:"configuration_repo_username"`
-	LegacyConfigurationRepoPassword         string `json:"configuration_repo_password"`
-	LegacyConfigurationRepoSyncIntervalMins int    `json:"configuration_repo_sync_interval_mins"`
+	LegacyConfigurationRepoUsername         string   `json:"configuration_repo_username"`
+	LegacyConfigurationRepoPassword         string   `json:"configuration_repo_password"`
+	LegacyConfigurationRepoSyncIntervalMins int      `json:"configuration_repo_sync_interval_mins"`
+	// TrustedProxies liste les adresses IP ou CIDR des reverse-proxies de
+	// confiance. Si le client direct appartient à cette liste, les en-têtes
+	// X-Forwarded-For / X-Real-IP sont honorés pour déduire l'IP réelle d'un
+	// client ; sinon ces en-têtes sont ignorés (anti-contournement du
+	// rate-limit par spoofing).
+	TrustedProxies []string `json:"trusted_proxies"`
 	EnableAgentPurge                        bool   `json:"enable_agent_purge"`
 	AgentPurgeRetentionDays                 int    `json:"agent_purge_retention_days"`
 	AgentPurgeIntervalMins                  int    `json:"agent_purge_interval_mins"`

@@ -82,8 +82,9 @@ Configuration repository settings are stored in the database and managed from th
 | enable_https | bool  | Enable HTTPS for web UI                     | `true`                 |
 | port       | int     | Web UI port                                 | `443`                  |
 | shared_secret | string | JWT signing secret for the web/API. Takes precedence over `dsc_pullserver.shared_secret`. | `"your-strong-secret"` |
+| trusted_proxies | []string | IPs/CIDRs of trusted reverse proxies. The `X-Forwarded-For` / `X-Real-IP` headers are only honored for the login rate-limiter when the direct peer (`RemoteAddr`) belongs to this list; otherwise they are ignored (prevents brute-force bypass by spoofing a forward header). | `["10.0.0.0/8", "172.16.0.1"]` |
 
-> **Note:** `web_ui` shares the same configuration structure as `dsc_pullserver` (both use `HTTPConfig`), so it also accepts the certificate/validation/cleanup keys. In practice only `cert_file`, `key_file`, `enable_https`, `port` and `shared_secret` are meaningful for the web/API server.
+> **Note:** `web_ui` shares the same configuration structure as `dsc_pullserver` (both use `HTTPConfig`), so it also accepts the certificate/validation/cleanup keys. In practice only `cert_file`, `key_file`, `enable_https`, `port`, `shared_secret` and `trusted_proxies` are meaningful for the web/API server.
 
 ---
 

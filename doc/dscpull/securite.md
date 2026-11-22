@@ -86,7 +86,11 @@ The `/api/v1/login` endpoint is protected by an **in-memory, per-client-IP rate 
 - A **successful** login clears the failure counter for that IP.
 - The window is rolling: after the oldest failure ages out, the IP can try again.
 
-> **Caveat:** the limiter is per-process and in-memory. Restarting the server resets the counters, and if you front the server with a reverse proxy you should make sure `X-Forwarded-For` is set/trusted so all clients are not collapsed into the proxy's IP. For a multi-instance deployment, the limiter is per node.
+> **Caveat:** the limiter is per-process and in-memory. Restarting the server resets the counters, and for a multi-instance deployment the limiter is per node.
+
+> **Reverse proxy:** the limiter keys on the client IP. When the server is fronted by a reverse proxy, the `X-Forwarded-For` / `X-Real-IP` headers are only honored if the direct peer (`RemoteAddr`) is listed in `web_ui.trusted_proxies` (a list of IPs/CIDRs). If you do not configure `trusted_proxies`, the limiter uses the direct peer and all clients behind a proxy are collapsed into the proxy's IP. Configure it (e.g. `"trusted_proxies": ["10.0.0.0/8"]`) so each real client is tracked separately. Header spoofing from an untrusted peer is ignored, preventing brute-force bypass.
+
+> **Request body limits:** DSC endpoints (registration, `SendReport`, `GetDscAction`) and uploads (`modules/upload`, configuration MOF, SAML SP key/cert) are bounded server-side (`20 MiB` and `64 MiB` respectively) to prevent memory-exhaustion attacks.
 
 ---
 

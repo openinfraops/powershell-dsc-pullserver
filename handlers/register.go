@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"crypto/rand"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -10,20 +11,16 @@ import (
 	"go-dsc-pull/internal/schema"
 	internalutils "go-dsc-pull/internal/utils"
 	utils "go-dsc-pull/utils"
-	"io"
 	"log"
-	"math/rand"
 	"net/http"
-	"time"
 )
 
 // RegisterHandler gère l'enregistrement initial (POST /PSDSCPullServer.svc/Nodes)
 func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	// --- Contrôle de la signature Authorization DSC ---
 	authHeader := r.Header.Get("Authorization")
-	body, err := io.ReadAll(r.Body)
+	body, err := readBodyLimited(w, r, maxDSCRequestBody)
 	if err != nil {
-		http.Error(w, "Unable to read request body", http.StatusInternalServerError)
 		return
 	}
 	// Charger la config pour récupérer la clé d'enregistrement
@@ -68,18 +65,20 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 			var existingAgentCount int
 			_ = database.QueryRow(`SELECT COUNT(*) FROM agents WHERE agent_id = ?`, agentId).Scan(&existingAgentCount)
 			isNewNode := existingAgentCount == 0
-			// Insertion ou mise à jour agent principal
-			agentInfo := req["AgentInformation"].(map[string]interface{})
-			nodeName := agentInfo["NodeName"].(string)
-			lcmVersion := agentInfo["LCMVersion"].(string)
-			regInfo := req["RegistrationInformation"].(map[string]interface{})
-			certInfo := regInfo["CertificateInformation"].(map[string]interface{})
-			registrationType := regInfo["RegistrationMessageType"].(string)
-			thumbprint := certInfo["Thumbprint"].(string)
-			subject := certInfo["Subject"].(string)
-			issuer := certInfo["Issuer"].(string)
-			notbefore := certInfo["NotBefore"].(string)
-			notafter := certInfo["NotAfter"].(string)
+			// Insertion ou mise à jour agent principal. On extrait les champs via
+			// des assertions comma-ok (jamais de panic sur un payload malformé ou
+			// un corps vide). Les champs manquants prennent la valeur zéro.
+			agentInfo, _ := req["AgentInformation"].(map[string]interface{})
+			nodeName, _ := agentInfo["NodeName"].(string)
+			lcmVersion, _ := agentInfo["LCMVersion"].(string)
+			regInfo, _ := req["RegistrationInformation"].(map[string]interface{})
+			certInfo, _ := regInfo["CertificateInformation"].(map[string]interface{})
+			registrationType, _ := regInfo["RegistrationMessageType"].(string)
+			thumbprint, _ := certInfo["Thumbprint"].(string)
+			subject, _ := certInfo["Subject"].(string)
+			issuer, _ := certInfo["Issuer"].(string)
+			notbefore, _ := certInfo["NotBefore"].(string)
+			notafter, _ := certInfo["NotAfter"].(string)
 
 			// Vérifie si NodeName existe avec un AgentId TEMP
 			var tempAgentId string
@@ -234,15 +233,24 @@ func migrateTempAgentToRealID(database *sql.DB, driver, tempAgentID, realAgentID
 }
 
 func generateAgentId() string {
-	rand.Seed(time.Now().UnixNano())
 	return randomHex(8) + "-" + randomHex(4) + "-" + randomHex(4) + "-" + randomHex(4) + "-" + randomHex(12)
 }
 
+// randomHex génère n caractères hexadécimaux via crypto/rand (source
+// cryptographiquement sûre, contrairement à math/rand qui était déprécié).
 func randomHex(n int) string {
 	const letters = "0123456789ABCDEF"
 	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		// crypto/rand ne doit pratiquement jamais échouer. En cas de pépin on
+		// retombe sur un motif déterministe pour ne pas bloquer l'enregistrement
+		// (l'agent_id n'est pas secret).
+		for i := range b {
+			b[i] = byte(i*7 + 3)
+		}
+	}
 	for i := range b {
-		b[i] = letters[rand.Intn(len(letters))]
+		b[i] = letters[b[i]&0x0F]
 	}
 	return string(b)
 }

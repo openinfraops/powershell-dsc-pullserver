@@ -337,7 +337,9 @@ func SchedulerConfigAPIHandler(w http.ResponseWriter, r *http.Request) {
 			_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to marshal config"})
 			return
 		}
-		if err := os.WriteFile(configPath, data, 0644); err != nil {
+		// 0600 : le fichier de config contient des secrets (shared_secret, mot de
+		// passe de la base). On limite la lecture au propriétaire.
+		if err := os.WriteFile(configPath, data, 0600); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to write config"})
 			return

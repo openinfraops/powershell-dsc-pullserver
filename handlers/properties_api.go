@@ -31,7 +31,10 @@ func PropertiesListHandler(w http.ResponseWriter, r *http.Request) {
 
 func PropertiesCreateHandler(w http.ResponseWriter, r *http.Request) {
 	var p schema.Property
-	_ = json.NewDecoder(r.Body).Decode(&p)
+	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
 	database, _ := db.OpenDB(&global.AppConfig.Database)
 	defer database.Close()
 	if !auth.IsAdmin(r, database) {
@@ -66,7 +69,10 @@ func PropertiesGetHandler(w http.ResponseWriter, r *http.Request) {
 func PropertiesUpdateHandler(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(r.PathValue("id"))
 	var p schema.Property
-	_ = json.NewDecoder(r.Body).Decode(&p)
+	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
 	database, _ := db.OpenDB(&global.AppConfig.Database)
 	defer database.Close()
 	if !auth.IsAdmin(r, database) {
@@ -119,7 +125,10 @@ func NodePropertiesListHandler(w http.ResponseWriter, r *http.Request) {
 func NodePropertiesCreateHandler(w http.ResponseWriter, r *http.Request) {
 	node := r.PathValue("nodename")
 	var p schema.NodeProperty
-	_ = json.NewDecoder(r.Body).Decode(&p)
+	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
 	p.NodeName = node
 	database, _ := db.OpenDB(&global.AppConfig.Database)
 	defer database.Close()
@@ -150,7 +159,10 @@ func NodePropertyUpdateHandler(w http.ResponseWriter, r *http.Request) {
 	node := r.PathValue("nodename")
 	pid, _ := strconv.Atoi(r.PathValue("property_id"))
 	var p schema.NodeProperty
-	_ = json.NewDecoder(r.Body).Decode(&p)
+	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
 	database, _ := db.OpenDB(&global.AppConfig.Database)
 	defer database.Close()
 	_, err := database.Exec("UPDATE node_properties SET value=? WHERE node_id=? AND property_id=?", p.Value, node, pid)

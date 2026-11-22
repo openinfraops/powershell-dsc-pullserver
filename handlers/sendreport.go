@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"io"
 	"log"
 	"strings"
 	"net/http"
@@ -14,10 +13,9 @@ import (
 
 // SendReportHandler gère POST /PSDSCPullServer.svc/Nodes(AgentId='...')/SendReport
 func SendReportHandler(w http.ResponseWriter, r *http.Request) {
-	reportBody, err := io.ReadAll(r.Body)
+	reportBody, err := readBodyLimited(w, r, maxDSCRequestBody)
 	if err != nil {
 		log.Printf("[SENDREPORT] Erreur lecture body: %v", err)
-		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 	rawId := r.PathValue("node")
