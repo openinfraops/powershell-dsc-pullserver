@@ -133,10 +133,20 @@ func DeleteUserAPITokenHandler(db *sql.DB) http.HandlerFunc {
 
 // Handler de login JWT
 func LoginHandler(db *sql.DB) http.HandlerFunc {
+	// Limiteur en mémoire par IP pour la protection brute-force du login.
+	limiter := auth.NewLoginRateLimiter(auth.MaxLoginAttempts, auth.LoginRateLimitWindow)
 	return func(w http.ResponseWriter, r *http.Request) {
 		type LoginRequest struct {
 			Username string `json:"username"`
 			Password string `json:"password"`
+		}
+		// Protection brute-force : bloque l'IP si trop d'échecs dans la fenêtre.
+		ip := auth.ClientIP(r)
+		if !limiter.LoginAllowed(ip) {
+			w.Header().Set("Retry-After", "900")
+			w.Header().Set("X-RateLimit-Limit", "5")
+			http.Error(w, "Trop de tentatives. Réessayez plus tard.", http.StatusTooManyRequests)
+			return
 		}
 		   // Plus besoin de LoginResponse, le token sera dans le cookie
 		var req LoginRequest
@@ -152,6 +162,7 @@ func LoginHandler(db *sql.DB) http.HandlerFunc {
 			       var role string
 				       err := row.Scan(&id, &hash, &source, &role)
 			       if err == sql.ErrNoRows {
+				       limiter.LoginFailed(ip)
 				       http.Error(w, "Utilisateur ou mot de passe incorrect", http.StatusUnauthorized)
 				       return
 			       } else if err != nil {
@@ -161,14 +172,17 @@ func LoginHandler(db *sql.DB) http.HandlerFunc {
 			       }
 		       // Si source = saml, on refuse l'authentification par mot de passe
 		       if strings.ToLower(source) == "saml" {
+			       limiter.LoginFailed(ip)
 			       http.Error(w, "Authentification par mot de passe interdite pour les utilisateurs SAML", http.StatusUnauthorized)
 			       return
 		       }
 		       // Vérification du mot de passe
 		       if bcrypt.CompareHashAndPassword([]byte(hash), []byte(req.Password)) != nil {
+			       limiter.LoginFailed(ip)
 			       http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			       return
 		       }
+		       limiter.LoginSucceeded(ip)
 		// Met à jour la date de dernière connexion
 		if err := internaldb.UpdateLastLogon(db, id); err != nil {
 			log.Printf("[LOGIN] Erreur update last_logon_date: %v", err)

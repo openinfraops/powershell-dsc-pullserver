@@ -93,6 +93,9 @@ Set-DscLocalConfigurationManager -Path ./PullLCMConfig
   - `bypass_ca_validation: false` → the certificate chain/signature is additionally validated against the **OS system trust store** (`RequireAndVerifyClientCert`), and the enrolled thumbprint is still checked. No extra config field is needed.
 - HTTPS is required to present a client certificate. In pure HTTP mode (`enable_https: false`) no certificate is negotiated, so the endpoints are unauthenticated at the transport level — only use for testing/isolated networks.
 
+> ⚠️ **`bypass_ca_validation: false` also applies to the registration endpoint.**
+> The `RequireAndVerifyClientCert` policy is set at the **whole DSC listener** level (`main.go`), including the registration route `PUT /PSDSCPullServer.svc/{node}`. In this mode the TLS handshake happens **before** the registration-key (HMAC) step, so **a node that presents a self-signed certificate cannot register at all** — the TLS handshake is rejected. To use `bypass_ca_validation: false` in production, every node must present a certificate issued by a CA that is trusted by the server's OS trust store (e.g. your internal PKI). If you rely on self-signed node certificates, keep `bypass_ca_validation: true`.
+
 #### Certificate renewal / rollover
 
 The node's certificate information (thumbprint, subject, issuer, `notBefore`/`notAfter`) is captured **at registration** from `RegistrationInformation.CertificateInformation` and stored in the `agents` table. When a node's certificate is renewed, the node **re-registers** with the pull server (same registration endpoint, same registration key): the stored certificate information is refreshed and the new thumbprint becomes the one checked by the middleware.

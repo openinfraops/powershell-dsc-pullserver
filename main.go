@@ -63,6 +63,17 @@ func main() {
 		}
 		global.AppConfig = appCfg
 
+		// --- Vérifications de sécurité au démarrage (S4) ---
+		// Un secret JWT absent rendrait l'authentification web/API inopérante
+		// (erreur 500 à la volée). On prévient dès le boot.
+		if auth.ResolveJWTSecret(global.AppConfig) == "" {
+			logs.WriteLogFile("WARN [SECURITY] shared_secret is not set (neither web_ui.shared_secret nor dsc_pullserver.shared_secret). Web/API authentication will fail until a value is configured.")
+		}
+		// Une clé d'enregistrement vide empêche tout enrôlement de nœud DSC.
+		if strings.TrimSpace(global.AppConfig.DSCPullServer.RegistrationKey) == "" {
+			logs.WriteLogFile("WARN [SECURITY] dsc_pullserver.registrationKey is empty. DSC nodes will not be able to register.")
+		}
+
 		// Initialisation SAML Service Provider si activé
 		samlMiddleware, err := auth.InitSamlMiddleware(global.AppConfig)
 		if err != nil {
@@ -489,7 +500,10 @@ func main() {
 					os.Exit(1)
 				}
 			} else {
-				logs.WriteLogFile(fmt.Sprintf("INFO [DSC WebUi] DSC Server (HTTP) on :%d ...", global.AppConfig.DSCPullServer.Port))
+				logs.WriteLogFile(fmt.Sprintf("WARN [DSC Core Server] DSC Server is listening in HTTP (no TLS) on :%d ...", global.AppConfig.DSCPullServer.Port))
+				if global.AppConfig.DSCPullServer.EnableClientCertValidation {
+					logs.WriteLogFile(fmt.Sprintf("WARN [SECURITY] enable_client_cert_validation is true but the DSC endpoint is served over plain HTTP. No client certificate is exchanged, so the pull endpoints are NOT protected by mutual TLS."))
+				}
 				err := http.ListenAndServe(fmt.Sprintf(":%d", global.AppConfig.DSCPullServer.Port), dscHandler)
 				if err != nil {
 					logs.WriteLogFile(fmt.Sprintf("ERROR [DSC WebUi] Error starting HTTP server: %v", err))
@@ -512,7 +526,8 @@ func main() {
 				os.Exit(1)
 			}
 		} else {
-			logs.WriteLogFile(fmt.Sprintf("INFO [DSC WebUI] IHM/API (HTTP) on :%d ... (IHM on /web/)", global.AppConfig.WebUI.Port))
+			logs.WriteLogFile(fmt.Sprintf("WARN [DSC WebUI] IHM/API is listening in HTTP (no TLS) on :%d ... (IHM on /web/)", global.AppConfig.WebUI.Port))
+			logs.WriteLogFile("WARN [SECURITY] The Web UI / API is served over plain HTTP. Credentials and JWT tokens transit unencrypted. Use HTTPS (enable_https: true) in production.")
 			err := http.ListenAndServe(fmt.Sprintf(":%d", global.AppConfig.WebUI.Port), webHandler)
 			if err != nil {
 				logs.WriteLogFile(fmt.Sprintf("ERROR [DSC WebUI] Error starting HTTP server: %v", err))

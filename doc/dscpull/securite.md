@@ -61,6 +61,35 @@ Keep the printed password safe and change it after the first login.
 
 ---
 
+## Startup Security Warnings
+
+The server validates a few security-sensitive settings at startup and logs a `WARN` when a protection is likely inactive or missing:
+
+| Condition | WARN |
+|---|---|
+| DSC endpoint served over plain HTTP (`enable_https: false`) | `DSC Server is listening in HTTP (no TLS)` |
+| `enable_client_cert_validation: true` **and** DSC served over HTTP | No client certificate is negotiated, so the pull endpoints are **not** protected by mutual TLS. |
+| Web UI / API served over plain HTTP (`web_ui.enable_https: false`) | Credentials and JWT tokens transit unencrypted. |
+| No `shared_secret` (neither `web_ui.shared_secret` nor `dsc_pullserver.shared_secret`) | Web/API authentication will fail until a value is set. |
+| `dsc_pullserver.registrationKey` empty | DSC nodes will not be able to register. |
+
+Treat these warnings as errors in production. The defaults in the shipped `config.json` examples enable HTTPS; if you disable it, make sure you only do so on an isolated network.
+
+---
+
+## Login Brute-Force Protection
+
+The `/api/v1/login` endpoint is protected by an **in-memory, per-client-IP rate limiter** (no external dependency):
+
+- After **5 failed attempts** within a **15-minute window**, the client IP is temporarily blocked.
+- Blocked attempts return **HTTP 429** with `Retry-After: 900` and `X-RateLimit-Limit: 5`.
+- A **successful** login clears the failure counter for that IP.
+- The window is rolling: after the oldest failure ages out, the IP can try again.
+
+> **Caveat:** the limiter is per-process and in-memory. Restarting the server resets the counters, and if you front the server with a reverse proxy you should make sure `X-Forwarded-For` is set/trusted so all clients are not collapsed into the proxy's IP. For a multi-instance deployment, the limiter is per node.
+
+---
+
 ## Security Notes & Recommendations
 
 - Always use **HTTPS** in production (both the DSC endpoint and the web UI).

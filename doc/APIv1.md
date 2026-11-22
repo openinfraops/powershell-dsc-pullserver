@@ -11,6 +11,8 @@ This document lists the REST endpoints exposed under `/api/v1/` by the DSC Pull 
 - Body: `{ "username": "...", "password": "..." }`
 - Response: `{ "token": "..." }`
 
+> **Brute-force protection:** this endpoint is rate-limited per client IP. After **5 failed attempts** within a **15-minute window**, further attempts from that IP return **HTTP 429** with `Retry-After: 900`. A successful login resets the counter.
+
 #### Usage of JWT and API Tokens
 
 After successful login, include the JWT in the `Authorization` header for all protected API requests:
