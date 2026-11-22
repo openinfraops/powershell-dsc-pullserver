@@ -37,7 +37,7 @@ func AgentReportsByJobIdHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	var report schema.DscReport
 	if err := json.Unmarshal([]byte(raw), &report); err != nil {
-		log.Printf("[API][REPORTS] Erreur parsing JSON: %v", err)
+		log.Printf("[API][REPORTS] Error parsing JSON: %v", err)
 		http.Error(w, "Erreur parsing JSON", http.StatusInternalServerError)
 		return
 	}

@@ -13,6 +13,7 @@ import (
 	utils "go-dsc-pull/utils"
 	"log"
 	"net/http"
+	"strings"
 )
 
 // RegisterHandler gère l'enregistrement initial (POST /PSDSCPullServer.svc/Nodes)
@@ -67,6 +68,9 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	certInfo, _ := regInfo["CertificateInformation"].(map[string]interface{})
 	registrationType, _ := regInfo["RegistrationMessageType"].(string)
 	thumbprint, _ := certInfo["Thumbprint"].(string)
+	// Normalise l'empreinte en minuscules : la base la compare sans LOWER()
+	// (index-friendly) et la requête du middleware DSC s'appuie dessus.
+	thumbprint = strings.ToLower(thumbprint)
 	subject, _ := certInfo["Subject"].(string)
 	issuer, _ := certInfo["Issuer"].(string)
 	notbefore, _ := certInfo["NotBefore"].(string)
@@ -84,14 +88,14 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		// nouvelle ligne avec l'ID réel, on ré-attache les lignes enfants, puis on
 		// supprime la ligne TEMP, le tout dans une transaction.
 		if migrateErr := migrateTempAgentToRealID(database, driver, tempAgentId, agentId, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter); migrateErr != nil {
-			logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][DB] Migration agent TEMP %s vers %s impossible: %v", tempAgentId, agentId, migrateErr))
+			logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][DB] Migration of TEMP agent %s to %s failed: %v", tempAgentId, agentId, migrateErr))
 		}
 	} else {
 		// Upsert de la ligne principale de l'agent (enrôlement ou
 		// ré-enregistrement / renouvellement de certificat).
 		err = upsertAgent(database, driver, agentId, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter, isNewNode)
 		if err != nil {
-			logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][DB] Erreur upsert agent: %v", err))
+			logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][DB] Error upserting agent: %v", err))
 		}
 	}
 
@@ -114,24 +118,24 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if len(extractedConfigNames) == 0 {
-			logs.WriteLogFile(fmt.Sprintf("[INFO][REGISTER][DB] Aucun ConfigurationNames fourni, conservation des liens existants pour agentId=%s", agentId))
+			logs.WriteLogFile(fmt.Sprintf("[INFO][REGISTER][DB] No ConfigurationNames provided, keeping existing links for agentId=%s", agentId))
 		} else {
 			_, err := database.Exec(`DELETE FROM agent_configurations WHERE agent_id = ?`, agentId)
 			if err != nil {
-				logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][DB] Erreur suppression configs existantes: %v", err))
+				logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][DB] Error deleting existing configurations: %v", err))
 			}
 			for _, configName := range extractedConfigNames {
 				if driver == "sqlite" {
-					logs.WriteLogFile(fmt.Sprintf("[INFO][REGISTER][DB] Insertion config (SQLite): agentId=%s, config=%s", agentId, configName))
+					logs.WriteLogFile(fmt.Sprintf("[INFO][REGISTER][DB] Inserting config (SQLite): agentId=%s, config=%s", agentId, configName))
 					_, err := database.Exec(`INSERT OR REPLACE INTO agent_configurations (agent_id, configuration_name) VALUES (?, ?)`, agentId, configName)
 					if err != nil {
-						logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][DB] Erreur insertion config: %v (agentId=%s, config=%s)", err, agentId, configName))
+						logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][DB] Error inserting config: %v (agentId=%s, config=%s)", err, agentId, configName))
 					}
 				} else {
-					logs.WriteLogFile(fmt.Sprintf("[INFO][REGISTER][DB] Insertion config (MSSQL): agentId=%s, config=%s", agentId, configName))
+					logs.WriteLogFile(fmt.Sprintf("[INFO][REGISTER][DB] Inserting config (MSSQL): agentId=%s, config=%s", agentId, configName))
 					_, err := database.Exec(`IF NOT EXISTS (SELECT 1 FROM agent_configurations WHERE agent_id = ? AND configuration_name = ?) INSERT INTO agent_configurations (agent_id, configuration_name) VALUES (?, ?)`, agentId, configName, agentId, configName)
 					if err != nil {
-						logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][DB] Erreur insertion config: %v (agentId=%s, config=%s)", err, agentId, configName))
+						logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][DB] Error inserting config: %v (agentId=%s, config=%s)", err, agentId, configName))
 					}
 				}
 			}

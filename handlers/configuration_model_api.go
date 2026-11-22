@@ -74,7 +74,7 @@ func CreateConfigurationModelHandler(w http.ResponseWriter, r *http.Request) {
 		newName = name + "-" + safeDate
 		_, errUpdate := dbConn.Exec("UPDATE configuration_model SET name = ? WHERE id = ?", newName, existingId)
 		if errUpdate != nil {
-			logs.WriteLogFile("[ERROR] Erreur UPDATE configuration_model versioning: " + errUpdate.Error())
+			logs.WriteLogFile("[ERROR] Error updating configuration_model versioning: " + errUpdate.Error())
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte("Versioning error"))
 			return
@@ -119,7 +119,7 @@ func CreateConfigurationModelHandler(w http.ResponseWriter, r *http.Request) {
 		if previousID != nil {
 			_, _ = dbConn.Exec("UPDATE configuration_model SET name = ? WHERE id = ?", name, *previousID)
 		}
-		logs.WriteLogFile("[ERROR] Erreur CREATE configuration_model: " + err.Error())
+		logs.WriteLogFile("[ERROR] Error creating configuration_model: " + err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Creation error"))
 		return
@@ -133,7 +133,7 @@ func CreateConfigurationModelHandler(w http.ResponseWriter, r *http.Request) {
 	var res sql.Result
 	res, err = dbConn.Exec("UPDATE agents SET state = 'pending_apply' WHERE agent_id IN (SELECT agent_id FROM agent_configurations WHERE configuration_name = ?)", name)
 	if err != nil {
-		logs.WriteLogFile("[ERROR] Erreur UPDATE agents pending_apply: " + err.Error())
+		logs.WriteLogFile("[ERROR] Error updating agents pending_apply: " + err.Error())
 	} else {
 		n, _ := res.RowsAffected()
 		msg := fmt.Sprintf("[INFO] New configuration uploaded, impacted nodes: %d", n)

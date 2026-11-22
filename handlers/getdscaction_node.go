@@ -26,7 +26,7 @@ func GetDscActionNodeHandlerWithId(w http.ResponseWriter, r *http.Request, agent
 	// qui demande son action DSC. Sans effet si la validation de certificat
 	// client est désactivée.
 	if ok, cause := verifyNodeCertBinding(r, database, agentId); !ok {
-		log.Printf("[GETDSCACTION-NODE] Liaison cert→nœud refusée pour agentId=%q: %s", agentId, cause)
+		log.Printf("[GETDSCACTION-NODE] Certificate-to-node binding refused for agentId=%q: %s", agentId, cause)
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
@@ -37,7 +37,7 @@ func GetDscActionNodeHandlerWithId(w http.ResponseWriter, r *http.Request, agent
 	if database != nil {
 		_ = database.QueryRow(`SELECT COUNT(*) FROM agents WHERE agent_id = ? AND deleted_at IS NULL`, agentId).Scan(&notDeleted)
 		if notDeleted == 0 {
-			log.Printf("[GETDSCACTION-NODE] agentId=%q est en corbeille ou inexistant, config non servie", agentId)
+			log.Printf("[GETDSCACTION-NODE] agentId=%q is trashed or does not exist, configuration not served", agentId)
 			http.Error(w, "Configuration not found", http.StatusNotFound)
 			return
 		}
@@ -66,12 +66,12 @@ func GetDscActionNodeHandlerWithId(w http.ResponseWriter, r *http.Request, agent
 		for rows.Next() {
 			var name string
 			if err := rows.Scan(&name); err == nil {
-				log.Printf("[GETDSCACTION-NODE] Nom de configuration trouvé pour agent %s : %s", agentId, name)
+				log.Printf("[GETDSCACTION-NODE] Configuration name found for agent %s: %s", agentId, name)
 				configNames = append(configNames, name)
 			}
 		}
 	} else {
-		log.Printf("[GETDSCACTION-NODE] Erreur ouverture base: %v", err)
+		log.Printf("[GETDSCACTION-NODE] Error opening database: %v", err)
 	}
 
 	// Vérifie qu'il existe au moins une configuration en base pour cet agent
@@ -121,22 +121,22 @@ func GetDscActionNodeHandlerWithId(w http.ResponseWriter, r *http.Request, agent
 			// Calcul du hash sur le bon fichier (lié à configName)
 			if cs.ChecksumAlgorithm == "SHA-256" && cs.Checksum != "" {
 				// Récupère le MOF depuis la base
-				log.Printf("[GETDSCACTION-NODE] Recherche MOF en base pour configName='%s'", configName)
+				log.Printf("[GETDSCACTION-NODE] Looking up MOF in database for configName='%s'", configName)
 				row := database.QueryRow("SELECT mof_file FROM configuration_model WHERE LOWER(name) = LOWER(?)", configName)
 				var mofBytes []byte
 				err := row.Scan(&mofBytes)
 				if err != nil {
-					log.Printf("[GETDSCACTION-NODE] MOF introuvable pour configName='%s': %v", configName, err)
+					log.Printf("[GETDSCACTION-NODE] MOF not found for configName='%s': %v", configName, err)
 					allOk = false
 				} else {
 					hash := sha256SumHex(mofBytes)
-					log.Printf("[GETDSCACTION-NODE] Config=%s, Hash envoyé=%s, Hash calculé=%s", configName, cs.Checksum, hash)
+					log.Printf("[GETDSCACTION-NODE] Config=%s, Hash sent=%s, Hash computed=%s", configName, cs.Checksum, hash)
 					_, err := database.Exec("UPDATE configuration_model SET last_usage = CURRENT_TIMESTAMP WHERE LOWER(name) = LOWER(?)", configName)
-					log.Printf("[GETDSCACTION-NODE] Mise à jour last_usage pour configName='%s', err=%v", configName, err)
+					log.Printf("[GETDSCACTION-NODE] Updating last_usage for configName='%s', err=%v", configName, err)
 					if hash != "" && strings.EqualFold(hash, cs.Checksum) {
 						status = "OK"
 						if err != nil {
-							log.Printf("[GETDSCACTION-NODE] Erreur lors de la mise à jour de last_usage: %v", err)
+							log.Printf("[GETDSCACTION-NODE] Error updating last_usage: %v", err)
 						}
 					} else {
 						allOk = false
@@ -154,7 +154,7 @@ func GetDscActionNodeHandlerWithId(w http.ResponseWriter, r *http.Request, agent
 			nodeStatus = "OK"
 			_, err = database.Exec("UPDATE agents SET last_communication = CURRENT_TIMESTAMP, state = 'OK' WHERE agent_id = ?", agentId)
 			if err != nil {
-				log.Printf("[GETDSCACTION-NODE] Erreur update last_communication state OK: %v", err)
+				log.Printf("[GETDSCACTION-NODE] Error updating last_communication state OK: %v", err)
 			}
 		}
 	} else {

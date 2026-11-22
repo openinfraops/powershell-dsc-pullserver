@@ -183,7 +183,7 @@ func GetAgentsHandler(w http.ResponseWriter, r *http.Request) {
 			a.State = state
 			agents = append(agents, a)
 		} else {
-			log.Printf("[API][DB] Agent ignoré, erreur scan: %v", err)
+			log.Printf("[API][DB] Agent skipped, scan error: %v", err)
 		}
 	}
 	w.Header().Set("Content-Type", "application/json")

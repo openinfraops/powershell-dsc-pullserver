@@ -74,7 +74,7 @@ func SAMLLoginHandler(dbConn *sql.DB) http.HandlerFunc {
 		}
 
 		if email == "" {
-			log.Printf("[SAML] Aucun email trouvé dans les assertions SAML, accès refusé")
+			log.Printf("[SAML] No email found in SAML assertions, access denied")
 			http.Error(w, "Email SAML manquant", http.StatusForbidden)
 			return
 		}
@@ -82,29 +82,29 @@ func SAMLLoginHandler(dbConn *sql.DB) http.HandlerFunc {
 		var isActiveBool bool
 		err := dbConn.QueryRow("SELECT id, is_active FROM users WHERE email = ?", email).Scan(&userId, &isActiveBool)
 		if err == sql.ErrNoRows {
-			log.Printf("[SAML] Création nouvel utilisateur: %s %s <%s> (role: %s)", firstName, lastName, email, role)
+			log.Printf("[SAML] Creating new user: %s %s <%s> (role: %s)", firstName, lastName, email, role)
 			_, err := dbConn.Exec("INSERT INTO users (first_name, last_name, email, password_hash, is_active, last_logon_date, source, role) VALUES (?, ?, ?, '', 1, ?, 'saml', ?)", firstName, lastName, email, time.Now().Format("2006-01-02 15:04:05"), role)
 			if err != nil {
-				log.Printf("[SAML] Erreur création utilisateur: %v", err)
+				log.Printf("[SAML] Error creating user: %v", err)
 				http.Error(w, "Erreur création utilisateur", http.StatusInternalServerError)
 				return
 			}
 		} else if err != nil && err != sql.ErrNoRows {
-			log.Printf("[SAML] Erreur DB: %v", err)
+			log.Printf("[SAML] DB error: %v", err)
 			http.Error(w, "Erreur DB", http.StatusInternalServerError)
 			return
 		} else if !isActiveBool {
 			// Compte inactif : refuse l'accès et redirige avec message
-			log.Printf("[SAML] Compte inactif pour %s", email)
+			log.Printf("[SAML] Account inactive for %s", email)
 			http.Redirect(w, r, "/web/login?error=blocked", http.StatusFound)
 			return
 		} else {
 			// Met à jour la date de dernière connexion
 			if err := db.UpdateLastLogon(dbConn, userId); err != nil {
-				log.Printf("[SAML] Erreur update last_logon_date: %v", err)
+				log.Printf("[SAML] Error updating last_logon_date: %v", err)
 			}
 			if err := db.UpdateRole(dbConn, userId, role); err != nil {
-				log.Printf("[SAML] Erreur update role: %v", err)
+				log.Printf("[SAML] Error updating role: %v", err)
 			}
 		}
 		
@@ -125,7 +125,7 @@ func SAMLLoginHandler(dbConn *sql.DB) http.HandlerFunc {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signed, err := token.SignedString(secret)
 	if err != nil {
-		log.Printf("[SAML] Erreur génération JWT: %v", err)
+		log.Printf("[SAML] Error generating JWT: %v", err)
 		http.Error(w, "Erreur JWT", http.StatusInternalServerError)
 		return
 	}

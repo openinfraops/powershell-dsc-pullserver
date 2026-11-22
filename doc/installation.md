@@ -30,7 +30,7 @@ The server is a single self-contained **Go** executable (no Go runtime required 
    **Expected directory structure:**
    ```
    go-dsc-pull/
-   ├── dsc-pull-server.exe
+   ├── DSC-Admin-Console.exe
    ├── config.json
    ├── web/
    ├── templates/
@@ -50,7 +50,7 @@ The server is a single self-contained **Go** executable (no Go runtime required 
 3. **Create the initial administrator account:**
    - On first run, the server no longer creates a default admin account (`admin@localhost / password`). Initialize the first administrator locally with a strong, randomly generated password:
      ```sh
-     ./dsc-pull-server.exe init-bootstrap-admin
+     ./DSC-Admin-Console.exe init-bootstrap-admin
      ```
    - The command reads `config.json`, initializes the database schema if needed (requires the `db/` directory next to the executable), creates the `admin@localhost` account (role `admin`) **only if no user exists**, and prints a **single-use 30-character random password** on the console.
    - Store this password securely and change it after the first login. Re-running the command **refuses to overwrite** an existing account.
@@ -58,13 +58,13 @@ The server is a single self-contained **Go** executable (no Go runtime required 
 4. **Deploy the server:**
     - Run the executable:
        ```sh
-       ./dsc-pull-server.exe
+       ./DSC-Admin-Console.exe
        ```
     - (Optional) Register as a Windows service using `sc.exe`:
       1. Open a command prompt as Administrator.
       2. Run the following command (adapt the path as needed):
          ```sh
-         sc.exe create DSCPullServer binPath= "C:\\Path\\To\\dsc-pull-server.exe" start= auto
+         sc.exe create DSCPullServer binPath= "C:\\Path\\To\\DSC-Admin-Console.exe" start= auto
          ```
       3. Start the service:
          ```sh
