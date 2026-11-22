@@ -109,6 +109,15 @@ func main() {
 		// Register the process-wide pool so handlers reuse it instead of opening a
 		// new pool per request (Q2). Handlers must never Close() this handle.
 		db.SetShared(dbConn)
+		// One-time normalisation: nodes registered before the lowercase-thumbprint
+		// change store their certificate_thumbprint in uppercase. Lowercase them so
+		// the index-friendly, LOWER()-free lookup matches existing nodes (SQLite is
+		// case-sensitive; MSSQL is a harmless no-op given its CI collation).
+		if normalized, normErr := db.NormalizeCertificateThumbprints(dbConn, global.AppConfig.Database.Driver); normErr != nil {
+			logs.WriteLogFile(fmt.Sprintf("WARN [INITDB] Failed to normalize certificate thumbprints: %v", normErr))
+		} else if normalized > 0 {
+			logs.WriteLogFile(fmt.Sprintf("INFO [INITDB] Normalized %d certificate thumbprint(s) to lowercase", normalized))
+		}
 		if cancelledRuns, cancelErr := db.CancelRunningSchedulerTasks(dbConn, global.AppConfig.Database.Driver, time.Now().UTC(), "Cancelled on application startup"); cancelErr != nil {
 			logs.WriteLogFile(fmt.Sprintf("WARN [SCHEDULER] Failed to cancel stale running tasks on startup: %v", cancelErr))
 		} else if cancelledRuns > 0 {
