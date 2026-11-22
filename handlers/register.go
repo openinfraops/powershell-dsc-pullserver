@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"crypto/rand"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -10,20 +11,16 @@ import (
 	"go-dsc-pull/internal/schema"
 	internalutils "go-dsc-pull/internal/utils"
 	utils "go-dsc-pull/utils"
-	"io"
 	"log"
-	"math/rand"
 	"net/http"
-	"time"
 )
 
 // RegisterHandler gère l'enregistrement initial (POST /PSDSCPullServer.svc/Nodes)
 func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	// --- Contrôle de la signature Authorization DSC ---
 	authHeader := r.Header.Get("Authorization")
-	body, err := io.ReadAll(r.Body)
+	body, err := readBodyLimited(w, r, maxDSCRequestBody)
 	if err != nil {
-		http.Error(w, "Unable to read request body", http.StatusInternalServerError)
 		return
 	}
 	// Charger la config pour récupérer la clé d'enregistrement
@@ -68,18 +65,20 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 			var existingAgentCount int
 			_ = database.QueryRow(`SELECT COUNT(*) FROM agents WHERE agent_id = ?`, agentId).Scan(&existingAgentCount)
 			isNewNode := existingAgentCount == 0
-			// Insertion ou mise à jour agent principal
-			agentInfo := req["AgentInformation"].(map[string]interface{})
-			nodeName := agentInfo["NodeName"].(string)
-			lcmVersion := agentInfo["LCMVersion"].(string)
-			regInfo := req["RegistrationInformation"].(map[string]interface{})
-			certInfo := regInfo["CertificateInformation"].(map[string]interface{})
-			registrationType := regInfo["RegistrationMessageType"].(string)
-			thumbprint := certInfo["Thumbprint"].(string)
-			subject := certInfo["Subject"].(string)
-			issuer := certInfo["Issuer"].(string)
-			notbefore := certInfo["NotBefore"].(string)
-			notafter := certInfo["NotAfter"].(string)
+			// Insertion ou mise à jour agent principal. On extrait les champs via
+			// des assertions comma-ok (jamais de panic sur un payload malformé ou
+			// un corps vide). Les champs manquants prennent la valeur zéro.
+			agentInfo, _ := req["AgentInformation"].(map[string]interface{})
+			nodeName, _ := agentInfo["NodeName"].(string)
+			lcmVersion, _ := agentInfo["LCMVersion"].(string)
+			regInfo, _ := req["RegistrationInformation"].(map[string]interface{})
+			certInfo, _ := regInfo["CertificateInformation"].(map[string]interface{})
+			registrationType, _ := regInfo["RegistrationMessageType"].(string)
+			thumbprint, _ := certInfo["Thumbprint"].(string)
+			subject, _ := certInfo["Subject"].(string)
+			issuer, _ := certInfo["Issuer"].(string)
+			notbefore, _ := certInfo["NotBefore"].(string)
+			notafter, _ := certInfo["NotAfter"].(string)
 
 			// Vérifie si NodeName existe avec un AgentId TEMP
 			var tempAgentId string
@@ -96,16 +95,11 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 					logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][DB] Migration agent TEMP %s vers %s impossible: %v", tempAgentId, agentId, migrateErr))
 				}
 			} else {
-				// Insertion normale, compatible SQLite/MSSQL
-				if driver == "sqlite" {
-					_, err = database.Exec(`INSERT OR REPLACE INTO agents (agent_id, node_name, lcm_version, registration_type, certificate_thumbprint, certificate_subject, certificate_issuer, certificate_notbefore, certificate_notafter, state) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-						agentId, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter, "pending_apply")
-				} else {
-					_, err = database.Exec(`IF NOT EXISTS (SELECT 1 FROM agents WHERE agent_id = ?) INSERT INTO agents (agent_id, node_name, lcm_version, registration_type, certificate_thumbprint, certificate_subject, certificate_issuer, certificate_notbefore, certificate_notafter, registered_at, last_communication, has_error_last_report) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-						agentId, agentId, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter, nil, nil, 0)
-				}
+				// Upsert de la ligne principale de l'agent (enrôlement ou
+				// ré-enregistrement / renouvellement de certificat).
+				err = upsertAgent(database, driver, agentId, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter, isNewNode)
 				if err != nil {
-					logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][DB] Erreur insertion agent: %v", err))
+					logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][DB] Erreur upsert agent: %v", err))
 				}
 			}
 
@@ -173,6 +167,32 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(resp)
 }
 
+// upsertAgent insère ou met à jour la ligne principale d'un agent selon qu'il
+// s'agit d'un nouvel enregistrement (enrôlement) ou d'un ré-enregistrement
+// (ex. renouvellement du certificat du nœud).
+//
+//   - Nouvel agent : insertion, avec state='pending_apply'.
+//   - Agent déjà enregistré : mise à jour des champs du nœud et du certificat
+//     (thumbprint, subject, issuer, notbefore, notafter) SANS écraser
+//     registered_at, last_communication, has_error_last_report, needs_recompile,
+//     state ni deleted_at. C'est ce qui permet le renouvellement de certificat.
+func upsertAgent(database *sql.DB, driver, agentId, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter string, isNewNode bool) error {
+	if isNewNode {
+		if driver == "sqlite" {
+			_, err := database.Exec(`INSERT OR REPLACE INTO agents (agent_id, node_name, lcm_version, registration_type, certificate_thumbprint, certificate_subject, certificate_issuer, certificate_notbefore, certificate_notafter, state) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				agentId, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter, "pending_apply")
+			return err
+		}
+		_, err := database.Exec(`IF NOT EXISTS (SELECT 1 FROM agents WHERE agent_id = ?) INSERT INTO agents (agent_id, node_name, lcm_version, registration_type, certificate_thumbprint, certificate_subject, certificate_issuer, certificate_notbefore, certificate_notafter, registered_at, last_communication, has_error_last_report) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			agentId, agentId, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter, nil, nil, 0)
+		return err
+	}
+	// Ré-enregistrement : mise à jour (le renouvellement de certificat aboutit ici).
+	_, err := database.Exec(`UPDATE agents SET node_name=?, lcm_version=?, registration_type=?, certificate_thumbprint=?, certificate_subject=?, certificate_issuer=?, certificate_notbefore=?, certificate_notafter=? WHERE agent_id=?`,
+		nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter, agentId)
+	return err
+}
+
 // migrateTempAgentToRealID remplace une pré-inscription TEMP-* par l'ID réel d'un
 // agent après enregistrement authentifié. MSSQL refuse de modifier la PK agents.agent_id
 // référencée par les tables enfants, d'où l'insertion d'une nouvelle ligne puis la
@@ -213,15 +233,24 @@ func migrateTempAgentToRealID(database *sql.DB, driver, tempAgentID, realAgentID
 }
 
 func generateAgentId() string {
-	rand.Seed(time.Now().UnixNano())
 	return randomHex(8) + "-" + randomHex(4) + "-" + randomHex(4) + "-" + randomHex(4) + "-" + randomHex(12)
 }
 
+// randomHex génère n caractères hexadécimaux via crypto/rand (source
+// cryptographiquement sûre, contrairement à math/rand qui était déprécié).
 func randomHex(n int) string {
 	const letters = "0123456789ABCDEF"
 	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		// crypto/rand ne doit pratiquement jamais échouer. En cas de pépin on
+		// retombe sur un motif déterministe pour ne pas bloquer l'enregistrement
+		// (l'agent_id n'est pas secret).
+		for i := range b {
+			b[i] = byte(i*7 + 3)
+		}
+	}
 	for i := range b {
-		b[i] = letters[rand.Intn(len(letters))]
+		b[i] = letters[b[i]&0x0F]
 	}
 	return string(b)
 }

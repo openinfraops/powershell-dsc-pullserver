@@ -27,6 +27,8 @@ func CreateConfigurationModelHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer dbConn.Close()
+	// Borne la taille du corps multipart d'upload MOF.
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadRequestBody)
 	file, header, err := r.FormFile("mof_file")
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -277,6 +279,8 @@ func UpdateConfigurationModelHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Forbidden: admin only", http.StatusForbidden)
 		return
 	}
+	// Borne la taille du corps multipart d'upload MOF.
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadRequestBody)
 	name := r.FormValue("name")
 	uploadedBy := r.FormValue("uploaded_by")
 	file, _, err := r.FormFile("mof_file")

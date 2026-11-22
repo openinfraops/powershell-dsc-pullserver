@@ -46,10 +46,14 @@ SAML settings are defined in `config.json` under the `saml` section:
 
 ## Endpoints
 
-- **GET** `/api/saml/login` — Redirects to IdP for authentication.
-- **POST** `/api/saml/acs` — Assertion Consumer Service (receives SAML response).
-- **GET** `/api/saml/status` — Returns SAML configuration and status.
-- **GET** `/api/saml/userinfo` — Returns SAML user attributes for the current session.
+- **GET** `/saml/login` — Redirects to the IdP for authentication.
+- **POST** `/saml/acs` — Assertion Consumer Service (receives the SAML response).
+- **GET** `/saml/metadata` — SP metadata.
+- **GET** `/api/v1/saml/userinfo` — Returns SAML user attributes for the current session.
+- **GET** `/api/v1/saml/enabled` — Returns whether SAML is enabled.
+- **GET** `/api/v1/saml/config` — Get the SAML configuration (admin).
+- **PUT** `/api/v1/saml/config` — Update the SAML configuration (admin).
+- **POST** `/api/v1/saml/upload_sp_keycert` — Upload the SP key/certificate (admin).
 
 ---
 

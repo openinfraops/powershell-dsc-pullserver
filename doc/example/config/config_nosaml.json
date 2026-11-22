@@ -1,8 +1,7 @@
 {
   "database": {
-    "name": "dsc",
-    "driver": "sqlite3",
-    "file": "dsc.db"
+    "name": "dsc.db",
+    "driver": "sqlite"
   },
   "dsc_pullserver": {
     "cert_file": "dsc-dev.local.crt",

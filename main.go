@@ -15,7 +15,6 @@ import (
 	"go-dsc-pull/internal/schema"
 	"go-dsc-pull/internal/service"
 	"go-dsc-pull/utils"
-	"golang.org/x/crypto/bcrypt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -25,6 +24,15 @@ import (
 )
 
 func main() {
+
+	// Mode CLI : création du compte administrateur initial en local, avec un
+	// mot de passe aléatoire. Intercepté avant le démarrage du serveur / service.
+	if len(os.Args) > 1 {
+		switch strings.TrimLeft(os.Args[1], "-") {
+		case "init-bootstrap-admin", "bootstrap-admin":
+			os.Exit(runInitBootstrapAdmin())
+		}
+	}
 
 	runApp := func() {
 		logs.WriteLogFile(fmt.Sprintf("INFO [BUILD] %s", buildinfo.Short()))
@@ -54,6 +62,17 @@ func main() {
 			os.Exit(1)
 		}
 		global.AppConfig = appCfg
+
+		// --- Vérifications de sécurité au démarrage (S4) ---
+		// Un secret JWT absent rendrait l'authentification web/API inopérante
+		// (erreur 500 à la volée). On prévient dès le boot.
+		if auth.ResolveJWTSecret(global.AppConfig) == "" {
+			logs.WriteLogFile("WARN [SECURITY] shared_secret is not set (neither web_ui.shared_secret nor dsc_pullserver.shared_secret). Web/API authentication will fail until a value is configured.")
+		}
+		// Une clé d'enregistrement vide empêche tout enrôlement de nœud DSC.
+		if strings.TrimSpace(global.AppConfig.DSCPullServer.RegistrationKey) == "" {
+			logs.WriteLogFile("WARN [SECURITY] dsc_pullserver.registrationKey is empty. DSC nodes will not be able to register.")
+		}
 
 		// Initialisation SAML Service Provider si activé
 		samlMiddleware, err := auth.InitSamlMiddleware(global.AppConfig)
@@ -388,18 +407,14 @@ func main() {
 			logs.WriteLogFile("INFO [SAML] SAML Authentication deactivated (local auth)")
 		}
 
-		// Vérifie si la table users est vide et insère le compte admin si besoin
+		// Vérifie si la table users est vide et guide l'opérateur. Le compte
+		// administrateur initial n'est plus créé avec un mot de passe par défaut
+		// (vulnérabilité C1) : il doit être généré via "init-bootstrap-admin".
 		{
 			var count int
 			err := dbConn.QueryRow("SELECT COUNT(*) FROM users").Scan(&count)
 			if err == nil && count == 0 {
-				hash, _ := bcrypt.GenerateFromPassword([]byte("password"), bcrypt.DefaultCost)
-				_, err := dbConn.Exec("INSERT INTO users (first_name, last_name, email, password_hash, is_active, role, source) VALUES (?, ?, ?, ?, ?, ?, ?)", "Admin", "User", "admin@localhost", string(hash), true, "admin", "local")
-				if err != nil {
-					logs.WriteLogFile(fmt.Sprintf("ERROR [INITDB] Failed to insert admin: %v", err))
-				} else {
-					logs.WriteLogFile("INFO [INITDB] Admin account created: admin@localhost / password")
-				}
+				logs.WriteLogFile("WARN [INITDB] Aucun utilisateur en base : créez le compte administrateur initial via \"DSC-Admin-Console.exe init-bootstrap-admin\" (mot de passe aléatoire). Le serveur ne crée plus de compte admin par défaut.")
 			}
 		}
 
@@ -455,9 +470,21 @@ func main() {
 				tlsConfig := &tls.Config{
 					MinVersion: tls.VersionTLS12,
 				}
+				// Vérifie si la validation du certificat client est activée.
 				if global.AppConfig.DSCPullServer.EnableClientCertValidation {
+					// Toujours exiger un certificat client : le middleware d'empreinte
+					// (enrôlement du nœud) ne s'exécute que si un certificat est présenté.
+					// bypass_ca_validation ne conditionne que la validation de la chaîne CA,
+					// pas l'exigence d'un certificat.
 					if global.AppConfig.DSCPullServer.BypassCAValidation {
+						// Aucune validation de la signature/CA : seuls l'empreinte du
+						// certificat (enrôlement du nœud) compte. Modèle DSC avec des
+						// certificats potentiellement auto-signés.
 						tlsConfig.ClientAuth = tls.RequireAnyClientCert
+					} else {
+						// Validation de la chaîne/signature contre le magasin d'autorités
+						// du système, en plus du contrôle d'empreinte (enrôlement).
+						tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 					}
 				} else {
 					logs.WriteLogFile(fmt.Sprintf("WARN [DSC Core Server] Client certificate validation is disabled."))
@@ -473,7 +500,10 @@ func main() {
 					os.Exit(1)
 				}
 			} else {
-				logs.WriteLogFile(fmt.Sprintf("INFO [DSC WebUi] DSC Server (HTTP) on :%d ...", global.AppConfig.DSCPullServer.Port))
+				logs.WriteLogFile(fmt.Sprintf("WARN [DSC Core Server] DSC Server is listening in HTTP (no TLS) on :%d ...", global.AppConfig.DSCPullServer.Port))
+				if global.AppConfig.DSCPullServer.EnableClientCertValidation {
+					logs.WriteLogFile(fmt.Sprintf("WARN [SECURITY] enable_client_cert_validation is true but the DSC endpoint is served over plain HTTP. No client certificate is exchanged, so the pull endpoints are NOT protected by mutual TLS."))
+				}
 				err := http.ListenAndServe(fmt.Sprintf(":%d", global.AppConfig.DSCPullServer.Port), dscHandler)
 				if err != nil {
 					logs.WriteLogFile(fmt.Sprintf("ERROR [DSC WebUi] Error starting HTTP server: %v", err))
@@ -496,7 +526,8 @@ func main() {
 				os.Exit(1)
 			}
 		} else {
-			logs.WriteLogFile(fmt.Sprintf("INFO [DSC WebUI] IHM/API (HTTP) on :%d ... (IHM on /web/)", global.AppConfig.WebUI.Port))
+			logs.WriteLogFile(fmt.Sprintf("WARN [DSC WebUI] IHM/API is listening in HTTP (no TLS) on :%d ... (IHM on /web/)", global.AppConfig.WebUI.Port))
+			logs.WriteLogFile("WARN [SECURITY] The Web UI / API is served over plain HTTP. Credentials and JWT tokens transit unencrypted. Use HTTPS (enable_https: true) in production.")
 			err := http.ListenAndServe(fmt.Sprintf(":%d", global.AppConfig.WebUI.Port), webHandler)
 			if err != nil {
 				logs.WriteLogFile(fmt.Sprintf("ERROR [DSC WebUI] Error starting HTTP server: %v", err))

@@ -41,7 +41,10 @@ func GetDscActionNodeHandlerWithId(w http.ResponseWriter, r *http.Request, agent
 	_ = database.QueryRow(`SELECT node_name FROM agents WHERE agent_id = ?`, agentId).Scan(&waitingNode)
 	service.WaitForNodeCompile(waitingNode, agentCompileWait)
 	// Log du body et des headers reçus pour debug
-	body, _ := io.ReadAll(r.Body)
+	body, err := readBodyLimited(w, r, maxDSCRequestBody)
+	if err != nil {
+		return
+	}
 	r.Body = io.NopCloser(strings.NewReader(string(body)))
 
 	// DEBUG : afficher le body dans la réponse HTTP (en plus du log)

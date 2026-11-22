@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -38,9 +39,38 @@ func extractModuleInfo(psd1Content string) (name, version string) {
 	return name, version
 }
 
+// Bornes de décompression des archives de modules (anti zip-bomb) et de nombre
+// d'entrées. Une archive légitime (module DSC) fait quelques Mo ; ces valeurs
+// bloquent une archive comprimée qui se décompresse de manière arbitraire.
+const (
+	maxModuleZipEntries    = 1000
+	maxModuleZipEntryBytes = 20 << 20 // 20 MiB par entrée
+	maxModuleZipTotalBytes = 64 << 20 // 64 MiB au total décompressé
+)
+
+// unsafeZipEntryName reporte si un nom d'entrée d'archive est dangereux
+// (traversée de répertoire `..`, chemin absolu, backslash), afin d'éviter un
+// zip-slip côté client lorsque l'archive est re-distribuée.
+func unsafeZipEntryName(name string) bool {
+	return strings.Contains(name, "..") || strings.Contains(name, "\\") ||
+		strings.HasPrefix(name, "/") || strings.HasPrefix(name, "./") ||
+		strings.HasPrefix(name, "../")
+}
+
 // Handler: upload nupkg, process, store as DSC module
 func ModuleUploadHandler(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Contrôle d'accès : la publication de module est réservée aux admins,
+		// quel que soit le format (zip natif ou nupkg). Le contrôle doit être fait
+		// AVANT toute branche (auparavant le chemin .zip le contournait).
+		if !auth.IsAdmin(r, db) {
+			http.Error(w, "Forbidden: admin only", http.StatusForbidden)
+			return
+		}
+		// Borne la taille totale du corps multipart (nupkg/zip) pour prévenir
+		// l'épuisement mémoire. ParseMultipartForm(32<<20) ne fixe que le seuil
+		// en mémoire, pas la taille maximale du corps.
+		r.Body = http.MaxBytesReader(w, r.Body, maxUploadRequestBody)
 		log.Printf("[DEBUG] ParseMultipartForm...")
 		err := r.ParseMultipartForm(32 << 20)
 		if err != nil {
@@ -96,6 +126,7 @@ func ModuleUploadHandler(db *sql.DB) http.HandlerFunc {
 						// Insert audit log
 						_, _ = db.Exec(`INSERT INTO audit (user, action, object, details, extra, timestamp) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`, user, "create", "module", fmt.Sprintf("Ajout module: %s v%s (zip)", name, version), "")
 					}
+					w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 					fmt.Fprintf(w, "Module %s v%s uploaded and processed as zip.\n", name, version)
 					return
 				}
@@ -112,6 +143,11 @@ func ModuleUploadHandler(db *sql.DB) http.HandlerFunc {
 		var psd1Name string
 		var moduleFiles = make(map[string][]byte)
 		log.Printf("[DEBUG] Loop zip files...")
+		if len(zipReader.File) > maxModuleZipEntries {
+			http.Error(w, "Archive contains too many entries", http.StatusBadRequest)
+			return
+		}
+		var totalDecompressed int64
 		for _, f := range zipReader.File {
 			// Exclure les fichiers NuGet inutiles
 			lower := strings.ToLower(f.Name)
@@ -121,9 +157,32 @@ func ModuleUploadHandler(db *sql.DB) http.HandlerFunc {
 				strings.HasPrefix(lower, "package/") {
 				continue
 			}
-			fileReader, _ := f.Open()
-			fileBytes, _ := ioutil.ReadAll(fileReader)
+			// Rejet des noms d'entrée dangereux (traversée de répertoire).
+			if unsafeZipEntryName(f.Name) {
+				http.Error(w, "Archive contains an unsafe entry name", http.StatusBadRequest)
+				return
+			}
+			fileReader, err := f.Open()
+			if err != nil {
+				http.Error(w, "Error reading archive entry", http.StatusBadRequest)
+				return
+			}
+			// Borne la décompression de chaque entrée (anti zip-bomb).
+			fileBytes, err := ioutil.ReadAll(io.LimitReader(fileReader, maxModuleZipEntryBytes+1))
 			fileReader.Close()
+			if err != nil {
+				http.Error(w, "Error reading archive entry", http.StatusBadRequest)
+				return
+			}
+			if len(fileBytes) > maxModuleZipEntryBytes {
+				http.Error(w, "Archive entry too large", http.StatusBadRequest)
+				return
+			}
+			totalDecompressed += int64(len(fileBytes))
+			if totalDecompressed > maxModuleZipTotalBytes {
+				http.Error(w, "Archive too large after decompression", http.StatusBadRequest)
+				return
+			}
 			moduleFiles[f.Name] = fileBytes
 			// Cherche le .psd1 à la racine
 			if strings.HasSuffix(f.Name, ".psd1") && !strings.Contains(f.Name, "/") {
@@ -149,10 +208,6 @@ func ModuleUploadHandler(db *sql.DB) http.HandlerFunc {
 					   }
 				   }
 			   }
-		   }
-		   if !auth.IsAdmin(r, db) {
-			   http.Error(w, "Forbidden: admin only", http.StatusForbidden)
-			   return
 		   }
 		   if name == "" || version == "" {
 			http.Error(w, "Module info not found in root psd1", http.StatusBadRequest)
@@ -190,6 +245,7 @@ func ModuleUploadHandler(db *sql.DB) http.HandlerFunc {
 		checksum := strings.ToUpper(fmt.Sprintf("%x", sha[:]))
 		log.Printf("[DEBUG] DB insert...")
 		_, err = db.Exec(`INSERT INTO modules (name, version, checksum, zip_blob) VALUES (?, ?, ?, ?)`, name, version, checksum, zipBytes)
+		   w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		   fmt.Fprintf(w, "Module %s v%s uploaded and processed.\n", name, version)
 		   // Audit log for nupkg upload
 		   user := "?"

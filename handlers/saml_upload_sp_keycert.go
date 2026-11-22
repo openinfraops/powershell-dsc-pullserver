@@ -28,7 +28,9 @@ func SAMLUploadSPKeyCertHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-	// Parse multipart form
+	// Parse multipart form. On borne la taille totale du corps (le seuil passé à
+	// ParseMultipartForm ne fixe que la limite mémoire, pas la taille maximale).
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadRequestBody)
 	err := r.ParseMultipartForm(10 << 20) // 10MB max
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)

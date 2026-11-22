@@ -1,9 +1,10 @@
 # go-dsc-pull
 
-A secure, versioned DSC Pull Server with a modern web interface.
+A secure, versioned DSC Pull Server with a modern web interface, written in Go.
 
 ## Purpose
-Centralized management of DSC configurations, modules, users, and reports, with advanced access controls and a user-friendly web UI.
+
+Centralized management of DSC configurations, modules, users, and reports, with advanced access controls and a user-friendly web UI. It implements the [MS-DSCPM] pull-server protocol for Windows DSC nodes (LCM) and exposes a REST API plus a PowerShell module for remote management.
 
 ## Documentation
 
@@ -15,35 +16,39 @@ Detailed documentation is organized into two main sections:
 ## Quick Navigation
 
 - [Installation](doc/installation.md)
+- [Configuration reference](doc/Configuration.md)
+- [Database schema](doc/DatabaseSchema.md)
+- [DSC Pull Server Configuration](doc/dscpull/configuration.md)
 - [Node Registration](doc/dscpull/enregistrement.md)
 - [Security](doc/dscpull/securite.md)
+- [API v1 Reference](doc/APIv1.md)
+- [SAML Integration](doc/SAML.md)
 - [Web Authentication](doc/webui/authentification.md)
 - [Resource Modules](doc/webui/modules.md)
 - [MOF Configurations](doc/webui/configurations.md)
 - [Roles & Access](doc/webui/droits.md)
 - [Storage Modes](doc/webui/stockage.md)
 
-## Contribution
-To contribute, open an issue or submit a pull request. Any help to improve the documentation or code is welcome.
-# Go DSC Pull Server
+## Build (Windows)
 
-A secure, modular DSC Pull Server written in Go, with a REST API and PowerShell module for remote management.
+To generate a Windows executable with:
 
-## Build Windows versionne
+- metadata visible in the file properties (Product Version, File Version, etc.)
+- build metadata injected into the logs (version, commit, date)
 
-Pour generer un exe Windows avec:
-- metadonnees visibles dans les Proprietes du fichier (Product Version, File Version, etc.)
-- metadonnees de build injectees dans les logs (version, commit, date)
-
-Utilisez:
+use:
 
 ```powershell
 ./scripts/build-windows.ps1
 ```
 
-Le fichier `build/version.json` est lu automatiquement par defaut et sert de source locale de versionning et de metadonnees produit.
+The `build/version.json` file is read automatically by default and serves as the local source of versioning and product metadata.
 
-Depuis un environnement non-Windows, vous pouvez aussi cibler Windows en definissant `GOOS=windows` et `GOARCH` avant d'executer le script (PowerShell 7 requis).
+From a non-Windows environment you can also target Windows by setting `GOOS=windows` and `GOARCH` before running the script (PowerShell 7 required).
+
+## Contribution
+
+To contribute, open an issue or submit a pull request. Any help to improve the documentation or code is welcome.
 
 ## License
 

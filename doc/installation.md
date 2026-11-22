@@ -30,7 +30,15 @@ This page explains how to install and deploy the Go DSC Pull Server.
        - [config_saml.json](example/config/config_saml.json) (MSSQL, SAML enabled)
    - Place your SSL certificate and key files in the specified paths.
 
-3. **Deploy the server:**
+3. **Create the initial administrator account:**
+   - On first run, the server no longer creates a default admin account (`admin@localhost / password`). Initialize the first administrator locally with a strong, randomly generated password:
+     ```sh
+     ./dsc-pull-server.exe init-bootstrap-admin
+     ```
+   - The command reads `config.json`, initializes the database schema if needed (requires the `db/` directory next to the executable), creates the `admin@localhost` account (role `admin`) **only if no user exists**, and prints a **single-use 30-character random password** on the console.
+   - Store this password securely and change it after the first login. Re-running the command **refuses to overwrite** an existing account.
+
+4. **Deploy the server:**
     - Run the executable:
        ```sh
        ./dsc-pull-server.exe
@@ -60,7 +68,7 @@ This page explains how to install and deploy the Go DSC Pull Server.
 
 6. **Certificate management:**
    - Use a trusted certificate for production.
-   - You can disable client certificate validation in `config.json` for testing.
+   - Client certificate validation is disabled by default in `config.json` for testing. When you enable `enable_client_cert_validation`, the DSC endpoint **always** requires a client certificate; `bypass_ca_validation` then only controls whether the chain/CA is validated (`true` = accept self-signed node certs and rely on the enrolled thumbprint; `false` = also validate the chain against the OS system trust store). A client certificate requires HTTPS.
 
 7. **Web UI access:**
    - Open your browser and go to `https://your-server:443/web` (or the port specified).
@@ -82,3 +90,4 @@ This page explains how to install and deploy the Go DSC Pull Server.
 ## Security Notes
 - Always use HTTPS in production.
 - Restrict admin access and review logs regularly.
+- The initial admin password is generated randomly by `init-bootstrap-admin` (30 characters) and printed **once** on the console. Change it after the first login. The server never creates a default/known admin password automatically.

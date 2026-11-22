@@ -5,10 +5,18 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"go-dsc-pull/internal/global"
 	"golang.org/x/crypto/bcrypt"
 	"time"
 )
+
+// maxActiveAPITokensPerUser borne le nombre de tokens API actifs qu'un même
+// utilisateur peut créer. L'auto-service (web/profile.js) permet à un
+// utilisateur de créer des tokens pour lui-même ; sans plafond, un utilisateur
+// pourrait multiplier les tokens et ralentir la vérification (qui compare
+// chaque token actif par bcrypt) jusqu'à provoquer un déni de service.
+const maxActiveAPITokensPerUser = 10
 
 // Génère un token API aléatoire (48 bytes, base64)
 func GenerateAPIToken() (string, error) {
@@ -22,6 +30,12 @@ func GenerateAPIToken() (string, error) {
 
 // Stocke le hash du token API pour un utilisateur
 func StoreAPIToken(db *sql.DB, userId int64, plainToken, label string) error {
+	// Plafond de tokens actifs par utilisateur (voir maxActiveAPITokensPerUser).
+	var activeCount int
+	_ = db.QueryRow(`SELECT COUNT(*) FROM user_api_tokens WHERE user_id = ? AND revoked_at IS NULL AND is_active = 1`, userId).Scan(&activeCount)
+	if activeCount >= maxActiveAPITokensPerUser {
+		return fmt.Errorf("too many active API tokens for this user (max %d)", maxActiveAPITokensPerUser)
+	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(plainToken), bcrypt.DefaultCost)
 	if err != nil {
 		return err

@@ -6,6 +6,12 @@ This page explains the authentication mechanisms available in the DSC Pull Serve
 - Local authentication (username/password)
 - SAML Single Sign-On (SSO)
 
+> **First local admin:** the server never creates a default admin account. Create the first administrator locally, once, with:
+> ```
+> DSC-Admin-Console.exe init-bootstrap-admin
+> ```
+> This generates a single-use 30-character random password and prints it on the console. See [Security](../dscpull/securite.md) for details.
+
 ## SAML Configuration
 
 SAML Single Sign-On (SSO) allows integration with enterprise identity providers (IdP) for centralized authentication.
