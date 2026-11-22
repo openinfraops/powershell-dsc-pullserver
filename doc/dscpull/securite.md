@@ -12,6 +12,14 @@ The DSC protocol (MS-DSCPM) does **not** authenticate requests with an applicati
 
 2. **Pull endpoints** (`GetDscAction`, `ConfigurationContent`, `SendReport`, `ModuleContent`): authenticated at the **transport layer** by a **client certificate** (mutual TLS). The server identifies the node by the **certificate thumbprint** and verifies it against the enrolled node in the `agents` table. No HTTP token is involved — adding one would break the DSC protocol.
 
+### Per-node certificate binding
+
+In addition to the global "known thumbprint" check, the pull endpoints **bind the presented certificate to the `agentId` in the request path** (`verifyNodeCertBinding`):
+
+- `GetDscAction`, `SendReport` and `ConfigurationContent` reject the request (**HTTP 403**) when the certificate thumbprint presented by the client does **not** match the `certificate_thumbprint` stored for the `agentId` in the path. This stops a node from impersonating **another** enrolled agent using a certificate whose thumbprint is merely "known" to the server.
+- `ConfigurationContent` additionally enforces that the requested configuration is **linked to that node** (an `agent_configurations` row for `agent_id` + `configuration_name`). Without this, a caller could download **any** MOF by name (configuration MOFs often embed secrets).
+- The binding only applies when `enable_client_cert_validation` is `true`. When it is `false` (the default), the deployment has explicitly opted out of mTLS identity: the binding check is skipped (no behavioral change), but the `ConfigurationContent` **configuration-to-node linkage** check is still enforced so that configuration MOFs cannot be pulled by name by an arbitrary caller.
+
 ---
 
 ## Client Certificate Validation
