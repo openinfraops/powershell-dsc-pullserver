@@ -68,10 +68,10 @@ func triggerNodeRecompileAsync(agentId, nodeName string) {
 		defer finish()
 		database := db.Shared()
 		if err := compileNodeConfig(database, agentId, nodeName); err != nil {
-			_ = logs.WriteLogFile(fmt.Sprintf("[RECOMPILE] Compilation échouée pour %s: %v", nodeName, err))
+			_ = logs.WriteLogFile(fmt.Sprintf("[RECOMPILE] Compilation failed for %s: %v", nodeName, err))
 			return
 		}
 		_, _ = database.Exec(`UPDATE agents SET needs_recompile = 0 WHERE agent_id = ?`, agentId)
-		_ = logs.WriteLogFile(fmt.Sprintf("[RECOMPILE] Compilation terminée pour %s", nodeName))
+		_ = logs.WriteLogFile(fmt.Sprintf("[RECOMPILE] Compilation completed for %s", nodeName))
 	}()
 }

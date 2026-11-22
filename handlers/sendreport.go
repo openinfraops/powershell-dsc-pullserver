@@ -14,7 +14,7 @@ import (
 func SendReportHandler(w http.ResponseWriter, r *http.Request) {
 	reportBody, err := readBodyLimited(w, r, maxDSCRequestBody)
 	if err != nil {
-		log.Printf("[SENDREPORT] Erreur lecture body: %v", err)
+		log.Printf("[SENDREPORT] Error reading body: %v", err)
 		return
 	}
 	rawId := r.PathValue("node")
@@ -25,7 +25,7 @@ func SendReportHandler(w http.ResponseWriter, r *http.Request) {
 	// qui envoie le rapport. Sans effet si la validation de certificat client
 	// est désactivée.
 	if ok, cause := verifyNodeCertBinding(r, db.Shared(), agentId); !ok {
-		log.Printf("[SENDREPORT] Liaison cert→nœud refusée pour agentId=%q: %s", agentId, cause)
+		log.Printf("[SENDREPORT] Certificate-to-node binding refused for agentId=%q: %s", agentId, cause)
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
@@ -33,7 +33,7 @@ func SendReportHandler(w http.ResponseWriter, r *http.Request) {
 	// Désérialiser le rapport
 	var report schema.DscReport
 	if err := json.Unmarshal(reportBody, &report); err != nil {
-		log.Printf("[SENDREPORT] Erreur parsing JSON rapport: %v", err)
+		log.Printf("[SENDREPORT] Error parsing report JSON: %v", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -62,10 +62,10 @@ func SendReportHandler(w http.ResponseWriter, r *http.Request) {
 		var count int
 		err = database.QueryRow("SELECT COUNT(*) FROM reports WHERE job_id = ?", report.JobId).Scan(&count)
 		if err != nil {
-			log.Printf("[SENDREPORT] Erreur SELECT COUNT sur reports: %v", err)
+			log.Printf("[SENDREPORT] Error SELECT COUNT on reports: %v", err)
 		}
 		if count > 0 {
-			log.Printf("[SENDREPORT] Update rapport en base: agent_id=%s, job_id=%s, operation_type=%s", agentId, report.JobId, report.OperationType)
+			log.Printf("[SENDREPORT] Updating report in database: agent_id=%s, job_id=%s, operation_type=%s", agentId, report.JobId, report.OperationType)
 			_, err := database.Exec(`UPDATE reports SET 
 					agent_id=?, report_format_version=?, operation_type=?, refresh_mode=?, status=?, start_time=?, end_time=?, reboot_requested=?, errors=?, status_data=?, additional_data=?, mof_applied=?, raw_json=?
 					WHERE job_id=?`,
@@ -85,10 +85,10 @@ func SendReportHandler(w http.ResponseWriter, r *http.Request) {
 				report.JobId,
 			)
 			if err != nil {
-				log.Printf("[SENDREPORT] Erreur update rapport en base: %v", err)
+				log.Printf("[SENDREPORT] Error updating report in database: %v", err)
 			}
 		} else {
-			log.Printf("[SENDREPORT] Insertion rapport en base: agent_id=%s, job_id=%s, operation_type=%s", agentId, report.JobId, report.OperationType)
+			log.Printf("[SENDREPORT] Inserting report in database: agent_id=%s, job_id=%s, operation_type=%s", agentId, report.JobId, report.OperationType)
 			_, err := database.Exec(`INSERT INTO reports (
 					agent_id, job_id, report_format_version, operation_type, refresh_mode, status, start_time, end_time, reboot_requested, errors, status_data, additional_data, mof_applied, raw_json
 				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -108,13 +108,13 @@ func SendReportHandler(w http.ResponseWriter, r *http.Request) {
 				string(reportBody),
 			)
 			if err != nil {
-				log.Printf("[SENDREPORT] Erreur insertion rapport en base: %v", err)
+				log.Printf("[SENDREPORT] Error inserting report in database: %v", err)
 			}
 		}
 		// Toujours mettre a jour le heartbeat agent.
 		_, err = database.Exec("UPDATE agents SET last_communication = CURRENT_TIMESTAMP WHERE agent_id = ?", agentId)
 		if err != nil {
-			log.Printf("[SENDREPORT] Erreur update last_communication: %v", err)
+			log.Printf("[SENDREPORT] Error updating last_communication: %v", err)
 		}
 
 		if mofApplied == 1 {
@@ -126,10 +126,10 @@ func SendReportHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			_, err = database.Exec("UPDATE agents SET has_error_last_report = ?, state = ? WHERE agent_id = ?", hasError, state, agentId)
 			if err != nil {
-				log.Printf("[SENDREPORT] Erreur update has_error_last_report/state: %v", err)
+				log.Printf("[SENDREPORT] Error updating has_error_last_report/state: %v", err)
 			}
 		} else {
-			log.Printf("[SENDREPORT] Rapport ignore pour l etat web (mof_applied=0): agent_id=%s, job_id=%s, operation_type=%s", agentId, report.JobId, report.OperationType)
+			log.Printf("[SENDREPORT] Report ignored for web state (mof_applied=0): agent_id=%s, job_id=%s, operation_type=%s", agentId, report.JobId, report.OperationType)
 		}
 	}
 

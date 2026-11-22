@@ -52,7 +52,7 @@ func randomPassword(length int) (string, error) {
 func runInitBootstrapAdmin() int {
 	appCfg, err := internal.LoadAppConfig("config.json")
 	if err != nil {
-		fmt.Printf("Erreur: impossible de charger config.json: %v\n", err)
+		fmt.Printf("Error: failed to load config.json: %v\n", err)
 		return 1
 	}
 
@@ -74,7 +74,7 @@ func runInitBootstrapAdmin() int {
 	db.InitDB(dbCfg)
 	database, err := db.OpenDB(dbCfg)
 	if err != nil {
-		fmt.Printf("Erreur: ouverture de la base impossible: %v\n", err)
+		fmt.Printf("Error: failed to open the database: %v\n", err)
 		return 1
 	}
 	defer database.Close()
@@ -83,23 +83,23 @@ func runInitBootstrapAdmin() int {
 	// pouvoir réinitialiser / écraser un compte existant en relançant la commande.
 	var count int
 	if err := database.QueryRow("SELECT COUNT(*) FROM users").Scan(&count); err != nil {
-		fmt.Printf("Erreur: lecture des utilisateurs impossible: %v\n", err)
+		fmt.Printf("Error: failed to read users: %v\n", err)
 		return 1
 	}
 	if count > 0 {
-		fmt.Println("Un utilisateur existe déjà : création du bootstrap admin refusée.")
-		fmt.Println("Connectez-vous avec un compte existant, ou videz la table users avant de relancer init-bootstrap-admin.")
+		fmt.Println("A user already exists: bootstrap admin creation refused.")
+		fmt.Println("Log in with an existing account, or empty the users table before rerunning init-bootstrap-admin.")
 		return 1
 	}
 
 	password, err := randomPassword(bootstrapAdminPasswordLen)
 	if err != nil {
-		fmt.Printf("Erreur: génération du mot de passe impossible: %v\n", err)
+		fmt.Printf("Error: failed to generate password: %v\n", err)
 		return 1
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		fmt.Printf("Erreur: hash du mot de passe impossible: %v\n", err)
+		fmt.Printf("Error: failed to hash the password: %v\n", err)
 		return 1
 	}
 
@@ -107,16 +107,16 @@ func runInitBootstrapAdmin() int {
 		"INSERT INTO users (first_name, last_name, email, password_hash, is_active, role, source) VALUES (?, ?, ?, ?, ?, ?, ?)",
 		"Admin", "User", bootstrapAdminEmail, string(hash), true, "admin", "local",
 	); err != nil {
-		fmt.Printf("Erreur: création de l'administrateur impossible: %v\n", err)
+		fmt.Printf("Error: failed to create the administrator: %v\n", err)
 		return 1
 	}
 
 	fmt.Println("=============================================================")
-	fmt.Println("Compte administrateur initial créé avec succès.")
+	fmt.Println("Initial admin account created successfully.")
 	fmt.Printf("  Email    : %s\n", bootstrapAdminEmail)
 	fmt.Printf("  Password : %s\n", password)
-	fmt.Println("  (Mot de passe généré aléatoirement, affiché une seule fois.)")
-	fmt.Println("Conservez-le en lieu sûr et changez-le après la première connexion.")
+	fmt.Println("  (Password generated randomly, displayed only once.)")
+	fmt.Println("Keep it in a safe place and change it after the first login.")
 	fmt.Println("=============================================================")
 	return 0
 }

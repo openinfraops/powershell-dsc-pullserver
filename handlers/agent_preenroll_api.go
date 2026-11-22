@@ -53,13 +53,13 @@ func PreEnrollAgentHandler(w http.ResponseWriter, r *http.Request) {
 					       _, err = database.Exec(`INSERT INTO agents (agent_id, node_name) VALUES (?, ?)`, tempAgentId, req.NodeName)
 				       }
 		if err != nil {
-			log.Printf("[API][DB] Erreur insertion agent: %v", err)
-			_ = logs.WriteLogFile(fmt.Sprintf("ERROR [API][PRE-ENROLL] Erreur insertion agent: %v (NodeName=%s)", err, req.NodeName))
+			log.Printf("[API][DB] Error inserting agent: %v", err)
+			_ = logs.WriteLogFile(fmt.Sprintf("ERROR [API][PRE-ENROLL] Error inserting agent: %v (NodeName=%s)", err, req.NodeName))
 			http.Error(w, "DB insert error", http.StatusInternalServerError)
 			return
 		}
 
-		_ = logs.WriteLogFile(fmt.Sprintf("INFO [API][PRE-ENROLL] Agent pré-enregistré: NodeName=%s, AgentId=%s", req.NodeName, tempAgentId))
+		_ = logs.WriteLogFile(fmt.Sprintf("INFO [API][PRE-ENROLL] Agent pre-enrolled: NodeName=%s, AgentId=%s", req.NodeName, tempAgentId))
 
 		// Pose les tags fournis au pré-enregistrement (la compilation initiale en a besoin).
 		for _, tag := range req.Tags {
@@ -67,7 +67,7 @@ func PreEnrollAgentHandler(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			if err := db.SetAgentTag(database, global.AppConfig.Database.Driver, tempAgentId, tag.Key, tag.Value); err != nil {
-				_ = logs.WriteLogFile(fmt.Sprintf("ERROR [API][PRE-ENROLL] Erreur pose du tag %s=%s: %v", tag.Key, tag.Value, err))
+				_ = logs.WriteLogFile(fmt.Sprintf("ERROR [API][PRE-ENROLL] Error applying tag %s=%s: %v", tag.Key, tag.Value, err))
 			}
 		}
 

@@ -227,7 +227,7 @@ func LoginHandler(db *sql.DB) http.HandlerFunc {
 				       http.Error(w, "Utilisateur ou mot de passe incorrect", http.StatusUnauthorized)
 				       return
 			       } else if err != nil {
-				       log.Printf("[LOGIN] Erreur DB: %v", err)
+				       log.Printf("[LOGIN] DB error: %v", err)
 				       http.Error(w, "Erreur interne", http.StatusInternalServerError)
 				       return
 			       }
@@ -246,7 +246,7 @@ func LoginHandler(db *sql.DB) http.HandlerFunc {
 		       limiter.LoginSucceeded(ip)
 		// Met à jour la date de dernière connexion
 		if err := internaldb.UpdateLastLogon(db, id); err != nil {
-			log.Printf("[LOGIN] Erreur update last_logon_date: %v", err)
+			log.Printf("[LOGIN] Error updating last_logon_date: %v", err)
 		}
 		appCfg := global.AppConfig
 		if appCfg == nil {

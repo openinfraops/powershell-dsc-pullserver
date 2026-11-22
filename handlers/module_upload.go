@@ -239,7 +239,7 @@ func ModuleUploadHandler(db *sql.DB) http.HandlerFunc {
 		zipWriter.Close()
 		zipBytes := buf.Bytes()
 		// (Suppression de la sauvegarde temporaire du zip)
-		log.Printf("[DEBUG] Nb fichiers extraits: %d, zipBytes size: %d", len(moduleFiles), len(zipBytes))
+		log.Printf("[DEBUG] Number of extracted files: %d, zipBytes size: %d", len(moduleFiles), len(zipBytes))
 		log.Printf("[DEBUG] Checksum...")
 		sha := sha256.Sum256(zipBytes)
 		checksum := strings.ToUpper(fmt.Sprintf("%x", sha[:]))

@@ -363,7 +363,7 @@ func main() {
 			var count int
 			err := dbConn.QueryRow("SELECT COUNT(*) FROM users").Scan(&count)
 			if err == nil && count == 0 {
-				logs.WriteLogFile("WARN [INITDB] Aucun utilisateur en base : créez le compte administrateur initial via \"DSC-Admin-Console.exe init-bootstrap-admin\" (mot de passe aléatoire). Le serveur ne crée plus de compte admin par défaut.")
+				logs.WriteLogFile("WARN [INITDB] No user in the database: create the initial admin account via \"DSC-Admin-Console.exe init-bootstrap-admin\" (random password). The server no longer creates a default admin account.")
 			}
 		}
 
@@ -379,7 +379,7 @@ func main() {
 					h.Write(clientCert.Raw)
 					sha1sum := hex.EncodeToString(h.Sum(nil))
 					sha1sumLower := strings.ToLower(sha1sum)
-					logs.WriteLogFile(fmt.Sprintf("[DSC][TLS] Certificat client reçu: Subject=%s, Thumbprint=%s", clientCert.Subject, sha1sumLower))
+					logs.WriteLogFile(fmt.Sprintf("[DSC][TLS] Client certificate received: Subject=%s, Thumbprint=%s", clientCert.Subject, sha1sumLower))
 					// Vérification de l'empreinte si la validation du certificat client est activée
 					// On ne fait PAS ce contrôle pour la route de registration DSC (PUT /PSDSCPullServer.svc/{node})
 					isRegister := r.Method == "PUT" && strings.HasPrefix(r.URL.Path, "/PSDSCPullServer.svc/") && len(strings.Split(r.URL.Path, "/")) == 3
@@ -483,14 +483,14 @@ func main() {
 		if global.AppConfig.WebUI.EnableHTTPS {
 			certFile, keyFile := resolveCertKeyPath(global.AppConfig.WebUI.CertFile, global.AppConfig.WebUI.KeyFile)
 			go func() {
-				logs.WriteLogFile(fmt.Sprintf("INFO [DSC WebUI] IHM/API (HTTPS) on :%d ... (IHM on /web/)", global.AppConfig.WebUI.Port))
+				logs.WriteLogFile(fmt.Sprintf("INFO [DSC WebUI] UI/API (HTTPS) on :%d ... (UI on /web/)", global.AppConfig.WebUI.Port))
 				if err := webServer.ListenAndServeTLS(certFile, keyFile); err != nil && err != http.ErrServerClosed {
 					logs.WriteLogFile(fmt.Sprintf("ERROR [DSC WebUI] Error starting HTTPS server: %v", err))
 					os.Exit(1)
 				}
 			}()
 		} else {
-			logs.WriteLogFile(fmt.Sprintf("WARN [DSC WebUI] IHM/API is listening in HTTP (no TLS) on :%d ... (IHM on /web/)", global.AppConfig.WebUI.Port))
+			logs.WriteLogFile(fmt.Sprintf("WARN [DSC WebUI] UI/API is listening in HTTP (no TLS) on :%d ... (UI on /web/)", global.AppConfig.WebUI.Port))
 			logs.WriteLogFile("WARN [SECURITY] The Web UI / API is served over plain HTTP. Credentials and JWT tokens transit unencrypted. Use HTTPS (enable_https: true) in production.")
 			go func() {
 				if err := webServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -502,12 +502,12 @@ func main() {
 
 		// Bloque jusqu'à l'arrêt, puis ferme gracieusement les deux serveurs.
 		<-ctx.Done()
-		logs.WriteLogFile("INFO [SHUTDOWN] Arrêt demandé, fermeture des serveurs HTTP...")
+		logs.WriteLogFile("INFO [SHUTDOWN] Shutdown requested, closing HTTP servers ...")
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer shutdownCancel()
 		_ = dscServer.Shutdown(shutdownCtx)
 		_ = webServer.Shutdown(shutdownCtx)
-		logs.WriteLogFile("INFO [SHUTDOWN] Serveurs HTTP arrêtés proprement.")
+		logs.WriteLogFile("INFO [SHUTDOWN] HTTP servers stopped cleanly.")
 	}
 
 	if runtime.GOOS == "windows" {
