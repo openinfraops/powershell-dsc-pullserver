@@ -8,5 +8,3 @@ This section details all features of the DSC Pull Server web interface.
 - [MOF Configurations](configurations.md)
 - [Permissions (admin/users)](droits.md)
 - [Storage Modes](stockage.md)
-
-Add explanations, screenshots, and usage guides for each section here.
