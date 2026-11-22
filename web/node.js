@@ -497,15 +497,25 @@ function renderAll() {
     $('#last-report-block').html(renderSelectedReport());
     $('#node-action-block').html(renderNodeActionBlock());
     renderStatusHistory();
+    applyTagFormVisibility();
+}
+
+// Ajout/suppression de tags réservé aux admins. window.currentUser est peuplé
+// de façon asynchrone (fetch /api/v1/my) : on réévalue donc la visibilité à
+// chaque rendu et surtout au signal userReady, sinon le formulaire reste caché
+// pour un admin (race condition).
+function applyTagFormVisibility() {
+    if (window.currentUser && window.currentUser.role === 'admin') {
+        $('#add-tag-form').show();
+    } else {
+        $('#add-tag-form').hide();
+    }
 }
 
 $(document).ready(function() {
     const agentId = getNodeIdFromUrl();
-    // Ajout/suppression de tags réservé aux admins : on n'affiche le formulaire
-    // que pour un utilisateur admin.
-    if (window.currentUser && window.currentUser.role === 'admin') {
-        $('#add-tag-form').show();
-    }
+    applyTagFormVisibility();
+    window.addEventListener('userReady', applyTagFormVisibility);
     // Ne pas réécrire le HTML, juste remplir les valeurs
     renderAll();
     if (!agentId) {
