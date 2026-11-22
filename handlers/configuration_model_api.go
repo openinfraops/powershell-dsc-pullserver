@@ -21,6 +21,10 @@ import (
 // POST /api/v1/configuration_models
 func CreateConfigurationModelHandler(w http.ResponseWriter, r *http.Request) {
 	dbConn := db.Shared()
+	if !auth.IsAdmin(r, dbConn) {
+		http.Error(w, "Forbidden: admin only", http.StatusForbidden)
+		return
+	}
 	// Borne la taille du corps multipart d'upload MOF.
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadRequestBody)
 	file, header, err := r.FormFile("mof_file")
@@ -280,6 +284,10 @@ func UpdateConfigurationModelHandler(w http.ResponseWriter, r *http.Request) {
 // DELETE /api/v1/configuration_models/{id}
 func DeleteConfigurationModelHandler(w http.ResponseWriter, r *http.Request) {
 	dbConn := db.Shared()
+	if !auth.IsAdmin(r, dbConn) {
+		http.Error(w, "Forbidden: admin only", http.StatusForbidden)
+		return
+	}
 	// Récupère l'id soit dans le chemin, soit en paramètre
 	var idStr string
 	parts := strings.Split(r.URL.Path, "/")

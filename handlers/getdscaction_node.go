@@ -22,6 +22,15 @@ func GetDscActionNodeHandlerWithId(w http.ResponseWriter, r *http.Request, agent
 	database := db.Shared()
 	log.Printf("[GETDSCACTION-NODE] Start for agentId=%q", agentId)
 
+	// Liaison identité : le certificat client présenté doit correspondre au nœud
+	// qui demande son action DSC. Sans effet si la validation de certificat
+	// client est désactivée.
+	if ok, cause := verifyNodeCertBinding(r, database, agentId); !ok {
+		log.Printf("[GETDSCACTION-NODE] Liaison cert→nœud refusée pour agentId=%q: %s", agentId, cause)
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
 	// Un nœud en corbeille ne doit plus recevoir sa configuration : on renvoie
 	// une erreur pour que le LCM cesse de tirer la config.
 	var notDeleted int
