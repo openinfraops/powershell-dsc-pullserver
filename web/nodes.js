@@ -177,6 +177,18 @@ $(document).ready(function() {
         return `<a class='btn btn-info btn-sm' href="/web/node/${encodeURIComponent(data)}">View</a>`;
     }
 
+    // Active automatiquement le filtre "certificats à risque" si l'URL contient
+    // ?cert_at_risk=1 (lien depuis le dashboard). Le DataTable doit être
+    // initialisé APRÈS ce réglage : avec serverSide, sa première requête ajax est
+    // émise pendant l'initialisation, donc certFilter doit déjà être à true pour
+    // que cette requête porte le filtre (sinon la liste s'affiche non filtrée et
+    // le reste faute de reload).
+    if (/[?&]cert_at_risk=1\b/.test(window.location.search)) {
+        certFilter = true;
+        $('#cert-filter-indicator').show();
+        $('#cert-filter-btn').addClass('active');
+    }
+
     var dataTable = $('#agents-table').DataTable({
         processing: true,
         serverSide: true,
@@ -292,14 +304,6 @@ $(document).ready(function() {
         $(this).toggleClass('active', certFilter);
         dataTable.ajax.reload(null, false);
     });
-
-    // Active automatiquement le filtre "certificats à risque" si l'URL contient
-    // ?cert_at_risk=1 (lien depuis le dashboard).
-    if (/[?&]cert_at_risk=1\b/.test(window.location.search)) {
-        certFilter = true;
-        $('#cert-filter-indicator').show();
-        $('#cert-filter-btn').addClass('active');
-    }
 
     // Options de clés de tag pour le filtre
     $.getJSON('/api/v1/agents/tags/options', function(resp) {
