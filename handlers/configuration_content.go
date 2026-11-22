@@ -1,21 +1,26 @@
 package handlers
 
 import (
-	"log"
-	"net/http"
-	"fmt"
 	"crypto/sha256"
 	"encoding/hex"
-	"strings"
+	"fmt"
 	"go-dsc-pull/internal/db"
+	"go-dsc-pull/utils"
+	"log"
+	"net/http"
+	"strings"
 )
 
 // ConfigurationContentHandler gère GET /PSDSCPullServer.svc/{node}/{config}/ConfigurationContent
 func ConfigurationContentHandler(w http.ResponseWriter, r *http.Request) {
 	nodeRaw := r.PathValue("node")
 	configRaw := r.PathValue("config")
-	// Extraction de l'agentId et extraction robuste du nom de configuration
-	agentId := nodeRaw
+	// Extraction de l'agentId depuis le format DSC "Nodes(AgentId='...')" (ou
+	// "(AgentId='...')", ou un GUID nu). Sans extraction, agentId contient le
+	// wrapper entier "Nodes(AgentId='...')" : la liaison certificat (verifyNodeCertBinding)
+	// et la liaison configuration (agent_configurations) ne matchent donc jamais
+	// la ligne du nœud → 403 « unknown agent », même pour un certificat exact.
+	agentId := utils.ExtractAgentId(nodeRaw)
 	configName := configRaw
 	// Si le format est Configurations(ConfigurationName='test'), extraire le nom
 	if strings.HasPrefix(configName, "Configurations(") && strings.HasSuffix(configName, ")") {
