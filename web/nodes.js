@@ -177,6 +177,22 @@ $(document).ready(function() {
         return `<a class='btn btn-info btn-sm' href="/web/node/${encodeURIComponent(data)}">View</a>`;
     }
 
+    // Synchronise l'URL avec l'état du filtre "certificats à risque" (lien
+    // dashboard -> ?cert_at_risk=1). Le filtre devient déterministe : activé, il
+    // survit à un rechargement ; désactivé, le param est retiré pour que l'état
+    // ne soit pas "réimposé" par une URL qui porte encore cert_at_risk=1.
+    function syncCertFilterUrl(enabled) {
+        try {
+            var url = new URL(window.location.href);
+            if (enabled) {
+                url.searchParams.set('cert_at_risk', '1');
+            } else {
+                url.searchParams.delete('cert_at_risk');
+            }
+            history.replaceState(null, '', url.toString());
+        } catch (e) { /* URL malformée : on ignore la synchro. */ }
+    }
+
     // Active automatiquement le filtre "certificats à risque" si l'URL contient
     // ?cert_at_risk=1 (lien depuis le dashboard). Le DataTable doit être
     // initialisé APRÈS ce réglage : avec serverSide, sa première requête ajax est
@@ -302,6 +318,7 @@ $(document).ready(function() {
         certFilter = !certFilter;
         $('#cert-filter-indicator').toggle(certFilter);
         $(this).toggleClass('active', certFilter);
+        syncCertFilterUrl(certFilter);
         dataTable.ajax.reload(null, false);
     });
 
