@@ -3,9 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
-	"log"
 	"go-dsc-pull/internal/db"
-	"go-dsc-pull/internal/global"
 )
 
 // AgentConfigsAPIHandler retourne la liste des configurations pour un agent donné
@@ -19,13 +17,7 @@ func AgentConfigsAPIHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "AgentId manquant", http.StatusBadRequest)
 		return
 	}
-	database, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		log.Printf("[API][DB] Erreur ouverture DB: %v", err)
-		http.Error(w, "DB open error", http.StatusInternalServerError)
-		return
-	}
-	defer database.Close()
+	database := db.Shared()
 
 	rows, err := database.Query(`SELECT configuration_name FROM agent_configurations WHERE agent_id = ?`, agentId)
 	if err != nil {

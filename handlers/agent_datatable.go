@@ -79,12 +79,7 @@ func ListAgentsDataTableHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	database, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		http.Error(w, "DB open error", http.StatusInternalServerError)
-		return
-	}
-	defer database.Close()
+	database := db.Shared()
 
 	draw, _ := strconv.Atoi(r.URL.Query().Get("draw"))
 	start, _ := strconv.Atoi(r.URL.Query().Get("start"))

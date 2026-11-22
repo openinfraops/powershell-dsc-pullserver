@@ -69,7 +69,7 @@ This page describes all configuration options available in `config.json` for the
 
 > **Client certificate validation (DSC endpoint).** When `enable_client_cert_validation` is `true`, the DSC endpoint **always** requires a client certificate. `bypass_ca_validation` only controls the CA/chain validation of that certificate: `true` accepts any certificate (self-signed node certs work, the node is identified by its enrolled thumbprint only — classic DSC model); `false` additionally validates the chain/signature against the **OS system trust store** (`RequireAndVerifyClientCert`) and still checks the enrolled thumbprint. A client certificate requires HTTPS; in pure HTTP mode (`enable_https: false`) no certificate is negotiated.
 
-Configuration repository settings are stored in the database and managed from the Scheduler administration page. The compiler must accept `-SourcePath` and `-OutputPath` and write `.mof` files into the output directory. Changed MOFs are versioned in the configuration model store and assigned agents are marked `pending_apply`. See [the DSC configuration repository example](../powershell/DSCConfigurationRepo/README.md) for a manifest/module/compiler layout and its priority rule.
+The Git-backed **configuration repository** settings are **stored in the database** (`configuration_repo_settings`) and managed from the **Scheduler administration page** — they are **not** edited in `config.json` (the `configuration_repo_*` keys here are only a legacy migration source imported once). See [Configuration repository (Git) & Scheduler](dscpull/configuration-repo.md) for the full settings reference and the compiler contract.
 
 ---
 

@@ -8,13 +8,11 @@ import (
 	"go-dsc-pull/internal/db"
 	"go-dsc-pull/internal/schema"
 	"go-dsc-pull/internal/auth"
-	"go-dsc-pull/internal/global"
 )
 
 // --- Properties CRUD ---
 func PropertiesListHandler(w http.ResponseWriter, r *http.Request) {
-	database, _ := db.OpenDB(&global.AppConfig.Database)
-	defer database.Close()
+	database := db.Shared()
 	rows, _ := database.Query("SELECT id, name, description, priority FROM properties ORDER BY priority, name")
 	var props []schema.Property
 	for rows.Next() {
@@ -35,8 +33,7 @@ func PropertiesCreateHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
-	database, _ := db.OpenDB(&global.AppConfig.Database)
-	defer database.Close()
+	database := db.Shared()
 	if !auth.IsAdmin(r, database) {
 		http.Error(w, "Forbidden: admin only", http.StatusForbidden)
 		return
@@ -54,8 +51,7 @@ func PropertiesCreateHandler(w http.ResponseWriter, r *http.Request) {
 
 func PropertiesGetHandler(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(r.PathValue("id"))
-	database, _ := db.OpenDB(&global.AppConfig.Database)
-	defer database.Close()
+	database := db.Shared()
 	row := database.QueryRow("SELECT id, name, description, priority FROM properties WHERE id = ?", id)
 	var p schema.Property
 	if err := row.Scan(&p.ID, &p.Name, &p.Description, &p.Priority); err != nil {
@@ -73,8 +69,7 @@ func PropertiesUpdateHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
-	database, _ := db.OpenDB(&global.AppConfig.Database)
-	defer database.Close()
+	database := db.Shared()
 	if !auth.IsAdmin(r, database) {
 		http.Error(w, "Forbidden: admin only", http.StatusForbidden)
 		return
@@ -89,8 +84,7 @@ func PropertiesUpdateHandler(w http.ResponseWriter, r *http.Request) {
 
 func PropertiesDeleteHandler(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(r.PathValue("id"))
-	database, _ := db.OpenDB(&global.AppConfig.Database)
-	defer database.Close()
+	database := db.Shared()
 	if !auth.IsAdmin(r, database) {
 		http.Error(w, "Forbidden: admin only", http.StatusForbidden)
 		return
@@ -106,8 +100,7 @@ func PropertiesDeleteHandler(w http.ResponseWriter, r *http.Request) {
 // --- Node Properties CRUD ---
 func NodePropertiesListHandler(w http.ResponseWriter, r *http.Request) {
 	node := r.PathValue("nodename")
-	database, _ := db.OpenDB(&global.AppConfig.Database)
-	defer database.Close()
+	database := db.Shared()
 	rows, _ := database.Query("SELECT node_id, property_id, value FROM node_properties WHERE node_id = ?", node)
 	var props []schema.NodeProperty
 	for rows.Next() {
@@ -130,8 +123,7 @@ func NodePropertiesCreateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p.NodeName = node
-	database, _ := db.OpenDB(&global.AppConfig.Database)
-	defer database.Close()
+	database := db.Shared()
 	_, err := database.Exec("INSERT INTO node_properties (node_id, property_id, value) VALUES (?, ?, ?)", p.NodeName, p.PropertyID, p.Value)
 	if err != nil {
 		http.Error(w, err.Error(), 400)
@@ -143,8 +135,7 @@ func NodePropertiesCreateHandler(w http.ResponseWriter, r *http.Request) {
 func NodePropertyGetHandler(w http.ResponseWriter, r *http.Request) {
 	node := r.PathValue("nodename")
 	pid, _ := strconv.Atoi(r.PathValue("property_id"))
-	database, _ := db.OpenDB(&global.AppConfig.Database)
-	defer database.Close()
+	database := db.Shared()
 	row := database.QueryRow("SELECT node_id, property_id, value FROM node_properties WHERE node_id = ? AND property_id = ?", node, pid)
 	var p schema.NodeProperty
 	if err := row.Scan(&p.NodeName, &p.PropertyID, &p.Value); err != nil {
@@ -163,8 +154,7 @@ func NodePropertyUpdateHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
-	database, _ := db.OpenDB(&global.AppConfig.Database)
-	defer database.Close()
+	database := db.Shared()
 	_, err := database.Exec("UPDATE node_properties SET value=? WHERE node_id=? AND property_id=?", p.Value, node, pid)
 	if err != nil {
 		http.Error(w, err.Error(), 400)
@@ -176,8 +166,7 @@ func NodePropertyUpdateHandler(w http.ResponseWriter, r *http.Request) {
 func NodePropertyDeleteHandler(w http.ResponseWriter, r *http.Request) {
 	node := r.PathValue("nodename")
 	pid, _ := strconv.Atoi(r.PathValue("property_id"))
-	database, _ := db.OpenDB(&global.AppConfig.Database)
-	defer database.Close()
+	database := db.Shared()
 	_, err := database.Exec("DELETE FROM node_properties WHERE node_id=? AND property_id=?", node, pid)
 	if err != nil {
 		http.Error(w, err.Error(), 400)

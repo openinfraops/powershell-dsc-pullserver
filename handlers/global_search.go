@@ -64,12 +64,7 @@ func GlobalSearchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	database, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		http.Error(w, "DB open error", http.StatusInternalServerError)
-		return
-	}
-	defer database.Close()
+	database := db.Shared()
 
 	isMSSQL := isMSSQLDriver(global.AppConfig.Database.Driver)
 	// LIMIT n'est pas valide en T-SQL (MSSQL) : on utilise OFFSET/FETCH.

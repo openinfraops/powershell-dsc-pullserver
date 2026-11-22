@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"go-dsc-pull/internal/db"
-	"go-dsc-pull/internal/global"
 	"go-dsc-pull/internal/schema"
 	"go-dsc-pull/internal/service"
 	"io"
@@ -20,13 +19,22 @@ const agentCompileWait = 2 * time.Minute
 
 // GetDscActionNodeHandlerWithId gère POST /PSDSCPullServer.svc/{id}/GetDscAction avec agentId déjà extrait
 func GetDscActionNodeHandlerWithId(w http.ResponseWriter, r *http.Request, agentId string) {
-	database, err := db.OpenDB(&global.AppConfig.Database)
+	database := db.Shared()
 	log.Printf("[GETDSCACTION-NODE] Start for agentId=%q", agentId)
+
+	// Liaison identité : le certificat client présenté doit correspondre au nœud
+	// qui demande son action DSC. Sans effet si la validation de certificat
+	// client est désactivée.
+	if ok, cause := verifyNodeCertBinding(r, database, agentId); !ok {
+		log.Printf("[GETDSCACTION-NODE] Liaison cert→nœud refusée pour agentId=%q: %s", agentId, cause)
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
 
 	// Un nœud en corbeille ne doit plus recevoir sa configuration : on renvoie
 	// une erreur pour que le LCM cesse de tirer la config.
 	var notDeleted int
-	if err == nil && database != nil {
+	if database != nil {
 		_ = database.QueryRow(`SELECT COUNT(*) FROM agents WHERE agent_id = ? AND deleted_at IS NULL`, agentId).Scan(&notDeleted)
 		if notDeleted == 0 {
 			log.Printf("[GETDSCACTION-NODE] agentId=%q est en corbeille ou inexistant, config non servie", agentId)
@@ -68,7 +76,6 @@ func GetDscActionNodeHandlerWithId(w http.ResponseWriter, r *http.Request, agent
 
 	// Vérifie qu'il existe au moins une configuration en base pour cet agent
 
-	defer database.Close()
 	row := database.QueryRow("SELECT COUNT(*) FROM agent_configurations WHERE agent_id = ?", agentId)
 	var count int
 	if err := row.Scan(&count); err != nil {

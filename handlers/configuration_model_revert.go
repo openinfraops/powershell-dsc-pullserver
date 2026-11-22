@@ -39,12 +39,7 @@ func ConfigurationModelRevertHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dbConn, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		http.Error(w, "DB open error", http.StatusInternalServerError)
-		return
-	}
-	defer dbConn.Close()
+	dbConn := db.Shared()
 
 	target, err := db.GetConfigurationModel(dbConn, id)
 	if err != nil || target == nil || target.OriginalName == nil {

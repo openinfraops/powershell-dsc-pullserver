@@ -74,12 +74,7 @@ func BulkAgentsRecompileHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	database, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		http.Error(w, "DB open error", http.StatusInternalServerError)
-		return
-	}
-	defer database.Close()
+	database := db.Shared()
 	if !auth.IsAdmin(r, database) {
 		http.Error(w, "Forbidden: admin only", http.StatusForbidden)
 		return
@@ -113,12 +108,7 @@ func BulkAgentsTrashHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	database, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		http.Error(w, "DB open error", http.StatusInternalServerError)
-		return
-	}
-	defer database.Close()
+	database := db.Shared()
 	if !auth.IsAdmin(r, database) {
 		http.Error(w, "Forbidden: admin only", http.StatusForbidden)
 		return
@@ -159,12 +149,7 @@ func BulkAgentsRestoreHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	database, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		http.Error(w, "DB open error", http.StatusInternalServerError)
-		return
-	}
-	defer database.Close()
+	database := db.Shared()
 	if !auth.IsAdmin(r, database) {
 		http.Error(w, "Forbidden: admin only", http.StatusForbidden)
 		return
@@ -214,12 +199,7 @@ func BulkAgentsTagsHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "key and value are required", http.StatusBadRequest)
 		return
 	}
-	database, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		http.Error(w, "DB open error", http.StatusInternalServerError)
-		return
-	}
-	defer database.Close()
+	database := db.Shared()
 	if !auth.IsAdmin(r, database) {
 		http.Error(w, "Forbidden: admin only", http.StatusForbidden)
 		return

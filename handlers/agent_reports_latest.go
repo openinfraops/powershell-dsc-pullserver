@@ -16,12 +16,7 @@ func AgentReportsLatestHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "AgentId manquant", http.StatusBadRequest)
 		return
 	}
-	database, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		http.Error(w, "DB open error", http.StatusInternalServerError)
-		return
-	}
-	defer database.Close()
+	database := db.Shared()
 
 	var query string
 	switch global.AppConfig.Database.Driver {
@@ -34,7 +29,7 @@ func AgentReportsLatestHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	row := database.QueryRow(query, agentId)
 	var raw string
-	err = row.Scan(&raw)
+	err := row.Scan(&raw)
 	if err != nil {
 		http.Error(w, "Aucun rapport trouvé", http.StatusNotFound)
 		return

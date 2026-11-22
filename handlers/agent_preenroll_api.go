@@ -38,13 +38,8 @@ func PreEnrollAgentHandler(w http.ResponseWriter, r *http.Request) {
 	h.Write([]byte(req.NodeName + "TEMP"))
 	tempAgentId := fmt.Sprintf("TEMP-%x", h.Sum(nil)[:8])
 
-	database, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		log.Printf("[API][DB] Erreur ouverture DB: %v", err)
-		http.Error(w, "DB open error", http.StatusInternalServerError)
-		return
-	}
-	defer database.Close()
+	database := db.Shared()
+	var err error
 
 	       // Insert agent (ignore if already exists), compatible SQLite/MSSQL
 			       driver := global.AppConfig.Database.Driver

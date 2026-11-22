@@ -6,7 +6,6 @@ import (
 	"strconv"
 
 	"go-dsc-pull/internal/db"
-	"go-dsc-pull/internal/global"
 )
 
 // ConfigurationModelDiffHandler returns the decoded MOF text of two versions of
@@ -42,12 +41,7 @@ func ConfigurationModelDiffHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dbConn, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		http.Error(w, "DB open error", http.StatusInternalServerError)
-		return
-	}
-	defer dbConn.Close()
+	dbConn := db.Shared()
 
 	cm, err := db.GetConfigurationModel(dbConn, id)
 	if err != nil {

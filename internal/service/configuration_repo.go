@@ -84,13 +84,13 @@ func RunConfigurationRepoSyncForNodeContext(config ConfigurationRepoConfig, name
 	return changed, nil
 }
 
-func StartConfigurationRepoWorker(config ConfigurationRepoConfig, interval time.Duration, process func([]CompiledConfiguration) (int, error), onRunStart func(startedAt time.Time, nextRunAt *time.Time), onResult func(startedAt time.Time, changed int, err error)) {
-	StartConfigurationRepoWorkerWithConfig(func() (ConfigurationRepoConfig, error) {
+func StartConfigurationRepoWorker(ctx context.Context, config ConfigurationRepoConfig, interval time.Duration, process func([]CompiledConfiguration) (int, error), onRunStart func(startedAt time.Time, nextRunAt *time.Time), onResult func(startedAt time.Time, changed int, err error)) {
+	StartConfigurationRepoWorkerWithConfig(ctx, func() (ConfigurationRepoConfig, error) {
 		return config, nil
 	}, interval, process, onRunStart, onResult)
 }
 
-func StartConfigurationRepoWorkerWithConfig(configProvider func() (ConfigurationRepoConfig, error), interval time.Duration, process func([]CompiledConfiguration) (int, error), onRunStart func(startedAt time.Time, nextRunAt *time.Time), onResult func(startedAt time.Time, changed int, err error)) {
+func StartConfigurationRepoWorkerWithConfig(ctx context.Context, configProvider func() (ConfigurationRepoConfig, error), interval time.Duration, process func([]CompiledConfiguration) (int, error), onRunStart func(startedAt time.Time, nextRunAt *time.Time), onResult func(startedAt time.Time, changed int, err error)) {
 	var runMu sync.Mutex
 	run := func() {
 		if !runMu.TryLock() {
@@ -123,8 +123,14 @@ func StartConfigurationRepoWorkerWithConfig(configProvider func() (Configuration
 
 	ticker := time.NewTicker(interval)
 	go func() {
-		for range ticker.C {
-			run()
+		for {
+			select {
+			case <-ctx.Done():
+				ticker.Stop()
+				return
+			case <-ticker.C:
+				run()
+			}
 		}
 	}()
 }

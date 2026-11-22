@@ -188,7 +188,7 @@ Both JWT and API tokens grant access to the API according to the user's permissi
 ## Configuration Models
 
 ### POST `/api/v1/configuration_models`
-- Create a configuration model.
+- Create a configuration model (admin only).
 
 ### GET `/api/v1/configuration_models`
 - List all models.
@@ -197,10 +197,12 @@ Both JWT and API tokens grant access to the API according to the user's permissi
 - Get model details.
 
 ### PUT `/api/v1/configuration_models/{id}`
-- Update a model.
+- Update a model (admin only).
 
 ### DELETE `/api/v1/configuration_models`
-- Delete one or more models.
+- Delete one or more models (admin only).
+
+> **Creating or deleting configuration models is restricted to administrators** (the `admin` role). This prevents low-privileged users from poisoning or removing configuration MOFs that are served to DSC nodes. `PUT` (update) and the model **upload** path are also admin-only.
 
 ---
 

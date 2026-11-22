@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"strings"
 	"go-dsc-pull/internal/db"
-	"go-dsc-pull/internal/global"
 )
 
 // ConfigurationContentHandler gère GET /PSDSCPullServer.svc/{node}/{config}/ConfigurationContent
@@ -34,16 +33,32 @@ func ConfigurationContentHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	log.Printf("[CONFIGURATIONCONTENT] AgentId=%s ConfigName=%s", agentId, configName)
-	dbConn, err := db.OpenDB(&global.AppConfig.Database)
-	if err != nil {
-		http.Error(w, "DB open error", http.StatusInternalServerError)
+	dbConn := db.Shared()
+	// Liaison identité : le certificat client présenté doit correspondre au nœud
+	// (agentId) qui tire la configuration. Sans effet si la validation de
+	// certificat client est désactivée (déploiement ayant renoncé à l'identité mTLS).
+	if ok, cause := verifyNodeCertBinding(r, dbConn, agentId); !ok {
+		log.Printf("[CONFIGURATIONCONTENT] Liaison cert→nœud refusée pour agentId=%q: %s", agentId, cause)
+		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
-	defer dbConn.Close()
+	// La configuration demandée doit être rattachée à ce nœud : on empêche le
+	// téléchargement de n'importe quel MOF par nom.
+	var linked int
+	if err := dbConn.QueryRow("SELECT COUNT(*) FROM agent_configurations WHERE agent_id = ? AND LOWER(configuration_name) = LOWER(?)", agentId, configName).Scan(&linked); err != nil {
+		log.Printf("[CONFIGURATIONCONTENT] Erreur vérification rattachement config pour agentId=%q: %v", agentId, err)
+		http.Error(w, "Configuration not found", http.StatusNotFound)
+		return
+	}
+	if linked == 0 {
+		log.Printf("[CONFIGURATIONCONTENT] Config '%s' non rattachée au nœud agentId=%q", configName, agentId)
+		http.Error(w, "Configuration not found", http.StatusNotFound)
+		return
+	}
 	// Recherche par nom (sans extension)
 	log.Printf("[CONFIGURATIONCONTENT] Recherche MOF en base pour configName='%s'", configName)
 	// Met à jour last_usage à CURRENT_TIMESTAMP pour cette configuration (insensible à la casse)
-	_, err = dbConn.Exec("UPDATE configuration_model SET last_usage = CURRENT_TIMESTAMP WHERE LOWER(name) = LOWER(?)", configName)
+	_, err := dbConn.Exec("UPDATE configuration_model SET last_usage = CURRENT_TIMESTAMP WHERE LOWER(name) = LOWER(?)", configName)
 	if err != nil {
 		log.Printf("[CONFIGURATIONCONTENT] Erreur lors de la mise à jour de last_usage: %v", err)
 	}
