@@ -5,7 +5,7 @@ param(
     [string]$InstallPath,
     [string]$RegistryKeyPath = "HKLM:\SOFTWARE\go-dsc-pull\DSC-Admin-Console",
     [string]$ExeName = "DSC-Admin-Console.exe",
-    [string]$ServiceName = "DSCAdminConsole",
+    [string]$ServiceName = "DSC-Console",
     [string]$MigrationScriptPath,
     [switch]$RunMigration,
     [switch]$OverwriteConfig,

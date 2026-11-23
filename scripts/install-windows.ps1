@@ -5,7 +5,8 @@ param(
     [string]$InstallPath = "$env:ProgramFiles\DSC-Admin-Console",
     [string]$RegistryKeyPath = "HKLM:\SOFTWARE\go-dsc-pull\DSC-Admin-Console",
     [string]$ExeName = "DSC-Admin-Console.exe",
-    [string]$ServiceName = "DSCAdminConsole",
+    [string]$ServiceName = "DSC-Console",
+    [string]$DisplayName = "DSC-Admin-Console",
     [switch]$CreateService,
     [switch]$OverwriteConfig
 )
@@ -70,19 +71,20 @@ function Ensure-RegistryInstallPath {
 function Ensure-Service {
     param(
         [Parameter(Mandatory = $true)][string]$Name,
-        [Parameter(Mandatory = $true)][string]$BinaryPath
+        [Parameter(Mandatory = $true)][string]$BinaryPath,
+        [string]$DisplayName = $Name
     )
 
     $existing = Get-Service -Name $Name -ErrorAction SilentlyContinue
     $binPathWithQuotes = '"' + $BinaryPath + '"'
 
     if ($null -eq $existing) {
-        New-Service -Name $Name -BinaryPathName $binPathWithQuotes -DisplayName $Name -StartupType Automatic | Out-Null
-        Write-Host "Service cree: $Name"
+        New-Service -Name $Name -BinaryPathName $binPathWithQuotes -DisplayName $DisplayName -StartupType Automatic | Out-Null
+        Write-Host "Service cree: $Name (affichage: $DisplayName)"
     }
     else {
-        & sc.exe config $Name binPath= $binPathWithQuotes start= auto | Out-Null
-        Write-Host "Service mis a jour: $Name"
+        & sc.exe config $Name binPath= $binPathWithQuotes start= auto DisplayName= $DisplayName | Out-Null
+        Write-Host "Service mis a jour: $Name (affichage: $DisplayName)"
     }
 }
 
@@ -155,7 +157,7 @@ Ensure-RegistryInstallPath -KeyPath $RegistryKeyPath -PathValue $resolvedInstall
 Ensure-AppwizUninstallEntry -KeyPath $AppwizUninstallKeyPath -InstallPathValue $resolvedInstallPath -ExePath $installedExePath -ServiceNameValue $ServiceName -VersionValue $version
 
 if ($CreateService) {
-    Ensure-Service -Name $ServiceName -BinaryPath $installedExePath
+    Ensure-Service -Name $ServiceName -BinaryPath $installedExePath -DisplayName $DisplayName
 }
 
 Write-Host "Installation terminee."

@@ -64,17 +64,19 @@ The server is a single self-contained **Go** executable (no Go runtime required 
       1. Open a command prompt as Administrator.
       2. Run the following command (adapt the path as needed):
          ```sh
-         sc.exe create DSCPullServer binPath= "C:\\Path\\To\\DSC-Admin-Console.exe" start= auto
+         sc.exe create DSC-Console DisplayName= "DSC-Admin-Console" binPath= "C:\\Path\\To\\DSC-Admin-Console.exe" start= auto
          ```
       3. Start the service:
          ```sh
-         sc.exe start DSCPullServer
+         sc.exe start DSC-Console
          ```
       4. To stop or delete the service:
          ```sh
-         sc.exe stop DSCPullServer
-         sc.exe delete DSCPullServer
+         sc.exe stop DSC-Console
+         sc.exe delete DSC-Console
          ```
+
+      > **Tip:** the provided [install-windows.ps1](../../scripts/install-windows.ps1) installs and registers the service (`-CreateService`) with the same `DSC-Console` / `DSC-Admin-Console` naming, plus the registry and "Add/Remove Programs" entries.
 
 5. **Database setup:**
    - For MSSQL: run `db/schema_mssql.sql` to create tables.
@@ -114,7 +116,7 @@ The server is a single self-contained **Go** executable (no Go runtime required 
 - **Use a properly formed HTTPS certificate.** The certificate hostname/SAN must match the hostname or IP the clients use. For the DSC endpoint the certificate is presented to the node LCM; for the web UI it is presented to browsers. Add a `WARN` check: the server logs at startup when HTTPS is disabled or client-certificate validation is enabled over plain HTTP.
 - **Open only the needed ports** in the firewall (DSC `8484`, web UI `443`). Do not expose plain HTTP to the network.
 - **Enable log rotation** (`enable_log_rotation: true`) and monitor the size of `dsc-pull-server.log` and its rotated backups.
-- **Graceful shutdown.** Stopping the Windows service lets in-flight requests finish and the scheduler tasks stop cleanly (the service uses a cancellable context): prefer `sc.exe stop DSCPullServer` over killing the process. Avoid `taskkill /F`, which tears down requests mid-flight.
+- **Graceful shutdown.** Stopping the Windows service lets in-flight requests finish and the scheduler tasks stop cleanly (the service uses a cancellable context): prefer `sc.exe stop DSC-Console` over killing the process. Avoid `taskkill /F`, which tears down requests mid-flight.
 - **Upgrade procedure.** Back up the database and `config.json` first. Apply the relevant `db/migration_*.sql` script, replace the executable, then restart the service. Verify schema initialisation in `dsc-pull-server.log`.
 - **Back up the database** (and the configuration-repository checkout if used) before any upgrade or maintenance.
 

@@ -70,7 +70,7 @@ if ([string]::IsNullOrWhiteSpace($ServiceName)) {
 }
 
 if ([string]::IsNullOrWhiteSpace($ServiceName)) {
-    $ServiceName = "DSCAdminConsole"
+    $ServiceName = "DSC-Console"
 }
 
 if (-not $Force) {
