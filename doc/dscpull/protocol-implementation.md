@@ -69,26 +69,33 @@ GET /PSDSCPullServer.svc/Nodes(AgentId='<agentId>')/Reports(JobId='<jobId>')
 
 ## CertificateRotation (POST) — §3.12
 
-**Added in this release.** The client proactively rotates its certificate by publishing its **new** certificate:
+**Added in this release.** The client proactively rotates its certificate by publishing its **new** certificate. Per the MS-DSCPM "RotateCertificate request" schema (§3.12.5.1.1.1), the new certificate is wrapped under `RotationInformation`:
 
 ```
 POST /PSDSCPullServer.svc/Nodes(AgentId='<agentId>')/CertificateRotation
 Content-Type: application/json
 
 {
-  "CertificateInformation": {
-    "Thumbprint": "<new-thumbprint>",
-    "Subject": "<new-subject>",
-    "Issuer": "<new-issuer>",
-    "NotBefore": "<new-notbefore>",
-    "NotAfter": "<new-notafter>"
+  "RotationInformation": {
+    "CertificateInformation": {
+      "Thumbprint": "<new-thumbprint>",
+      "Subject": "<new-subject>",
+      "Issuer": "<new-issuer>",
+      "NotBefore": "<new-notbefore>",
+      "NotAfter": "<new-notafter>",
+      "FriendlyName": "<friendly-name>",
+      "PublicKey": "<base64>",
+      "Version": 3
+    }
   }
 }
 ```
 
+> **Compatibility:** the handler reads `RotationInformation.CertificateInformation` first (the spec-correct envelope), and falls back to a flat top-level `CertificateInformation` for backward compatibility with older clients. A missing `CertificateInformation` — in either location — returns `400 Bad Request`.
+
 - **Response:** no body (§3.12.5.1.1.2). Status **`201 Created`** on success.
 - **Status codes:** `201` created · `400` malformed/missing `CertificateInformation`/`Thumbprint` · `401` unauthorized certificate · `403` cert-to-node binding failed · `404` unknown node/job · `409` rotation not enabled (spec allows the server to reject a rotation it did not solicit).
-- **State preserved:** only `certificate_thumbprint`, `certificate_subject`, `certificate_issuer`, `certificate_notbefore`, `certificate_notafter` are updated; `state`, `registered_at`, `last_communication`, `has_error_last_report`, `needs_recompile` and `deleted_at` are left untouched.
+- **State preserved:** only `certificate_thumbprint`, `certificate_subject`, `certificate_issuer`, `certificate_notbefore`, `certificate_notafter` and `force_cert_rotation` (reset to `0`) are updated; `state`, `registered_at`, `last_communication`, `has_error_last_report`, `needs_recompile` and `deleted_at` are left untouched.
 
 ### Soliciting a rotation (DSC-certificateRotation header)
 
@@ -100,6 +107,31 @@ Per §2.2.2.8, the header `DSC-certificateRotation: True` is a **`MAY`** and the
 - The header is added to node-scoped responses (`GetDscAction`, `ConfigurationContent`, `SendReport`). It is **not** emitted on `CertificateRotation`, registration, or `ModuleContent` responses (the latter has no node identifier in its URL).
 
 See [DSC Security](security.md) for the "when" details and the security model of the rotation endpoint. The settings are adjustable at runtime through the admin API `GET`/`PUT /api/v1/dsc/settings`.
+
+### End-to-end renewal flow
+
+1. **Decision.** On each node-scoped pull, `maybeSetCertificateRotationHeader` decides whether to solicit a rotation. It reads `agents.force_cert_rotation` and `agents.certificate_notafter`, then emits the header when either:
+   - the node is **force-flagged** (`force_cert_rotation = 1`, admin override), or
+   - `certificate_rotation_enabled` is on **and** `certificate_notafter` is within `certificate_renewal_days` days (or already expired).
+2. **Solicitation.** The header `DSC-certificateRotation: True` is added to the response (`GetDscAction`, `ConfigurationContent`, `SendReport`).
+3. **Client action.** The LCM, seeing the header, sends `POST .../CertificateRotation` with its **current** certificate wrapped in `RotationInformation.CertificateInformation`.
+4. **Store.** The server updates the `agents` certificate columns and **clears** `force_cert_rotation`, answers `201 Created`.
+
+> **Windows LCM caveat.** On Windows, `CertificateRotation` is **not** available on older releases (Product Behavior `<17>`: Windows 7 / Server 2008 R2 / 2012 / 8.1 / 2012 R2 / Win10). And even where it is supported, the LCM does **not** mint a fresh certificate by itself — it publishes the certificate it already has. A real rollover is therefore driven by the certificate lifecycle on the node (auto-enrolment / GPO / manual install), and the **re-registration** `Set-DscLocalConfigurationManager -Path <LCMConfig>` completes the handshake. `CertificateRotation` is best understood as "sync the node's current thumbprint to the server" rather than a self-service renewal.
+
+### Observability
+
+Every rotation decision and result is written to **both** sinks:
+- the standard logger (`log.Printf`, the process `stdout`/`stderr`), and
+- the log file via `logs.WriteLogFile` (`dsc-pull-server.log`).
+
+Lines are prefixed `[CERTROTATION]`, e.g.:
+
+```
+[CERTROTATION] Soliciting certificate rotation for agentId="946D6360-...": forced by admin (force_cert_rotation=1)
+[CERTROTATION] Rotated certificate for agentId="946D6360-...": new thumbprint=<sha1>
+[CERTROTATION] Failed to read agent "..." for rotation decision: <err>
+```
 
 ---
 
@@ -120,4 +152,4 @@ The following MS-DSCPM **Product Behavior** notes apply to this server's support
 - `<17>` (§3.12) — `CertificateRotation` is not available on Windows 7 / Server 2008 R2 / 2012 / 8.1 / 2012 R2 / Windows 10 (LCM limitation, not server-side).
 
 ---
-*Last updated for release v1.7.0.*
+*Last updated for release v1.7.1.*

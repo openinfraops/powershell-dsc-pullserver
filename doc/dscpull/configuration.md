@@ -60,6 +60,24 @@ Some DSC behaviour is **not** configured in `config.json` but in the **`dsc_sett
 
 In addition, a **per-node** override exists regardless of these settings: an admin can request an ASAP renewal for a specific node from the node page (or `POST` / `DELETE /api/v1/agents/{id}/rotate-certificate`), which sets `agents.force_cert_rotation`. See [Security](security.md).
 
+### Reading / setting the renewal window
+
+`certificate_renewal_days` is the **renewal window**, not the certificate's lifetime: it is the number of days **before** `certificate_notafter` at which the server starts soliciting a rotation. The certificate's actual validity period is chosen by the certificate authority (auto-enrolment / GPO / manual request) and is **not** configured server-side. Example:
+
+```bash
+# Read current settings
+curl -k -H "Authorization: Bearer <jwt>" https://dsc-console:443/api/v1/dsc/settings
+# {"certificate_rotation_enabled":true,"certificate_renewal_days":30}
+
+# Enable rotation and widen the window to 45 days
+curl -k -X PUT -H "Authorization: Bearer <jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{"certificate_rotation_enabled":true,"certificate_renewal_days":45}' \
+  https://dsc-console:443/api/v1/dsc/settings
+```
+
+> There is **no admin UI page** for these two settings yet; they are configured through the admin API `GET`/`PUT /api/v1/dsc/settings` (admin-only, `jwtAuthMiddleware + adminOnly`). The per-node "renew now" button (which sets `force_cert_rotation`) is on the node detail page.
+
 See [Security](security.md) for the certificate-renewal "when", and [MS-DSCPM protocol implementation state](protocol-implementation.md) for the `CertificateRotation` / `GetReports` endpoints.
 
 ## Additional Sections
