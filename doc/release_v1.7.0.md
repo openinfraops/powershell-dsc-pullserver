@@ -8,7 +8,7 @@ Release closing the MS-DSCPM protocol gaps (report retrieval and certificate rot
 
 ### MS-DSCPM protocol: `CertificateRotation` and `GetReports`
 
-The protocol implementation now covers two previously-missing operations (see [MS-DSCPM protocol implementation state](doc/dscpull/protocol-implementation.md)):
+The protocol implementation now covers two previously-missing operations (see [MS-DSCPM protocol implementation state](dscpull/protocol-implementation.md)):
 
 - **`GetReports` (GET, §3.11)** — `GET /PSDSCPullServer.svc/Nodes(AgentId='…')/Reports(JobId='…')` returns the stored report (`reports.raw_json`) exactly as the client sent it via `SendReport`, `Content-Type: application/json`, `ProtocolVersion: 2.0`. Bound to the node via the presented client certificate.
 - **`CertificateRotation` (POST, §3.12)** — `POST /PSDSCPullServer.svc/Nodes(AgentId='…')/CertificateRotation` lets the node publish its **new** `CertificateInformation`; the server stores it and answers **HTTP 201**. Authenticated with the node's **current** certificate at the TLS layer (`verifyNodeCertBinding`); the new certificate travels in the body. There is no hijack vector — you must already hold the current private key to rotate.
@@ -35,7 +35,7 @@ The renewal behaviour is now stored in the **`dsc_settings`** table (single row 
 ### Security hardening
 
 - **Bootstrap admin:** `init-bootstrap-admin` now **refuses to run unless stdout is a terminal** (`isatty`). The generated initial password is printed in clear text **once** (it is stored as a bcrypt hash); refusing a redirected/CI output prevents the secret leaking into a file or a build log.
-- **Secure secrets generation:** new [scripts/Generate-SecureKeys.ps1](scripts/Generate-SecureKeys.ps1) generates strong `shared_secret` / `registrationKey` values, and the server emits a `WARN [SECURITY]` at startup if a configured secret is too short, a known placeholder, or has too little character diversity.
+- **Secure secrets generation:** new [scripts/Generate-SecureKeys.ps1](../scripts/Generate-SecureKeys.ps1) generates strong `shared_secret` / `registrationKey` values, and the server emits a `WARN [SECURITY]` at startup if a configured secret is too short, a known placeholder, or has too little character diversity.
 - Removed a leftover debug response header (`X-Debug-Client-Body`) that echoed the request body.
 
 ### Windows service / installation naming
@@ -44,10 +44,10 @@ The renewal behaviour is now stored in the **`dsc_settings`** table (single row 
 
 ### Documentation
 
-- New [MS-DSCPM protocol implementation state](doc/dscpull/protocol-implementation.md) page (referenced from the root `README.md` and the DSC-pull docs index).
-- [DSC Security](doc/dscpull/security.md) documents the certificate-renewal "when", the DB settings, the rotation security model, and the bootstrap-admin guard.
-- [DSC Pull Server configuration](doc/dscpull/configuration.md) documents the DB-stored settings.
-- [Web UI storage modes](doc/webui/storage.md) expanded/corrected; installation guide fixes for log and DB file locations; configuration reference cross-links clarified.
+- New [MS-DSCPM protocol implementation state](dscpull/protocol-implementation.md) page (referenced from the root `README.md` and the DSC-pull docs index).
+- [DSC Security](dscpull/security.md) documents the certificate-renewal "when", the DB settings, the rotation security model, and the bootstrap-admin guard.
+- [DSC Pull Server configuration](dscpull/configuration.md) documents the DB-stored settings.
+- [Web UI storage modes](webui/storage.md) expanded/corrected; installation guide fixes for log and DB file locations; configuration reference cross-links clarified.
 
 ### Dependencies (Go 1.26)
 

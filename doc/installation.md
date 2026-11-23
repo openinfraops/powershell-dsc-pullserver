@@ -12,7 +12,7 @@ The server is a single self-contained **Go** executable (no Go runtime required 
 - **Certificates:**
   - A **server certificate + private key** (PEM) for HTTPS, configured via `cert_file` / `key_file` (DSC and/or web UI). Use a certificate trusted by the clients.
   - For **client-certificate validation** (`enable_client_cert_validation: true`), the DSC endpoint operates in **mutual TLS (mTLS)**: each DSC node presents its **own client certificate** on every pull. See [DSC security](dscpull/security.md) for the thumbprint-binding model. mTLS requires HTTPS.
-- **Registration key** (`dsc_pullserver.registrationKey`) — shared secret used by DSC nodes to register. Generate a strong value with [scripts/Generate-SecureKeys.ps1](../../scripts/Generate-SecureKeys.ps1) (the same script generates the JWT signing secret for `web_ui.shared_secret`).
+- **Registration key** (`dsc_pullserver.registrationKey`) — shared secret used by DSC nodes to register. Generate a strong value with [scripts/Generate-SecureKeys.ps1](../scripts/Generate-SecureKeys.ps1) (the same script generates the JWT signing secret for `web_ui.shared_secret`).
 - **JWT signing secret** (`web_ui.shared_secret`, or `dsc_pullserver.shared_secret` for backward compatibility).
 - **Network / ports:**
   - DSC pull server port (`8484` in the example configs).
@@ -54,7 +54,7 @@ The server is a single self-contained **Go** executable (no Go runtime required 
 
 3. **Database setup:**
    - **SQLite:** nothing to do. The server creates the `dsc.db` file and the tables automatically on first start (`db.InitDB`).
-   - **MSSQL:** the **database** must exist on your SQL Server instance (`CREATE DATABASE DSCPullServer`). The **tables** are created automatically by the server on start; the [db/schema_mssql.sql](../../db/schema_mssql.sql) script is provided as a reference and for pre-provisioning if you prefer to create the schema before first run.
+   - **MSSQL:** the **database** must exist on your SQL Server instance (`CREATE DATABASE DSCPullServer`). The **tables** are created automatically by the server on start; the [db/schema_mssql.sql](../db/schema_mssql.sql) script is provided as a reference and for pre-provisioning if you prefer to create the schema before first run.
    - The server loads and initializes the schema automatically when the database is empty (check `dsc-pull-server.log` for confirmation). You do **not** need to run the schema script manually on a fresh install.
 
 4. **Create the initial administrator account:**

@@ -41,9 +41,9 @@ The DSC certificate-renewal behaviour is now configured in the database (`dsc_se
 
 ### Documentation
 
-- New [MS-DSCPM protocol implementation state](doc/dscpull/protocol-implementation.md) page (referenced from the root `README.md` and the DSC-pull docs index).
-- [DSC Security](doc/dscpull/security.md) documents the certificate-renewal "when", the DB settings, and the rotation security model.
-- [DSC Pull Server configuration](doc/dscpull/configuration.md) documents the DB-stored settings.
+- New [MS-DSCPM protocol implementation state](dscpull/protocol-implementation.md) page (referenced from the root `README.md` and the DSC-pull docs index).
+- [DSC Security](dscpull/security.md) documents the certificate-renewal "when", the DB settings, and the rotation security model.
+- [DSC Pull Server configuration](dscpull/configuration.md) documents the DB-stored settings.
 
 ## Impacted files
 

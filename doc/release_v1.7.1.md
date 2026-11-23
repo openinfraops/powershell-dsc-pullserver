@@ -22,11 +22,11 @@ The periodic worker resolved every node's compilation properties twice per cycle
 
 ### Documentation
 
-- [MS-DSCPM protocol implementation state](doc/dscpull/protocol-implementation.md) documents the spec-correct `RotationInformation` payload, the end-to-end renewal flow, the Windows LCM caveat, and the `[CERTROTATION]` observability.
-- [DSC Security](doc/dscpull/security.md) updated with the `RotationInformation` envelope and the Windows LCM caveat.
-- [DSC Pull Server configuration](doc/dscpull/configuration.md) documents how to read/set the renewal window via the admin API.
-- [API v1 reference](doc/APIv1.md) adds the `GET`/`PUT /api/v1/dsc/settings` endpoints.
-- [Configuration repository](doc/dscpull/configuration-repo.md) notes the lazy node-context resolution.
+- [MS-DSCPM protocol implementation state](dscpull/protocol-implementation.md) documents the spec-correct `RotationInformation` payload, the end-to-end renewal flow, the Windows LCM caveat, and the `[CERTROTATION]` observability.
+- [DSC Security](dscpull/security.md) updated with the `RotationInformation` envelope and the Windows LCM caveat.
+- [DSC Pull Server configuration](dscpull/configuration.md) documents how to read/set the renewal window via the admin API.
+- [API v1 reference](APIv1.md) adds the `GET`/`PUT /api/v1/dsc/settings` endpoints.
+- [Configuration repository](dscpull/configuration-repo.md) notes the lazy node-context resolution.
 
 ## Impacted files
 
