@@ -81,6 +81,17 @@ func maybeSetCertificateRotationHeader(w http.ResponseWriter, dbConn *sql.DB, ag
 	if dbConn == nil {
 		return
 	}
+	var force int
+	var notAfter string
+	if err := dbConn.QueryRow(`SELECT force_cert_rotation, certificate_notafter FROM agents WHERE agent_id = ?`, agentId).Scan(&force, &notAfter); err != nil {
+		return // nœud inconnu ou aucun certificat enregistré
+	}
+	// Demande forcée par un admin (bouton « renouveler maintenant ») : on émet
+	// l'en-tête sans tenir compte de la fenêtre ni du flag global d'activation.
+	if force == 1 {
+		w.Header().Set("DSC-certificateRotation", "True")
+		return
+	}
 	settings, err := db.GetDscSettings(dbConn)
 	if err != nil {
 		log.Printf("[CERTROTATION] Failed to load dsc_settings: %v", err)
@@ -88,10 +99,6 @@ func maybeSetCertificateRotationHeader(w http.ResponseWriter, dbConn *sql.DB, ag
 	}
 	if !settings.CertificateRotationEnabled {
 		return
-	}
-	var notAfter string
-	if err := dbConn.QueryRow(`SELECT certificate_notafter FROM agents WHERE agent_id = ?`, agentId).Scan(&notAfter); err != nil {
-		return // nœud inconnu ou aucun certificat enregistré
 	}
 	needs, err := certNeedsRotation(notAfter, settings.CertificateRenewalDays, time.Now().UTC())
 	if err != nil {
@@ -145,11 +152,16 @@ func CertificateRotationHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// La rotation n'est autorisée que si le serveur a déjà signalé le besoin
-	// (en-tête DSC-certificateRotation émis précédemment). Conforme §3.12 (MAY).
+	// La rotation n'est acceptée que si le serveur a signalé le besoin (en-tête
+	// DSC-certificateRotation émis précédemment) : activation globale en base OU
+	// demande forcée d'un admin (bouton « renouveler maintenant »). Conforme §3.12
+	// (MAY : le serveur peut rejeter une rotation non sollicitée).
+	var force int
+	_ = database.QueryRow(`SELECT force_cert_rotation FROM agents WHERE agent_id = ?`, agentId).Scan(&force)
 	settings, err := db.GetDscSettings(database)
-	if err == nil && !settings.CertificateRotationEnabled {
-		log.Printf("[CERTROTATION] Certificate rotation disabled for agentId=%q: rejecting", agentId)
+	rotationAllowed := (err == nil && settings.CertificateRotationEnabled) || force == 1
+	if !rotationAllowed {
+		log.Printf("[CERTROTATION] Certificate rotation not enabled for agentId=%q: rejecting", agentId)
 		http.Error(w, "Conflict: certificate rotation is not enabled", http.StatusConflict)
 		return
 	}
@@ -189,7 +201,9 @@ func CertificateRotationHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := database.Exec(`UPDATE agents SET certificate_thumbprint=?, certificate_subject=?, certificate_issuer=?, certificate_notbefore=?, certificate_notafter=? WHERE agent_id=?`,
+	// Met à jour le certificat et lève le drapeau de renouvellement forcé : la
+	// rotation a abouti, le nœud ne doit plus être sollicité « ASAP ».
+	if _, err := database.Exec(`UPDATE agents SET certificate_thumbprint=?, certificate_subject=?, certificate_issuer=?, certificate_notbefore=?, certificate_notafter=?, force_cert_rotation=0 WHERE agent_id=?`,
 		thumbprint, subject, issuer, notbefore, notafter, agentId); err != nil {
 		log.Printf("[CERTROTATION] Failed to update certificate for agentId=%q: %v", agentId, err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)

@@ -62,6 +62,7 @@ DSC nodes (agents). Also stores the node certificate used for client-cert authen
 | last_communication        | TIMESTAMP | Last check-in timestamp (default now) |
 | has_error_last_report     | BOOLEAN | Whether the last report had errors       |
 | needs_recompile           | BOOLEAN | Whether the node needs recompilation     |
+| force_cert_rotation       | BOOLEAN | Admin-requested ASAP certificate renewal (default 0); cleared on successful rotation |
 | deleted_at                | TIMESTAMP | Soft-delete timestamp (nullable)      |
 | deleted_by                | TEXT    | Who soft-deleted the agent (nullable)    |
 | state                     | TEXT    | `success`/`failure`/`pending_apply`/...  |

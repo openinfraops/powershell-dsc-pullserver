@@ -174,6 +174,7 @@ CREATE TABLE agents (
     registered_at DATETIME DEFAULT GETUTCDATE(),
     last_communication DATETIME DEFAULT GETUTCDATE(),
     needs_recompile BIT NOT NULL DEFAULT 0,
+    force_cert_rotation BIT NOT NULL DEFAULT 0,
     deleted_at DATETIME NULL,
     deleted_by NVARCHAR(200) NULL,
     state NVARCHAR(50),

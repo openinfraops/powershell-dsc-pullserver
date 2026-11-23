@@ -32,6 +32,7 @@ func setupAgentsDB(t *testing.T) *sql.DB {
 		last_communication TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		has_error_last_report BOOLEAN DEFAULT 0,
 		needs_recompile INTEGER DEFAULT 0,
+		force_cert_rotation INTEGER DEFAULT 0,
 		deleted_at TIMESTAMP NULL,
 		deleted_by TEXT NULL,
 		state TEXT
@@ -111,5 +112,28 @@ func TestUpsertAgent_Renewal_UnknownAgent(t *testing.T) {
 	err := upsertAgent(database, "sqlite", "ghost", "node-x", "1.0", "Initial", "THUMB", "subject", "issuer", "2024-01-01", "2030-01-01", false)
 	if err != nil {
 		t.Fatalf("upsertAgent on missing agent should not error, got: %v", err)
+	}
+}
+
+// TestUpsertAgent_Renewal_ClearsForceRotation vérifie qu'un ré-enregistrement
+// (renouvellement de certificat) lève le drapeau force_cert_rotation : le nœud
+// a présenté un nouveau certificat, la demande « ASAP » d'un admin est satisfaite.
+func TestUpsertAgent_Renewal_ClearsForceRotation(t *testing.T) {
+	database := setupAgentsDB(t)
+	if _, err := database.Exec(`INSERT INTO agents (agent_id, node_name, certificate_thumbprint, state, force_cert_rotation) VALUES (?, ?, ?, ?, ?)`,
+		"agent-1", "node-1", "OLDTHUMB", "compliant", 1); err != nil {
+		t.Fatalf("seed agent: %v", err)
+	}
+
+	if err := upsertAgent(database, "sqlite", "agent-1", "node-1", "2.0", "Renewal", "NEWTHUMB", "subject2", "issuer2", "2026-01-01", "2031-01-01", false); err != nil {
+		t.Fatalf("upsertAgent renewal: %v", err)
+	}
+
+	var force int
+	if err := database.QueryRow(`SELECT force_cert_rotation FROM agents WHERE agent_id = ?`, "agent-1").Scan(&force); err != nil {
+		t.Fatalf("read force_cert_rotation: %v", err)
+	}
+	if force != 0 {
+		t.Fatalf("expected force_cert_rotation cleared after re-registration, got %d", force)
 	}
 }

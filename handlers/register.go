@@ -182,7 +182,9 @@ func upsertAgent(database *sql.DB, driver, agentId, nodeName, lcmVersion, regist
 		return err
 	}
 	// Ré-enregistrement : mise à jour (le renouvellement de certificat aboutit ici).
-	_, err := database.Exec(`UPDATE agents SET node_name=?, lcm_version=?, registration_type=?, certificate_thumbprint=?, certificate_subject=?, certificate_issuer=?, certificate_notbefore=?, certificate_notafter=? WHERE agent_id=?`,
+	// On lève aussi force_cert_rotation=0 : le nœud a présenté un nouveau
+	// certificat (le renouvellement « ASAP » demandé par un admin est satisfait).
+	_, err := database.Exec(`UPDATE agents SET node_name=?, lcm_version=?, registration_type=?, certificate_thumbprint=?, certificate_subject=?, certificate_issuer=?, certificate_notbefore=?, certificate_notafter=?, force_cert_rotation=0 WHERE agent_id=?`,
 		nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter, agentId)
 	return err
 }

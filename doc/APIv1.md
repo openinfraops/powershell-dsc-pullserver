@@ -101,6 +101,13 @@ Both JWT and API tokens grant access to the API according to the user's permissi
 ### GET `/api/v1/agents/{id}`
 - Get agent details.
 - Response may include `tags`, returned as a map of tag keys to arrays of values.
+- Response also includes `force_cert_rotation` (boolean) — set when an admin has requested an ASAP certificate renewal.
+
+### POST `/api/v1/agents/{id}/rotate-certificate`
+- **Admin only.** Ask the node to rotate its client certificate on its **next** cycle (sets `agents.force_cert_rotation` to `1`). The server then emits `DSC-certificateRotation: True` on the node's next pull, even outside the renewal window and even if the global certificate-rotation setting is off.
+
+### DELETE `/api/v1/agents/{id}/rotate-certificate`
+- **Admin only.** Cancel a pending ASAP certificate-renewal request (clears `agents.force_cert_rotation`).
 
 ### GET `/api/v1/agents/{id}/configs`
 - List configs assigned to the agent.

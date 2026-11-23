@@ -58,6 +58,8 @@ Some DSC behaviour is **not** configured in `config.json` but in the **`dsc_sett
 | `certificate_rotation_enabled` | `0` (`false`) | Enables server-initiated certificate rotation (`DSC-certificateRotation: True` header). **Opt-in.** |
 | `certificate_renewal_days` | `30` | Renewal window in days before certificate expiration at which the server solicits rotation. |
 
+In addition, a **per-node** override exists regardless of these settings: an admin can request an ASAP renewal for a specific node from the node page (or `POST` / `DELETE /api/v1/agents/{id}/rotate-certificate`), which sets `agents.force_cert_rotation`. See [Security](security.md).
+
 See [Security](security.md) for the certificate-renewal "when", and [MS-DSCPM protocol implementation state](protocol-implementation.md) for the `CertificateRotation` / `GetReports` endpoints.
 
 ## Additional Sections

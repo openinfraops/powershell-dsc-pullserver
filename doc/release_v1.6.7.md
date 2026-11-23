@@ -2,7 +2,7 @@
 
 Date: 2026-11-23
 
-Release adding two MS-DSCPM protocol gaps and DB-backed certificate renewal.
+Release adding two MS-DSCPM protocol gaps, DB-backed certificate renewal, and an admin "renew now" button for per-node certificate rotation.
 
 ## Changes
 
@@ -26,6 +26,13 @@ The DSC certificate-renewal behaviour is now configured in the database (`dsc_se
 - **Security:** the endpoint authenticates with the node's **current** certificate at the TLS layer (`verifyNodeCertBinding`); the new certificate travels in the request body. There is no hijack vector — you must already hold the current private key to rotate.
 - `state`, `registered_at`, `last_communication`, `has_error_last_report` and `needs_recompile` are preserved; only the certificate fields are refreshed.
 
+### Admin-forced certificate renewal ("renew now", ASAP)
+
+- New admin-only API `POST` / `DELETE /api/v1/agents/{id}/rotate-certificate` raising/clearing the per-node `agents.force_cert_rotation` flag.
+- New "Renouveler le certificat" button on the node detail page (visible to admins) that calls the `POST` endpoint; a "Renouvellement demandé (annuler)" button appears while the flag is set.
+- When `force_cert_rotation` is set, the server emits `DSC-certificateRotation: True` on the node's next pull **regardless** of the renewal window and even when `certificate_rotation_enabled` is off (the explicit admin request takes precedence).
+- The flag is cleared automatically when the rotation actually succeeds (`CertificateRotation` handler).
+
 ### `GetReports` (MS-DSCPM §3.11)
 
 - New endpoint `GET /PSDSCPullServer.svc/Nodes(AgentId='…')/Reports(JobId='…')`.
@@ -41,7 +48,8 @@ The DSC certificate-renewal behaviour is now configured in the database (`dsc_se
 ## Impacted files
 
 - `db/schema_sqlite.sql`, `db/schema_mssql.sql`, `db/migration_v1.6.7.sql`
-- `internal/db/dsc_settings.go`, `internal/db/initdb.go`
-- `handlers/certificate_rotation.go`, `handlers/getreports.go`, `handlers/dsc_settings_api.go`, `handlers/sendreport.go`, `handlers/configuration_content.go`, `handlers/getdscaction_node.go`
+- `internal/db/dsc_settings.go`, `internal/db/initdb.go`, `internal/db/agent_schema_ensure.go`
+- `handlers/certificate_rotation.go`, `handlers/getreports.go`, `handlers/dsc_settings_api.go`, `handlers/agent_rotate_cert_api.go`, `handlers/sendreport.go`, `handlers/configuration_content.go`, `handlers/getdscaction_node.go`, `handlers/agent_byid_api.go`
 - `internal/routes/dsc_routes.go`, `internal/routes/web_routes.go`
-- `doc/dscpull/protocol-implementation.md`, `doc/dscpull/security.md`, `doc/dscpull/configuration.md`, `doc/dscpull/README.md`, `README.md`
+- `internal/schema/agent.go`, `web/node.js`
+- `doc/dscpull/protocol-implementation.md`, `doc/dscpull/security.md`, `doc/dscpull/configuration.md`, `doc/dscpull/README.md`, `doc/APIv1.md`, `doc/DatabaseSchema.md`, `README.md`

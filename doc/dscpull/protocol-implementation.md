@@ -96,6 +96,7 @@ Per §2.2.2.8, the header `DSC-certificateRotation: True` is a **`MAY`** and the
 
 - The **database setting** `dsc_settings.certificate_rotation_enabled` (default `0`, **opt-in**) turns the feature on.
 - `dsc_settings.certificate_renewal_days` (default `30`) defines the window: the server starts soliciting rotation when the node's `certificate_notafter` is within N days (or already expired).
+- An **admin can force** a specific node to rotate on its next cycle (the "renew now" button on the node page, or the API `POST` / `DELETE /api/v1/agents/{id}/rotate-certificate`). This raises `agents.force_cert_rotation`, making the server emit the header **regardless** of the window and of the global enable flag. The flag is cleared automatically once the rotation succeeds.
 - The header is added to node-scoped responses (`GetDscAction`, `ConfigurationContent`, `SendReport`). It is **not** emitted on `CertificateRotation`, registration, or `ModuleContent` responses (the latter has no node identifier in its URL).
 
 See [DSC Security](security.md) for the "when" details and the security model of the rotation endpoint. The settings are adjustable at runtime through the admin API `GET`/`PUT /api/v1/dsc/settings`.

@@ -17,6 +17,7 @@ type Agent struct {
 	Tags                  map[string][]string `json:"tags,omitempty"`
 	State                 *string             `json:"state,omitempty"`
 	NeedsRecompile        bool                `json:"needs_recompile"`
+	ForceCertRotation     bool                `json:"force_cert_rotation"`
 	DeletedAt             *string             `json:"deleted_at,omitempty"`
 	DeletedBy             *string             `json:"deleted_by,omitempty"`
 }

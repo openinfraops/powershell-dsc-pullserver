@@ -128,6 +128,7 @@ CREATE TABLE IF NOT EXISTS agents (
     last_communication TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     has_error_last_report BOOLEAN DEFAULT 0,
     needs_recompile INTEGER DEFAULT 0,
+    force_cert_rotation INTEGER DEFAULT 0,
     deleted_at TIMESTAMP NULL,
     deleted_by TEXT NULL,
     state TEXT

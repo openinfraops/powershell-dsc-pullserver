@@ -15,6 +15,15 @@ function renderNodeActionBlock() {
     if (isAdmin && state.agent.needs_recompile) {
         html += '<button id="recompile-node-btn" class="btn btn-warning btn-sm mr-1">Recalculer la configuration</button>';
     }
+    // Renouvellement du certificat : admin uniquement, demande « ASAP » (le nœud
+    // est invité à présenter un nouveau certificat dès son prochain cycle).
+    if (isAdmin) {
+        if (state.agent.force_cert_rotation) {
+            html += '<button id="cancel-rotate-cert-btn" class="btn btn-outline-info btn-sm mr-1">Renouvellement demandé (annuler)</button>';
+        } else {
+            html += '<button id="rotate-cert-btn" class="btn btn-info btn-sm mr-1">Renouveler le certificat</button>';
+        }
+    }
     // Suppression : admin uniquement.
     if (isAdmin) {
         html += '<button id="delete-node-btn" class="btn btn-danger btn-sm">Supprimer ce nœud</button>';
@@ -126,6 +135,58 @@ $(document).on('click', '#recompile-node-btn', function() {
         }
     });
 });
+
+// Demande « ASAP » du renouvellement du certificat : lève force_cert_rotation.
+$(document).on('click', '#rotate-cert-btn', function() {
+    const nodeId = getNodeIdFromUrl();
+    if (!nodeId) return;
+    if (!confirm('Demander le renouvellement du certificat de ce nœud dès son prochain cycle ?')) return;
+    $.ajax({
+        url: '/api/v1/agents/' + encodeURIComponent(nodeId) + '/rotate-certificate',
+        type: 'POST',
+        success: function() {
+            showNodeMessage('Demande de renouvellement de certificat envoyée au nœud.', 'success');
+            refreshAgent();
+        },
+        error: function(xhr) {
+            showNodeMessage('Erreur lors de la demande: ' + (xhr.responseText || xhr.status), 'error');
+        }
+    });
+});
+
+// Annule la demande de renouvellement forcé.
+$(document).on('click', '#cancel-rotate-cert-btn', function() {
+    const nodeId = getNodeIdFromUrl();
+    if (!nodeId) return;
+    if (!confirm('Annuler la demande de renouvellement de certificat ?')) return;
+    $.ajax({
+        url: '/api/v1/agents/' + encodeURIComponent(nodeId) + '/rotate-certificate',
+        type: 'DELETE',
+        success: function() {
+            showNodeMessage('Demande de renouvellement annulée.', 'success');
+            refreshAgent();
+        },
+        error: function(xhr) {
+            showNodeMessage('Erreur lors de l\'annulation: ' + (xhr.responseText || xhr.status), 'error');
+        }
+    });
+});
+
+// Recharge l'agent courant et re-rend la page.
+function refreshAgent() {
+    const nodeId = getNodeIdFromUrl();
+    if (!nodeId) return;
+    $.ajax({
+        url: '/api/v1/agents/' + encodeURIComponent(nodeId),
+        method: 'GET',
+        dataType: 'json',
+        success: function(agent) {
+            state.agent = agent;
+            renderAll();
+        },
+        error: function() { /* l'agent a pu être supprimé entre-temps */ }
+    });
+}
 // node.js (frontend) pour page /web/node/{id}
 
 function getNodeIdFromUrl() {

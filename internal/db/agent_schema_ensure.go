@@ -13,6 +13,7 @@ func EnsureAgentSchema(database *sql.DB, driver string) error {
 	if driver == "mssql" || driver == "sqlserver" {
 		for _, stmt := range []string{
 			`IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'agents' AND COLUMN_NAME = 'needs_recompile') ALTER TABLE agents ADD needs_recompile BIT NOT NULL DEFAULT 0`,
+			`IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'agents' AND COLUMN_NAME = 'force_cert_rotation') ALTER TABLE agents ADD force_cert_rotation BIT NOT NULL DEFAULT 0`,
 			`IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'agents' AND COLUMN_NAME = 'deleted_at') ALTER TABLE agents ADD deleted_at DATETIME NULL`,
 			`IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'agents' AND COLUMN_NAME = 'deleted_by') ALTER TABLE agents ADD deleted_by NVARCHAR(200) NULL`,
 		} {
@@ -25,6 +26,7 @@ func EnsureAgentSchema(database *sql.DB, driver string) error {
 
 	statements := []string{
 		`ALTER TABLE agents ADD COLUMN needs_recompile INTEGER DEFAULT 0`,
+		`ALTER TABLE agents ADD COLUMN force_cert_rotation INTEGER DEFAULT 0`,
 		`ALTER TABLE agents ADD COLUMN deleted_at TIMESTAMP NULL`,
 		`ALTER TABLE agents ADD COLUMN deleted_by TEXT NULL`,
 	}

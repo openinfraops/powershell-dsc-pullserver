@@ -64,6 +64,8 @@ The MS-DSCPM protocol has **no protocol-level timer** that forces a renewal: `DS
 
 The renewal is therefore **"when the node's certificate expires within N days"**, evaluated from the stored `agents.certificate_notafter` (sent by the node at registration or during a previous rotation). The window is **adjustable at runtime** through the admin API (`GET`/`PUT /api/v1/dsc/settings`, admin-only) and is stored in the `dsc_settings` table — not in `config.json`. Use the `db/migration_v1.6.7.sql` script (MSSQL) or the schema files to create the table on existing databases.
 
+**Admin-forced renewal (ASAP).** An administrator can request that a **specific** node rotate its certificate on its **next** cycle, regardless of the renewal window and even when `certificate_rotation_enabled` is off. This sets `agents.force_cert_rotation` to `1`; `maybeSetCertificateRotationHeader` then emits `DSC-certificateRotation: True` unconditionally on that node's next pull. The flag is cleared automatically once the rotation succeeds (the `CertificateRotation` handler) or on re-registration. The admin API is `POST` / `DELETE /api/v1/agents/{id}/rotate-certificate` (admin-only), and the corresponding button is on the node detail page.
+
 ### CertificateRotation security model
 
 The rotation endpoint authenticates with the node's **current (old) certificate** at the TLS layer: `verifyNodeCertBinding` requires the presented thumbprint to equal the one stored for the `agentId` in the path. The **new** `CertificateInformation` only travels in the request body. Consequently, an attacker cannot rotate a node's certificate unless they already hold the node's **current** private key — there is no hijack vector (you must already be the legitimate node to replace its certificate).
@@ -72,9 +74,9 @@ The rotation endpoint authenticates with the node's **current (old) certificate*
 
 ### When does the header NOT appear?
 
-- When `certificate_rotation_enabled` is `false` (default).
+- When `certificate_rotation_enabled` is `false` (default) — **unless the node is force-flagged** (`agents.force_cert_rotation = 1`, i.e. an admin asked for an immediate renewal).
 - When the node has no `certificate_notafter` stored.
-- When the certificate expires more than `certificate_renewal_days` days from now.
+- When the certificate expires more than `certificate_renewal_days` days from now — **unless the node is force-flagged** (an admin override solicits the rotation regardless of the window).
 - On the `CertificateRotation` and registration responses themselves (the spec explicitly excludes them).
 - On `ModuleContent`: this endpoint has no node identifier in its URL (`GET /PSDSCPullServer.svc/{module}/ModuleContent`), so the header is not emitted there even though the client certificate is present.
 
