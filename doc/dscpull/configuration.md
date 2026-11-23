@@ -55,6 +55,7 @@ The `database`, `web_ui`, and `saml` blocks are described in [Configuration.md](
 
 ## Related pages
 
+- [DSC Pull Server documentation](README.md)
 - [Node registration](registration.md)
 - [Security](security.md)
 - [Configuration repository (Git) & Scheduler](configuration-repo.md)

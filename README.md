@@ -16,9 +16,9 @@ Detailed documentation is organized into two main sections:
 ## Quick Navigation
 
 - [Installation](doc/installation.md)
-- [Configuration reference](doc/Configuration.md)
+- [Configuration reference](doc/Configuration.md) (exhaustive, all sections)
 - [Database schema](doc/DatabaseSchema.md)
-- [DSC Pull Server Configuration](doc/dscpull/configuration.md)
+- [DSC Pull Server configuration guide](doc/dscpull/configuration.md) (focused, mutual-TLS)
 - [Configuration repository (Git) & Scheduler](doc/dscpull/configuration-repo.md)
 - [Node Registration](doc/dscpull/registration.md)
 - [Security](doc/dscpull/security.md)

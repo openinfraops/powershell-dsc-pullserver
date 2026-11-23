@@ -2,6 +2,8 @@
 
 This page describes all configuration options available in `config.json` for the DSC Admin Console.
 
+> **This page is the exhaustive reference for every `config.json` section** (`database`, `dsc_pullserver`, `web_ui`, `saml`). For a **focused guide to the `dsc_pullserver` block** — mutual-TLS deep dive, secure secret generation and the startup security warnings — see [DSC Pull Server configuration](dscpull/configuration.md).
+
 ---
 
 ## Top-Level Structure
@@ -70,6 +72,8 @@ This page describes all configuration options available in `config.json` for the
 > **Client certificate validation (DSC endpoint).** When `enable_client_cert_validation` is `true`, the DSC endpoint **always** requires a client certificate. `bypass_ca_validation` only controls the CA/chain validation of that certificate: `true` accepts any certificate (self-signed node certs work, the node is identified by its enrolled thumbprint only — classic DSC model); `false` additionally validates the chain/signature against the **OS system trust store** (`RequireAndVerifyClientCert`) and still checks the enrolled thumbprint. A client certificate requires HTTPS; in pure HTTP mode (`enable_https: false`) no certificate is negotiated.
 
 The Git-backed **configuration repository** settings are **stored in the database** (`configuration_repo_settings`) and managed from the **Scheduler administration page** — they are **not** edited in `config.json` (the `configuration_repo_*` keys here are only a legacy migration source imported once). See [Configuration repository (Git) & Scheduler](dscpull/configuration-repo.md) for the full settings reference and the compiler contract.
+
+> **Secure secrets:** generate a strong `shared_secret` and `registrationKey` with [scripts/Generate-SecureKeys.ps1](../scripts/Generate-SecureKeys.ps1). The server emits a `WARN [SECURITY]` at startup if either value is too short, is a known placeholder, or has too little character diversity.
 
 ---
 
@@ -179,3 +183,11 @@ The Git-backed **configuration repository** settings are **stored in the databas
 ---
 
 > For any changes, restart the server to apply new configuration values.
+
+## Related pages
+
+- [DSC Pull Server configuration](dscpull/configuration.md) — focused guide to the `dsc_pullserver` block: mutual TLS, secure secret generation, startup warnings.
+- [DSC Pull Server documentation](dscpull/README.md)
+- [WEB UI documentation](webui/README.md)
+- [Installation](installation.md)
+- [Configuration repository (Git) & Scheduler](dscpull/configuration-repo.md)
