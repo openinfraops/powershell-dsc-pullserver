@@ -124,7 +124,7 @@ func TestCertificateRotationHandler_RotatesCert(t *testing.T) {
 	}
 
 	const newThumb = "aabbccddeeff00112233445566778899aabbccdd"
-	body := fmt.Sprintf(`{"CertificateInformation":{"Thumbprint":"%s","Subject":"NewSubj","Issuer":"NewIssuer","NotBefore":"2026-01-01T00:00:00Z","NotAfter":"2031-01-01T00:00:00Z"}}`, newThumb)
+	body := fmt.Sprintf(`{"RotationInformation":{"CertificateInformation":{"Thumbprint":"%s","Subject":"NewSubj","Issuer":"NewIssuer","NotBefore":"2026-01-01T00:00:00Z","NotAfter":"2031-01-01T00:00:00Z"}}}`, newThumb)
 	req := httptest.NewRequest(http.MethodPost, "/PSDSCPullServer.svc/Nodes(AgentId='"+agentID+"')/CertificateRotation", strings.NewReader(body))
 	req.SetPathValue("node", "Nodes(AgentId='"+agentID+"')")
 	req.TLS = &tls.ConnectionState{PeerCertificates: []*x509.Certificate{cert}}

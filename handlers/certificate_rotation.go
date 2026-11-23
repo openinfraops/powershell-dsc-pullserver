@@ -130,6 +130,24 @@ func asString(v interface{}) string {
 	return ""
 }
 
+// asObject renvoie l'objet JSON imbriqué en suivant la chaîne de clés (path).
+// Renvoie nil si l'un des niveaux est absent ou n'est pas un objet.
+func asObject(v interface{}, path ...string) map[string]interface{} {
+	cur := v
+	for _, key := range path {
+		m, ok := cur.(map[string]interface{})
+		if !ok {
+			return nil
+		}
+		cur = m[key]
+	}
+	m, ok := cur.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	return m
+}
+
 // CertificateRotationHandler gère POST /PSDSCPullServer.svc/Nodes(AgentId='...')/CertificateRotation
 // (§3.12 du MS-DSCPM). Le client (LCM) y publie son nouveau certificat ; le
 // serveur met à jour les champs certificat du nœud en place, sans toucher à
@@ -187,8 +205,16 @@ func CertificateRotationHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad request: invalid JSON", http.StatusBadRequest)
 		return
 	}
-	certInfo, _ := req["CertificateInformation"].(map[string]interface{})
+	// Le client (LCM) enveloppe le nouveau certificat sous
+	// "RotationInformation"."CertificateInformation" (schéma « RotateCertificate
+	// request », §3.12). On accepte aussi l'ancien format plat
+	// "CertificateInformation" à la racine pour la rétro-compatibilité.
+	certInfo := asObject(req, "RotationInformation", "CertificateInformation")
 	if certInfo == nil {
+		certInfo = asObject(req, "CertificateInformation")
+	}
+	if certInfo == nil {
+		_ = logs.WriteLogFile(fmt.Sprintf("[CERTROTATION] Bad request for agentId=%q: CertificateInformation missing (body=%s)", agentId, string(body)))
 		http.Error(w, "Bad request: CertificateInformation missing", http.StatusBadRequest)
 		return
 	}
