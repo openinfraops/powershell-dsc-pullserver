@@ -90,6 +90,7 @@ func maybeSetCertificateRotationHeader(w http.ResponseWriter, dbConn *sql.DB, ag
 	// l'en-tête sans tenir compte de la fenêtre ni du flag global d'activation.
 	if force == 1 {
 		w.Header().Set("DSC-certificateRotation", "True")
+		log.Printf("[CERTROTATION] Soliciting certificate rotation for agentId=%q: forced by admin (force_cert_rotation=1)", agentId)
 		return
 	}
 	settings, err := db.GetDscSettings(dbConn)
@@ -107,6 +108,7 @@ func maybeSetCertificateRotationHeader(w http.ResponseWriter, dbConn *sql.DB, ag
 	}
 	if needs {
 		w.Header().Set("DSC-certificateRotation", "True")
+		log.Printf("[CERTROTATION] Soliciting certificate rotation for agentId=%q: certificate within renewal window (notAfter=%q, days=%d)", agentId, notAfter, settings.CertificateRenewalDays)
 	}
 }
 
