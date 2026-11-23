@@ -4,12 +4,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	"go-dsc-pull/internal/db"
+	"go-dsc-pull/internal/logs"
 	"go-dsc-pull/utils"
 )
 
@@ -90,12 +90,12 @@ func maybeSetCertificateRotationHeader(w http.ResponseWriter, dbConn *sql.DB, ag
 	// l'en-tête sans tenir compte de la fenêtre ni du flag global d'activation.
 	if force == 1 {
 		w.Header().Set("DSC-certificateRotation", "True")
-		log.Printf("[CERTROTATION] Soliciting certificate rotation for agentId=%q: forced by admin (force_cert_rotation=1)", agentId)
+		_ = logs.WriteLogFile(fmt.Sprintf("[CERTROTATION] Soliciting certificate rotation for agentId=%q: forced by admin (force_cert_rotation=1)", agentId))
 		return
 	}
 	settings, err := db.GetDscSettings(dbConn)
 	if err != nil {
-		log.Printf("[CERTROTATION] Failed to load dsc_settings: %v", err)
+		_ = logs.WriteLogFile(fmt.Sprintf("[CERTROTATION] Failed to load dsc_settings: %v", err))
 		return
 	}
 	if !settings.CertificateRotationEnabled {
@@ -103,12 +103,12 @@ func maybeSetCertificateRotationHeader(w http.ResponseWriter, dbConn *sql.DB, ag
 	}
 	needs, err := certNeedsRotation(notAfter, settings.CertificateRenewalDays, time.Now().UTC())
 	if err != nil {
-		log.Printf("[CERTROTATION] Failed to evaluate certificate renewal for agentId=%q: %v", agentId, err)
+		_ = logs.WriteLogFile(fmt.Sprintf("[CERTROTATION] Failed to evaluate certificate renewal for agentId=%q: %v", agentId, err))
 		return
 	}
 	if needs {
 		w.Header().Set("DSC-certificateRotation", "True")
-		log.Printf("[CERTROTATION] Soliciting certificate rotation for agentId=%q: certificate within renewal window (notAfter=%q, days=%d)", agentId, notAfter, settings.CertificateRenewalDays)
+		_ = logs.WriteLogFile(fmt.Sprintf("[CERTROTATION] Soliciting certificate rotation for agentId=%q: certificate within renewal window (notAfter=%q, days=%d)", agentId, notAfter, settings.CertificateRenewalDays))
 	}
 }
 
@@ -144,12 +144,12 @@ func CertificateRotationHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-	log.Printf("[CERTROTATION] Start for agentId=%q (raw=%s)", agentId, rawId)
+	_ = logs.WriteLogFile(fmt.Sprintf("[CERTROTATION] Start for agentId=%q (raw=%s)", agentId, rawId))
 
 	// Liaison identité : le certificat client présenté (l'ACTUEL) doit
 	// correspondre au nœud qui demande la rotation.
 	if ok, cause := verifyNodeCertBinding(r, database, agentId); !ok {
-		log.Printf("[CERTROTATION] Certificate-to-node binding refused for agentId=%q: %s", agentId, cause)
+		_ = logs.WriteLogFile(fmt.Sprintf("[CERTROTATION] Certificate-to-node binding refused for agentId=%q: %s", agentId, cause))
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
@@ -163,7 +163,7 @@ func CertificateRotationHandler(w http.ResponseWriter, r *http.Request) {
 	settings, err := db.GetDscSettings(database)
 	rotationAllowed := (err == nil && settings.CertificateRotationEnabled) || force == 1
 	if !rotationAllowed {
-		log.Printf("[CERTROTATION] Certificate rotation not enabled for agentId=%q: rejecting", agentId)
+		_ = logs.WriteLogFile(fmt.Sprintf("[CERTROTATION] Certificate rotation not enabled for agentId=%q: rejecting", agentId))
 		http.Error(w, "Conflict: certificate rotation is not enabled", http.StatusConflict)
 		return
 	}
@@ -207,11 +207,11 @@ func CertificateRotationHandler(w http.ResponseWriter, r *http.Request) {
 	// rotation a abouti, le nœud ne doit plus être sollicité « ASAP ».
 	if _, err := database.Exec(`UPDATE agents SET certificate_thumbprint=?, certificate_subject=?, certificate_issuer=?, certificate_notbefore=?, certificate_notafter=?, force_cert_rotation=0 WHERE agent_id=?`,
 		thumbprint, subject, issuer, notbefore, notafter, agentId); err != nil {
-		log.Printf("[CERTROTATION] Failed to update certificate for agentId=%q: %v", agentId, err)
+		_ = logs.WriteLogFile(fmt.Sprintf("[CERTROTATION] Failed to update certificate for agentId=%q: %v", agentId, err))
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-	log.Printf("[CERTROTATION] Rotated certificate for agentId=%q: new thumbprint=%s", agentId, thumbprint)
+	_ = logs.WriteLogFile(fmt.Sprintf("[CERTROTATION] Rotated certificate for agentId=%q: new thumbprint=%s", agentId, thumbprint))
 
 	// Réponse : aucune donnée (§3.12.5.1.1.2), statut 201 Created.
 	w.Header().Set("ProtocolVersion", "2.0")
