@@ -1,6 +1,6 @@
 module go-dsc-pull
 
-go 1.25.5
+go 1.26.0
 
 require (
 	github.com/crewjam/saml v0.5.1
@@ -8,8 +8,8 @@ require (
 	github.com/go-git/go-git/v5 v5.19.2
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/mattn/go-isatty v0.0.20
-	golang.org/x/crypto v0.53.0
-	golang.org/x/sys v0.46.0
+	golang.org/x/crypto v0.59.0
+	golang.org/x/sys v0.50.0
 	modernc.org/sqlite v1.40.1
 )
 
@@ -42,7 +42,7 @@ require (
 	github.com/skeema/knownhosts v1.3.1 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f // indirect
-	golang.org/x/net v0.56.0 // indirect
+	golang.org/x/net v0.62.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	modernc.org/libc v1.66.10 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
