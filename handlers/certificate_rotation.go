@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -86,14 +87,18 @@ func maybeSetCertificateRotationHeader(w http.ResponseWriter, dbConn *sql.DB, ag
 	// CAST(... AS INT) : force_cert_rotation est BIT (MSSQL) ou INTEGER (SQLite).
 	// Le CAST rend le scan en int portable entre les deux drivers.
 	if err := dbConn.QueryRow(`SELECT CAST(force_cert_rotation AS INT), certificate_notafter FROM agents WHERE agent_id = ?`, agentId).Scan(&force, &notAfter); err != nil {
-		_ = logs.WriteLogFile(fmt.Sprintf("[CERTROTATION] Failed to read agent %q for rotation decision: %v", agentId, err))
+		msg := fmt.Sprintf("[CERTROTATION] Failed to read agent %q for rotation decision: %v", agentId, err)
+		log.Printf("%s", msg)
+		_ = logs.WriteLogFile(msg)
 		return
 	}
 	// Demande forcée par un admin (bouton « renouveler maintenant ») : on émet
 	// l'en-tête sans tenir compte de la fenêtre ni du flag global d'activation.
 	if force == 1 {
 		w.Header().Set("DSC-certificateRotation", "True")
-		_ = logs.WriteLogFile(fmt.Sprintf("[CERTROTATION] Soliciting certificate rotation for agentId=%q: forced by admin (force_cert_rotation=1)", agentId))
+		msg := fmt.Sprintf("[CERTROTATION] Soliciting certificate rotation for agentId=%q: forced by admin (force_cert_rotation=1)", agentId)
+		log.Printf("%s", msg)
+		_ = logs.WriteLogFile(msg)
 		return
 	}
 	settings, err := db.GetDscSettings(dbConn)
@@ -111,7 +116,9 @@ func maybeSetCertificateRotationHeader(w http.ResponseWriter, dbConn *sql.DB, ag
 	}
 	if needs {
 		w.Header().Set("DSC-certificateRotation", "True")
-		_ = logs.WriteLogFile(fmt.Sprintf("[CERTROTATION] Soliciting certificate rotation for agentId=%q: certificate within renewal window (notAfter=%q, days=%d)", agentId, notAfter, settings.CertificateRenewalDays))
+		msg := fmt.Sprintf("[CERTROTATION] Soliciting certificate rotation for agentId=%q: certificate within renewal window (notAfter=%q, days=%d)", agentId, notAfter, settings.CertificateRenewalDays)
+		log.Printf("%s", msg)
+		_ = logs.WriteLogFile(msg)
 	}
 }
 
