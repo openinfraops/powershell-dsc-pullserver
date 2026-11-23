@@ -12,3 +12,7 @@ saml_keycert_archive/*
 config.json
 config/*
 examples/*
+
+# Local Go build/tooling directories (used to avoid AV quarantine in CI/dev)
+.gotmp/
+.gopath/

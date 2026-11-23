@@ -35,6 +35,8 @@ Example:
 | **port**                         | Port the server listens on (default: `8484`). |
 | **registrationKey**              | Key required for agent registration. Set any string value; agents must provide it to register. **The server emits a `WARN` at startup if this value is empty** (no node would be able to register). |
 
+> **Generating secure secrets:** use [scripts/Generate-SecureKeys.ps1](../../scripts/Generate-SecureKeys.ps1) to generate a cryptographically strong `shared_secret` and `registrationKey`. **The server also emits a `WARN [SECURITY]` at startup if either value is too short, is a known placeholder, or has too little character diversity.**
+
 ### Optional / operational keys
 
 These keys are also accepted in the `dsc_pullserver` block (shared `HTTPConfig` struct). They are documented in [Configuration.md](../Configuration.md) and can be left at their default in a minimal setup:

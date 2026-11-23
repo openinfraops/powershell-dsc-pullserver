@@ -74,6 +74,11 @@ func main() {
 		if strings.TrimSpace(global.AppConfig.DSCPullServer.RegistrationKey) == "" {
 			logs.WriteLogFile("WARN [SECURITY] dsc_pullserver.registrationKey is empty. DSC nodes will not be able to register.")
 		}
+		// Secrets présents mais trop faibles (placeholders, trop courts, faible
+		// diversité de caractères) : on prévient dès le boot.
+		for _, w := range auth.SecurityWarnings(global.AppConfig) {
+			logs.WriteLogFile(w)
+		}
 
 		// Initialisation SAML Service Provider si activé
 		samlMiddleware, err := auth.InitSamlMiddleware(global.AppConfig)
