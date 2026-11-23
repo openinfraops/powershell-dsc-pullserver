@@ -56,9 +56,6 @@ func GetDscActionNodeHandlerWithId(w http.ResponseWriter, r *http.Request, agent
 	}
 	r.Body = io.NopCloser(strings.NewReader(string(body)))
 
-	// DEBUG : afficher le body dans la réponse HTTP (en plus du log)
-	w.Header().Set("X-Debug-Client-Body", string(body))
-
 	// Charger les noms de configuration depuis la base
 	var configNames []string
 	rows, err := database.Query(`SELECT configuration_name FROM agent_configurations WHERE agent_id = ?`, agentId)
