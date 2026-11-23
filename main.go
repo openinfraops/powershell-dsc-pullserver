@@ -525,7 +525,7 @@ func main() {
 	}
 
 	if runtime.GOOS == "windows" {
-		err := service.StartWindowsService("DSCPullServer", runApp)
+		err := service.StartWindowsService(runApp)
 		if err != nil {
 			logs.WriteLogFile(fmt.Sprintf("ERROR [SERVICE] %v", err))
 			os.Exit(1)

@@ -12,19 +12,25 @@ func WriteServiceLog(message string) error {
 	return logs.WriteLogFile(message)
 }
 
+// ServiceName is the Windows SCM service name registered by the executable.
+// It MUST stay in sync with the service name used by the install/update/uninstall
+// scripts (scripts/*-windows.ps1) and the installation guide (doc/installation.md),
+// which create/stop/delete the service under this name.
+const ServiceName = "DSC-Console"
+
 // StartWindowsService démarre l'application en tant que service Windows.
 //
 // runFunc reçoit un contexte annulable : il est annulé lors d'un arrêt propre
 // du service (Stop / Shutdown) ou, en mode hors service, à la fin du programme.
 // runFunc doit respecter ctx.Done() pour arrêter proprement ses goroutines de
 // fond (workers planifiés, serveurs HTTP) avant de retourner.
-func StartWindowsService(serviceName string, runFunc func(ctx context.Context)) error {
+func StartWindowsService(runFunc func(ctx context.Context)) error {
 	isService, err := svc.IsWindowsService()
 	if err != nil {
 		return fmt.Errorf("[SERVICE] Erreur détection mode service: %v", err)
 	}
 	if isService {
-		return svc.Run(serviceName, &appService{runFunc: runFunc})
+		return svc.Run(ServiceName, &appService{runFunc: runFunc})
 	}
 	// Si pas en mode service, exécute normalement. On crée un contexte annulable
 	// pour permettre un arrêt propre du processus.
