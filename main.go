@@ -333,16 +333,23 @@ func main() {
 			service.StartConfigurationRepoWorkerWithConfig(
 				ctx,
 				func() (service.ConfigurationRepoConfig, error) {
-					contexts, _, contextErr := db.ListNodeCompilationContextsWithAgentIDs(dbConn)
-					if contextErr != nil {
-						return service.ConfigurationRepoConfig{}, contextErr
-					}
 					runConfig := repoCfg
-					runConfig.NodeContexts = contexts
+					// La résolution des contextes de compilation est paresseuse :
+					// le dépôt est synchronisé en premier, et on ne résout les
+					// propriétés des nœuds que si le dépôt a changé (compilation
+					// réelle). Dans le cas fréquent « dépôt à jour », aucune
+					// résolution n'est donc effectuée.
+					runConfig.ResolveNodeContexts = func() ([]service.NodeCompilationContext, error) {
+						contexts, _, contextErr := db.ListNodeCompilationContextsWithAgentIDs(dbConn)
+						return contexts, contextErr
+					}
 					return runConfig, nil
 				},
 				repoSync.interval,
 				func(compiled []service.CompiledConfiguration) (int, error) {
+					if len(compiled) == 0 {
+						return 0, nil
+					}
 					_, nodeAgentIDs, contextErr := db.ListNodeCompilationContextsWithAgentIDs(dbConn)
 					if contextErr != nil {
 						return 0, contextErr

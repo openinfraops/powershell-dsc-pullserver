@@ -37,6 +37,13 @@ type ConfigurationRepoConfig struct {
 	RepositoryUsername   string
 	RepositoryPassword   string
 	NodeContexts         []NodeCompilationContext
+	// ResolveNodeContexts, si non nul, est appelé pour produire les contextes de
+	// compilation **seulement lorsque le dépôt a changé** (c'est-à-dire quand on
+	// va réellement compiler). Permet au worker périodique d'éviter de résoudre
+	// les propriétés de tous les nœuds à chaque cycle alors que, dans le cas
+	// fréquent « dépôt à jour », aucune compilation n'est nécessaire.
+	// Prioritaire sur NodeContexts lorsqu'il est défini.
+	ResolveNodeContexts func() ([]NodeCompilationContext, error)
 }
 
 type NodeCompilationContext struct {
@@ -209,6 +216,13 @@ func SyncAndCompileConfigurationsForNodeContext(config ConfigurationRepoConfig, 
 		args = append(args, "-ConfigurationNamesJson", string(nameJSON))
 	}
 	nodeContexts := append([]NodeCompilationContext(nil), config.NodeContexts...)
+	if config.ResolveNodeContexts != nil {
+		resolved, err := config.ResolveNodeContexts()
+		if err != nil {
+			return nil, err
+		}
+		nodeContexts = append(nodeContexts, resolved...)
+	}
 	if nodeName != "" || len(tags) > 0 {
 		nodeContexts = append(nodeContexts, NodeCompilationContext{NodeName: nodeName, Tags: tags})
 	}
