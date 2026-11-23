@@ -83,8 +83,11 @@ func maybeSetCertificateRotationHeader(w http.ResponseWriter, dbConn *sql.DB, ag
 	}
 	var force int
 	var notAfter string
-	if err := dbConn.QueryRow(`SELECT force_cert_rotation, certificate_notafter FROM agents WHERE agent_id = ?`, agentId).Scan(&force, &notAfter); err != nil {
-		return // nœud inconnu ou aucun certificat enregistré
+	// CAST(... AS INT) : force_cert_rotation est BIT (MSSQL) ou INTEGER (SQLite).
+	// Le CAST rend le scan en int portable entre les deux drivers.
+	if err := dbConn.QueryRow(`SELECT CAST(force_cert_rotation AS INT), certificate_notafter FROM agents WHERE agent_id = ?`, agentId).Scan(&force, &notAfter); err != nil {
+		_ = logs.WriteLogFile(fmt.Sprintf("[CERTROTATION] Failed to read agent %q for rotation decision: %v", agentId, err))
+		return
 	}
 	// Demande forcée par un admin (bouton « renouveler maintenant ») : on émet
 	// l'en-tête sans tenir compte de la fenêtre ni du flag global d'activation.
@@ -159,7 +162,7 @@ func CertificateRotationHandler(w http.ResponseWriter, r *http.Request) {
 	// demande forcée d'un admin (bouton « renouveler maintenant »). Conforme §3.12
 	// (MAY : le serveur peut rejeter une rotation non sollicitée).
 	var force int
-	_ = database.QueryRow(`SELECT force_cert_rotation FROM agents WHERE agent_id = ?`, agentId).Scan(&force)
+	_ = database.QueryRow(`SELECT CAST(force_cert_rotation AS INT) FROM agents WHERE agent_id = ?`, agentId).Scan(&force)
 	settings, err := db.GetDscSettings(database)
 	rotationAllowed := (err == nil && settings.CertificateRotationEnabled) || force == 1
 	if !rotationAllowed {
