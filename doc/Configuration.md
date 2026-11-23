@@ -41,7 +41,7 @@ This page describes all configuration options available in `config.json` for the
 | bypass_ca_validation       | bool    | `true` = accept any client cert (no chain/CA check), identify the node by the enrolled thumbprint only. `false` = also validate the chain against the OS system trust store | `true`                 |
 | port                       | int     | API server port                                     | `8484`                 |
 | registrationKey            | string  | Key for agent registration (DSC)                    | `"AnyString"`          |
-| shared_secret              | string  | JWT signing secret (web/API auth). If both are set, `web_ui.shared_secret` takes precedence. | `"your-strong-secret"` |
+| shared_secret              | string  | JWT signing secret (web/API auth). If both are set, `web_ui.shared_secret` takes precedence. | `"pQw8vZ3rT6sJkL2xQ9eBfG7hN1uVtX4yC5zR8aW0sD3mPqE6bH0jKfL9nS2tU7vY1"` |
 | enable_report_auto_cleanup | bool    | Enable periodic deletion of old reports             | `false`                |
 | report_retention_days      | int     | Keep reports for this number of days                | `90`                   |
 | report_cleanup_interval_mins | int   | Cleanup execution interval in minutes               | `1440`                 |
@@ -81,7 +81,7 @@ The Git-backed **configuration repository** settings are **stored in the databas
 | key_file   | string  | Path to SSL private key                     | `"dsc-dev.local.key"`  |
 | enable_https | bool  | Enable HTTPS for web UI                     | `true`                 |
 | port       | int     | Web UI port                                 | `443`                  |
-| shared_secret | string | JWT signing secret for the web/API. Takes precedence over `dsc_pullserver.shared_secret`. | `"your-strong-secret"` |
+| shared_secret | string | JWT signing secret for the web/API. Takes precedence over `dsc_pullserver.shared_secret`. | `"pQw8vZ3rT6sJkL2xQ9eBfG7hN1uVtX4yC5zR8aW0sD3mPqE6bH0jKfL9nS2tU7vY1"` |
 | trusted_proxies | []string | IPs/CIDRs of trusted reverse proxies. The `X-Forwarded-For` / `X-Real-IP` headers are only honored for the login rate-limiter when the direct peer (`RemoteAddr`) belongs to this list; otherwise they are ignored (prevents brute-force bypass by spoofing a forward header). | `["10.0.0.0/8", "172.16.0.1"]` |
 
 > **Note:** `web_ui` shares the same configuration structure as `dsc_pullserver` (both use `HTTPConfig`), so it also accepts the certificate/validation/cleanup keys. In practice only `cert_file`, `key_file`, `enable_https`, `port`, `shared_secret` and `trusted_proxies` are meaningful for the web/API server.

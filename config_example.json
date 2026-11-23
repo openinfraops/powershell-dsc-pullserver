@@ -10,7 +10,7 @@
   "dsc_pullserver": {
     "cert_file": "dsc-dev.local.crt",
     "enable_https": true,
-    "enable_client_cert_validation": false,
+    "enable_client_cert_validation": true,
     "bypass_ca_validation": true,
     "enable_report_auto_cleanup": false,
     "enable_release_check": false,
@@ -29,7 +29,7 @@
     "cert_file": "dsc-dev.local.crt",
     "enable_https": true,
     "key_file": "dsc-dev.local.key",
-    "shared_secret": "example-shared-secret",
+    "shared_secret": "pQw8vZ3rT6sJkL2xQ9eBfG7hN1uVtX4yC5zR8aW0sD3mPqE6bH0jKfL9nS2tU7vY1",
     "port": 443
   }
 }
