@@ -11,8 +11,8 @@ Thanks for your interest in **go-dsc-pull**. Feedback, bug reports and contribut
 
 - Open a pull request from a feature branch off `main`.
 - Keep changes focused and consistent with the surrounding code style and naming.
-- Update the relevant documentation (`doc/`) when behaviour or configuration changes.
-- Update the [release note](doc/release_v1.6.6.md) when the change is user-facing.
+- Update the relevant documentation (`doc/`) when behaviour or configuration changes; if you add a new page, reference it from the [documentation index](doc/README.md).
+- When the change is user-facing, update the **latest** [release note](doc/README.md#release-notes) (the newest `doc/release_v*.md`), not a historical one.
 
 ## Development environment
 

@@ -1,0 +1,17 @@
+name: Docs
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check-doc-links:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Check relative Markdown links
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File .github/scripts/check-doc-links.ps1
