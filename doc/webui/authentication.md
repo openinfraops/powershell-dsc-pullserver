@@ -10,7 +10,7 @@ This page explains the authentication mechanisms available in the DSC Pull Serve
 > ```
 > DSC-Admin-Console.exe init-bootstrap-admin
 > ```
-> This generates a single-use 30-character random password and prints it on the console. See [Security](../dscpull/securite.md) for details.
+> This generates a single-use 30-character random password and prints it on the console. See [Security](../dscpull/security.md) for details.
 
 ## SAML Configuration
 

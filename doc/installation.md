@@ -11,7 +11,7 @@ The server is a single self-contained **Go** executable (no Go runtime required 
 - **PowerShell 7 (`pwsh`)** — **only required** if you use the Git-backed **configuration repository** (compilation). Must be installed on the server and reachable by the service account. The DSC resource modules referenced by your configurations must be installed for that `pwsh` environment.
 - **Certificates:**
   - A **server certificate + private key** (PEM) for HTTPS, configured via `cert_file` / `key_file` (DSC and/or web UI). Use a certificate trusted by the clients.
-  - For **client-certificate validation** (`enable_client_cert_validation: true`), each DSC node presents its own client certificate; see [DSC security](dscpull/securite.md).
+  - For **client-certificate validation** (`enable_client_cert_validation: true`), each DSC node presents its own client certificate; see [DSC security](dscpull/security.md).
 - **Registration key** (`dsc_pullserver.registrationKey`) — shared secret used by DSC nodes to register.
 - **JWT signing secret** (`web_ui.shared_secret`, or `dsc_pullserver.shared_secret` for backward compatibility).
 - **Network / ports:**
@@ -40,7 +40,7 @@ The server is a single self-contained **Go** executable (no Go runtime required 
 2. **Configure the application:**
     - Edit `config.json` for database, SAML, and web UI settings.
    - See example configuration files:
-   - For SAML configuration details, see [SAML configuration documentation](webui/authentification.md).
+   - For SAML configuration details, see [SAML configuration documentation](webui/authentication.md).
        - [config_sqlite.json](example/config/config_sqlite.json) (SQLite, no SAML)
        - [config_mssql.json](example/config/config_mssql.json) (MSSQL, no SAML)
        - [config_nosaml.json](example/config/config_nosaml.json) (SQLite, SAML disabled)
@@ -85,7 +85,7 @@ The server is a single self-contained **Go** executable (no Go runtime required 
 
 6. **Certificate management:**
    - Use a trusted certificate for production.
-   - Client certificate validation is disabled by default in `config.json` for testing. When you enable `enable_client_cert_validation`, the DSC endpoint **always** requires a client certificate; `bypass_ca_validation` then only controls whether the chain/CA is validated (`true` = accept self-signed node certs and rely on the enrolled thumbprint; `false` = also validate the chain against the OS system trust store). A client certificate requires HTTPS.
+   - The example `config.json` files enable mutual TLS (`enable_client_cert_validation: true`). When enabled, the DSC endpoint **always** requires a client certificate; `bypass_ca_validation` then only controls whether the chain/CA is validated (`true` = accept self-signed node certs and rely on the enrolled thumbprint; `false` = also validate the chain against the OS system trust store). A client certificate requires HTTPS.
 
 7. **Web UI access:**
    - Open your browser and go to `https://your-server:443/web` (or the port specified).

@@ -37,7 +37,7 @@ This page describes all configuration options available in `config.json` for the
 | cert_file                  | string  | Path to SSL certificate                             | `"dsc-dev.local.crt"`  |
 | key_file                   | string  | Path to SSL private key                             | `"dsc-dev.local.key"`  |
 | enable_https               | bool    | Enable HTTPS                                        | `true`                 |
-| enable_client_cert_validation | bool | Always require a client certificate on the DSC endpoint | `false`                |
+| enable_client_cert_validation | bool | Always require a client certificate on the DSC endpoint | `true`                 |
 | bypass_ca_validation       | bool    | `true` = accept any client cert (no chain/CA check), identify the node by the enrolled thumbprint only. `false` = also validate the chain against the OS system trust store | `true`                 |
 | port                       | int     | API server port                                     | `8484`                 |
 | registrationKey            | string  | Key for agent registration (DSC)                    | `"AnyString"`          |
@@ -133,7 +133,7 @@ The Git-backed **configuration repository** settings are **stored in the databas
   "dsc_pullserver": {
     "cert_file": "dsc-dev.local.crt",
     "enable_https": true,
-    "enable_client_cert_validation": false,
+    "enable_client_cert_validation": true,
     "bypass_ca_validation": true,
     "enable_report_auto_cleanup": false,
     "enable_release_check": false,

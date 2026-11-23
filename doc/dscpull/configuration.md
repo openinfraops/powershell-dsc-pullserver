@@ -1,16 +1,17 @@
 # DSC Pull Server Configuration
 
-This page describes the expected structure and options for the DSC Pull Server configuration file (`config.json`).
+This page describes the expected structure and options of the DSC Pull Server configuration file (`config.json`). The exhaustive reference for **every** section (`database`, `dsc_pullserver`, `web_ui`, `saml`) is in [Configuration.md](../Configuration.md); this page focuses on the `dsc_pullserver` block and the mutual-TLS settings.
 
 ## Main Section: `dsc_pullserver`
 
 Example:
+
 ```json
 {
   "dsc_pullserver": {
     "cert_file": "dsc-dev.local.crt",
     "enable_https": true,
-    "enable_client_cert_validation": false,
+    "enable_client_cert_validation": true,
     "bypass_ca_validation": true,
     "key_file": "dsc-dev.local.key",
     "port": 8484,
@@ -21,19 +22,40 @@ Example:
 
 ### Option Descriptions
 
-- **cert_file**: Path to the server's SSL certificate file. Required for HTTPS.
-- **key_file**: Path to the server's private key file. Required for HTTPS.
-- **enable_https**: Set to `true` to enable HTTPS. If `false`, the server will run in HTTP mode. **The server emits a `WARN` at startup when running over plain HTTP.** In HTTP mode no client certificate is negotiated, so if `enable_client_cert_validation` is also `true` the server logs an additional `WARN` to make it clear the pull endpoints are **not** protected by mutual TLS.
-- **enable_client_cert_validation**: If `true`, the DSC endpoint **always** requires a client certificate. Recommended for production.
-- **bypass_ca_validation**: Controls the **CA/chain validation** of the presented client certificate, **not** whether a certificate is required. A client certificate is always required when `enable_client_cert_validation` is `true`, whatever this value:
-  - `true`: the server accepts any certificate without validating its signature/chain (suitable for self-signed node certificates). The node is identified **only** by its enrolled certificate thumbprint. This is the classic DSC model.
-  - `false`: the server additionally validates the certificate chain/signature against the **OS system trust store** (`RequireAndVerifyClientCert`), **and** still checks the enrolled thumbprint. No extra config field is required.
-- **port**: Port number the server listens on (default: 8484).
-- **registrationKey**: Key required for agent registration. Set any string value; agents must provide this key to register. **The server emits a `WARN` at startup if this value is empty** (no node would be able to register).
+| Key                              | Description |
+|----------------------------------|-------------|
+| **cert_file**                    | Path to the server's SSL certificate file. Required for HTTPS. |
+| **key_file**                     | Path to the server's private key file. Required for HTTPS. |
+| **enable_https**                 | Set to `true` to enable HTTPS. If `false`, the server runs in plain HTTP mode. **The server emits a `WARN` at startup when running over plain HTTP.** In HTTP mode no client certificate is negotiated, so if `enable_client_cert_validation` is also `true` the server logs an additional `WARN` to make it clear the pull endpoints are **not** protected by mutual TLS. |
+| **enable_client_cert_validation** | If `true`, the DSC endpoint **always** requires a client certificate (**mutual TLS**). Recommended for production. `false` disables mutual TLS entirely. |
+| **bypass_ca_validation**         | Controls the **CA/chain validation** of the presented client certificate, **not** whether a certificate is required. A client certificate is always required when `enable_client_cert_validation` is `true`, whatever this value: |
+|                                  | - `true`: the server accepts any certificate without validating its signature/chain (suitable for **self-signed** node certificates). The node is identified **only** by its enrolled certificate thumbprint. This is the classic DSC model. |
+|                                  | - `false`: the server additionally validates the certificate chain/signature against the **OS system trust store** (`RequireAndVerifyClientCert`), **and** still checks the enrolled thumbprint. |
+| **port**                         | Port the server listens on (default: `8484`). |
+| **registrationKey**              | Key required for agent registration. Set any string value; agents must provide it to register. **The server emits a `WARN` at startup if this value is empty** (no node would be able to register). |
+
+### Optional / operational keys
+
+These keys are also accepted in the `dsc_pullserver` block (shared `HTTPConfig` struct). They are documented in [Configuration.md](../Configuration.md) and can be left at their default in a minimal setup:
+
+- **shared_secret**: JWT signing secret for the web/API. `web_ui.shared_secret` takes precedence when both are set.
+- **enable_report_auto_cleanup**, **report_retention_days**, **report_cleanup_interval_mins**: periodic cleanup of old reports.
+- **enable_release_check**, **release_check_interval_mins**: periodic GitHub latest-release check.
+- **enable_log_rotation**, **log_rotate_max_size_mb**, **log_rotate_max_backups**, **log_rotate_max_age_days**: log file rotation.
+- **enable_agent_purge**, **agent_purge_retention_days**, **agent_purge_interval_mins**: periodic purge of soft-deleted agents.
+- **enable_configuration_version_cleanup**, **configuration_version_max_keep**, **configuration_version_cleanup_interval_mins**: retention of old configuration versions.
+- **enable_configuration_repo_sync**, **configuration_repo_***: legacy migration source for the Git-backed configuration repository. These are **imported once** and then **stored in the database** (`configuration_repo_settings`), managed from the **Scheduler administration page** — see [Configuration repository (Git) & Scheduler](configuration-repo.md).
 
 ## Additional Sections
 
-Other configuration sections (database, SAML, JWT, web) may be present depending on your deployment. See the main documentation for details.
+The `database`, `web_ui`, and `saml` blocks are described in [Configuration.md](../Configuration.md). The `web_ui` block shares the same structure as `dsc_pullserver` (both use `HTTPConfig`); in practice only `cert_file`, `key_file`, `enable_https`, `port`, `shared_secret` and `trusted_proxies` are meaningful for the web/API server.
+
+## Related pages
+
+- [Node registration](registration.md)
+- [Security](security.md)
+- [Configuration repository (Git) & Scheduler](configuration-repo.md)
+- [Full configuration reference](../Configuration.md)
 
 ---
 

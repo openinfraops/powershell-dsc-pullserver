@@ -20,15 +20,15 @@ Detailed documentation is organized into two main sections:
 - [Database schema](doc/DatabaseSchema.md)
 - [DSC Pull Server Configuration](doc/dscpull/configuration.md)
 - [Configuration repository (Git) & Scheduler](doc/dscpull/configuration-repo.md)
-- [Node Registration](doc/dscpull/enregistrement.md)
-- [Security](doc/dscpull/securite.md)
+- [Node Registration](doc/dscpull/registration.md)
+- [Security](doc/dscpull/security.md)
 - [API v1 Reference](doc/APIv1.md)
 - [SAML Integration](doc/SAML.md)
-- [Web Authentication](doc/webui/authentification.md)
+- [Web Authentication](doc/webui/authentication.md)
 - [Resource Modules](doc/webui/modules.md)
 - [MOF Configurations](doc/webui/configurations.md)
-- [Roles & Access](doc/webui/droits.md)
-- [Storage Modes](doc/webui/stockage.md)
+- [Roles & Access](doc/webui/permissions.md)
+- [Storage Modes](doc/webui/storage.md)
 
 ## Getting started
 

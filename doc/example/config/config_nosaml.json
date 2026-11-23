@@ -6,7 +6,7 @@
   "dsc_pullserver": {
     "cert_file": "dsc-dev.local.crt",
     "enable_https": true,
-    "enable_client_cert_validation": false,
+    "enable_client_cert_validation": true,
     "bypass_ca_validation": true,
     "key_file": "dsc-dev.local.key",
     "port": 8484,
