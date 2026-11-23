@@ -6,13 +6,13 @@ This page explains how to install and deploy the Go DSC Pull Server.
 
 The server is a single self-contained **Go** executable (no Go runtime required on the target host). Before installing, ensure:
 
-- **Operating system:** Windows is the primary target. The binary itself is cross-platform (the `init-bootstrap-admin` CLI and the web UI run anywhere), but the DSC config-repository **compilation** feature requires Windows + PowerShell 7.
+- **Operating system:** Windows is the primary target. The binary itself is cross-platform (the `init-bootstrap-admin` CLI and the web UI run anywhere), but the DSC config-repository **compilation** feature requires Windows + PowerShell (7 recommended, Windows PowerShell 5.1 works too).
 - **Database:** either **Microsoft SQL Server** (MSSQL) or **SQLite** (embedded). Choose the driver in `config.json` → `database.driver`. An existing MSSQL database may require a migration script when upgrading (see `db/migration_*.sql`).
-- **PowerShell 7 (`pwsh`)** — **only required** if you use the Git-backed **configuration repository** (compilation). Must be installed on the server and reachable by the service account. The DSC resource modules referenced by your configurations must be installed for that `pwsh` environment.
+- **Windows PowerShell** — **only required** if you use the Git-backed **configuration repository** (compilation). The compiler script (`Compile-Configurations.ps1`) imports the `PSDesiredStateConfiguration` module, which ships with **Windows PowerShell 5.1** and is also available in **PowerShell 7 (`pwsh`)** — **either works**. `pwsh` is the default (`configuration_powershell_executable`), but you can point it at `powershell.exe` if only Windows PowerShell 5.1 is installed. Must be installed on the server and reachable by the service account. The DSC resource modules referenced by your configurations must be installed for that PowerShell environment.
 - **Certificates:**
   - A **server certificate + private key** (PEM) for HTTPS, configured via `cert_file` / `key_file` (DSC and/or web UI). Use a certificate trusted by the clients.
-  - For **client-certificate validation** (`enable_client_cert_validation: true`), each DSC node presents its own client certificate; see [DSC security](dscpull/security.md).
-- **Registration key** (`dsc_pullserver.registrationKey`) — shared secret used by DSC nodes to register.
+  - For **client-certificate validation** (`enable_client_cert_validation: true`), the DSC endpoint operates in **mutual TLS (mTLS)**: each DSC node presents its **own client certificate** on every pull. See [DSC security](dscpull/security.md) for the thumbprint-binding model. mTLS requires HTTPS.
+- **Registration key** (`dsc_pullserver.registrationKey`) — shared secret used by DSC nodes to register. Generate a strong value with [scripts/Generate-SecureKeys.ps1](../../scripts/Generate-SecureKeys.ps1) (the same script generates the JWT signing secret for `web_ui.shared_secret`).
 - **JWT signing secret** (`web_ui.shared_secret`, or `dsc_pullserver.shared_secret` for backward compatibility).
 - **Network / ports:**
   - DSC pull server port (`8484` in the example configs).
@@ -46,8 +46,18 @@ The server is a single self-contained **Go** executable (no Go runtime required 
        - [config_nosaml.json](example/config/config_nosaml.json) (SQLite, SAML disabled)
        - [config_saml.json](example/config/config_saml.json) (MSSQL, SAML enabled)
    - Place your SSL certificate and key files in the specified paths.
+   - **Generate the secrets** (`dsc_pullserver.registrationKey` and `web_ui.shared_secret`) with the provided script, then copy them into `config.json`:
+     ```sh
+     .\scripts\Generate-SecureKeys.ps1
+     ```
+     The script prints strong values and can emit them as JSON (`-AsJson`) or write them to a file (`-OutputFile .\secret-keys.txt`). Never use a short/guessable secret.
 
-3. **Create the initial administrator account:**
+3. **Database setup:**
+   - **SQLite:** nothing to do. The server creates the `dsc.db` file and the tables automatically on first start (`db.InitDB`).
+   - **MSSQL:** the **database** must exist on your SQL Server instance (`CREATE DATABASE DSCPullServer`). The **tables** are created automatically by the server on start; the [db/schema_mssql.sql](../../db/schema_mssql.sql) script is provided as a reference and for pre-provisioning if you prefer to create the schema before first run.
+   - The server loads and initializes the schema automatically when the database is empty (check `dsc-pull-server.log` for confirmation). You do **not** need to run the schema script manually on a fresh install.
+
+4. **Create the initial administrator account:**
    - On first run, the server no longer creates a default admin account (`admin@localhost / password`). Initialize the first administrator locally with a strong, randomly generated password:
      ```sh
      ./DSC-Admin-Console.exe init-bootstrap-admin
@@ -55,39 +65,36 @@ The server is a single self-contained **Go** executable (no Go runtime required 
    - The command reads `config.json`, initializes the database schema if needed (requires the `db/` directory next to the executable), creates the `admin@localhost` account (role `admin`) **only if no user exists**, and prints a **single-use 30-character random password** on the console.
    - Store this password securely and change it after the first login. Re-running the command **refuses to overwrite** an existing account.
 
-4. **Deploy the server:**
-    - Run the executable:
-       ```sh
-       ./DSC-Admin-Console.exe
-       ```
-    - (Optional) Register as a Windows service using `sc.exe`:
-      1. Open a command prompt as Administrator.
-      2. Run the following command (adapt the path as needed):
-         ```sh
-         sc.exe create DSC-Console DisplayName= "DSC-Admin-Console" binPath= "C:\\Path\\To\\DSC-Admin-Console.exe" start= auto
-         ```
-      3. Start the service:
-         ```sh
-         sc.exe start DSC-Console
-         ```
-      4. To stop or delete the service:
-         ```sh
-         sc.exe stop DSC-Console
-         sc.exe delete DSC-Console
-         ```
-
-      > **Tip:** the provided [install-windows.ps1](../../scripts/install-windows.ps1) installs and registers the service (`-CreateService`) with the same `DSC-Console` / `DSC-Admin-Console` naming, plus the registry and "Add/Remove Programs" entries.
-
-5. **Database setup:**
-   - For MSSQL: run `db/schema_mssql.sql` to create tables.
-   - For SQLite: run `db/schema_sqlite.sql`.
-   - The server can also automatically load and initialize the database schema on start if the database is empty (check logs for confirmation).
-
-
+5. **Deploy the server (install as a Windows service):**
+   - The recommended deployment is as a **Windows service** so it starts automatically and runs in the background. The provided script installs the files, the registry, the service and the "Add/Remove Programs" entries:
+     ```sh
+     .\scripts\install-windows.ps1 -CreateService
+     ```
+     This registers the service as **`DSC-Console`** (binary `DSC-Admin-Console.exe`).
+   - Alternatively, register it manually with `sc.exe`:
+     1. Open a command prompt as Administrator.
+     2. Run the following command (adapt the path as needed):
+        ```sh
+        sc.exe create DSC-Console DisplayName= "DSC-Admin-Console" binPath= "C:\\Path\\To\\DSC-Admin-Console.exe" start= auto
+        ```
+     3. Start the service:
+        ```sh
+        sc.exe start DSC-Console
+        ```
+     4. To stop or delete the service:
+        ```sh
+        sc.exe stop DSC-Console
+        sc.exe delete DSC-Console
+        ```
+   - (Alternative) Run the executable in the foreground for a quick test:
+     ```sh
+     ./DSC-Admin-Console.exe
+     ```
+   - See [Windows Deployment Best Practices](#windows-deployment-best-practices) for the least-privilege service account and recommended permissions.
 
 6. **Certificate management:**
    - Use a trusted certificate for production.
-   - The example `config.json` files enable mutual TLS (`enable_client_cert_validation: true`). When enabled, the DSC endpoint **always** requires a client certificate; `bypass_ca_validation` then only controls whether the chain/CA is validated (`true` = accept self-signed node certs and rely on the enrolled thumbprint; `false` = also validate the chain against the OS system trust store). A client certificate requires HTTPS.
+   - The example `config.json` files enable **mutual TLS** (`enable_client_cert_validation: true`). When enabled, the DSC endpoint **always** requires a client certificate (mTLS); `bypass_ca_validation` then only controls whether the chain/CA is validated (`true` = accept self-signed node certs and rely on the enrolled thumbprint; `false` = also validate the chain against the OS system trust store). A client certificate requires HTTPS.
 
 7. **Web UI access:**
    - Open your browser and go to `https://your-server:443/web` (or the port specified).

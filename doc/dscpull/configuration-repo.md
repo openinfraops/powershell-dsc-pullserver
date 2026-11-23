@@ -29,7 +29,7 @@ Web UI: the settings live on **`/web/admin/scheduler`** (admin only).
 | `configuration_repo_branch` | string | `"main"` | Branch to sync. |
 | `configuration_repo_directory` | string | `"data/configuration-repository"` | Local directory where the repository is checked out. |
 | `configuration_compiler_script` | string | `"scripts/Compile-Configurations.ps1"` | Compiler script (relative to the checkout root) that produces `.mof` files. |
-| `configuration_powershell_executable` | string | `"pwsh"` | PowerShell executable used to run the compiler script (PowerShell 7). |
+| `configuration_powershell_executable` | string | `"pwsh"` | PowerShell executable used to run the compiler script (`pwsh` default; Windows PowerShell 5.1 via `powershell.exe` also works). |
 | `configuration_repo_username` | string | `""` | Git username (optional). |
 | `configuration_repo_password` | string | `""` | Git password / personal access token (optional). |
 | `configuration_repo_sync_interval_mins` | int | `60` | Scheduled sync interval, in minutes. |
@@ -58,7 +58,7 @@ The sync flow:
 
 ### Requirements
 
-- **Windows** and **PowerShell 7 (`pwsh`)** on the server.
+- **Windows** and **PowerShell** on the server (`pwsh` — PowerShell 7 — recommended; Windows PowerShell 5.1 via `powershell.exe` also works).
 - The DSC resource modules referenced by the configurations must be installed for that PowerShell environment.
 - The service account needs **network access** to the Git repository and **write access** to `configuration_repo_directory` and the temporary output directory.
 - **Use only a trusted repository** — the configured compiler script is **executable code** run server-side.
