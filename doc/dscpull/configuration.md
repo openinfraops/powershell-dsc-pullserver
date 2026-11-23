@@ -15,7 +15,8 @@ Example:
     "bypass_ca_validation": true,
     "key_file": "dsc-dev.local.key",
     "port": 8484,
-    "registrationKey": "AnyString"
+    "registrationKey": "AnyString",
+    "shared_secret": "pQw8vZ3rT6sJkL2xQ9eBfG7hN1uVtX4yC5zR8aW0sD3mPqE6bH0jKfL9nS2tU7vY1"
   }
 }
 ```
