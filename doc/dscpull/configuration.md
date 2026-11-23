@@ -38,7 +38,7 @@ Example:
 
 These keys are also accepted in the `dsc_pullserver` block (shared `HTTPConfig` struct). They are documented in [Configuration.md](../Configuration.md) and can be left at their default in a minimal setup:
 
-- **shared_secret**: JWT signing secret for the web/API. `web_ui.shared_secret` takes precedence when both are set.
+- **shared_secret**: JWT signing secret for the web/API. `web_ui.shared_secret` takes precedence when both are set. Example (replace with your own strong value): `"pQw8vZ3rT6sJkL2xQ9eBfG7hN1uVtX4yC5zR8aW0sD3mPqE6bH0jKfL9nS2tU7vY1"`.
 - **enable_report_auto_cleanup**, **report_retention_days**, **report_cleanup_interval_mins**: periodic cleanup of old reports.
 - **enable_release_check**, **release_check_interval_mins**: periodic GitHub latest-release check.
 - **enable_log_rotation**, **log_rotate_max_size_mb**, **log_rotate_max_backups**, **log_rotate_max_age_days**: log file rotation.
