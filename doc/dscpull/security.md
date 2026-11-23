@@ -94,9 +94,10 @@ DSC-Admin-Console.exe init-bootstrap-admin
 - Creates `admin@localhost` (role `admin`, source `local`) **only if no user exists**.
 - Generates a **cryptographically secure 30-character password** and prints it **once**.
 - **Refuses** to run if any user already exists (no account overwrite).
+- **Refuses to run when stdout is not a terminal.** The initial password is printed in clear text once; to avoid leaking it into a redirected file or a CI log, the command aborts unless stdout is a terminal (mutual `isatty` check). Do **not** run it with output redirected (`> file`) or in an automation pipeline.
 - The server logs a `WARN` pointing to this command when no user is present.
 
-Keep the printed password safe and change it after the first login.
+Keep the printed password safe and change it after the first login. Clear the terminal scrollback after reading it.
 
 ---
 

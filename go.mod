@@ -7,6 +7,7 @@ require (
 	github.com/denisenkom/go-mssqldb v0.12.3
 	github.com/go-git/go-git/v5 v5.19.2
 	github.com/golang-jwt/jwt/v5 v5.3.0
+	github.com/mattn/go-isatty v0.0.20
 	golang.org/x/crypto v0.53.0
 	golang.org/x/sys v0.46.0
 	modernc.org/sqlite v1.40.1
@@ -33,7 +34,6 @@ require (
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/mattermost/xml-roundtrip-validator v0.1.0 // indirect
-	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
 	github.com/pjbgf/sha1cd v0.6.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect

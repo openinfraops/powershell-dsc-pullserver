@@ -4,7 +4,10 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
+	"os"
 	"path/filepath"
+
+	"github.com/mattn/go-isatty"
 
 	"go-dsc-pull/internal"
 	"go-dsc-pull/internal/db"
@@ -50,6 +53,15 @@ func randomPassword(length int) (string, error) {
 // (vulnérabilité C1) : plus aucune identité admin prévisible n'est créée
 // automatiquement au démarrage du serveur.
 func runInitBootstrapAdmin() int {
+	// Sécurité : ce mode affiche le mot de passe généré en clair (une seule
+	// fois). On refuse de s'exécuter si stdout n'est pas un terminal, pour
+	// éviter que le secret soit écrit dans un fichier redirigé ( > out.txt )
+	// ou dans un log CI/artefact, où il resterait en clair.
+	if !isatty.IsTerminal(os.Stdout.Fd()) {
+		fmt.Fprintln(os.Stderr, "Error: init-bootstrap-admin must be run interactively (stdout must be a terminal). Refusing to print the initial admin password to a redirected/CI output.")
+		return 1
+	}
+
 	appCfg, err := internal.LoadAppConfig("config.json")
 	if err != nil {
 		fmt.Printf("Error: failed to load config.json: %v\n", err)
@@ -114,6 +126,12 @@ func runInitBootstrapAdmin() int {
 	fmt.Println("=============================================================")
 	fmt.Println("Initial admin account created successfully.")
 	fmt.Printf("  Email    : %s\n", bootstrapAdminEmail)
+	// codeql[go/clear-text-logging] Affiche volontairement, une seule fois, le
+	// mot de passe initial généré aléatoirement. Il est stocké en base sous
+	// forme de hash bcrypt (jamais en clair) ; cet affichage est le seul moyen
+	// pour l'opérateur de récupérer l'identifiant de premier démarrage. Ce
+	// n'est pas un sink de log applicatif : la commande refuse de s'exécuter
+	// hors terminal (garde isatty ci-dessus). Voir doc/dscpull/security.md.
 	fmt.Printf("  Password : %s\n", password)
 	fmt.Println("  (Password generated randomly, displayed only once.)")
 	fmt.Println("Keep it in a safe place and change it after the first login.")
