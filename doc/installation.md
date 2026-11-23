@@ -6,7 +6,7 @@ This page explains how to install and deploy the Go DSC Pull Server.
 
 The server is a single self-contained **Go** executable (no Go runtime required on the target host). Before installing, ensure:
 
-- **Operating system:** Windows (the DSC config-repository **compilation** feature requires Windows + PowerShell 7). The `init-bootstrap-admin` CLI and the web UI are cross-platform, but full DSC pull + compilation are Windows-oriented.
+- **Operating system:** Windows is the primary target. The binary itself is cross-platform (the `init-bootstrap-admin` CLI and the web UI run anywhere), but the DSC config-repository **compilation** feature requires Windows + PowerShell 7.
 - **Database:** either **Microsoft SQL Server** (MSSQL) or **SQLite** (embedded). Choose the driver in `config.json` → `database.driver`. An existing MSSQL database may require a migration script when upgrading (see `db/migration_*.sql`).
 - **PowerShell 7 (`pwsh`)** — **only required** if you use the Git-backed **configuration repository** (compilation). Must be installed on the server and reachable by the service account. The DSC resource modules referenced by your configurations must be installed for that `pwsh` environment.
 - **Certificates:**
@@ -15,16 +15,16 @@ The server is a single self-contained **Go** executable (no Go runtime required 
 - **Registration key** (`dsc_pullserver.registrationKey`) — shared secret used by DSC nodes to register.
 - **JWT signing secret** (`web_ui.shared_secret`, or `dsc_pullserver.shared_secret` for backward compatibility).
 - **Network / ports:**
-  - DSC pull server port (default `8484`).
-  - Web UI / API port (default `443`).
+  - DSC pull server port (`8484` in the example configs).
+  - Web UI / API port (`443` in the example configs).
   - Open these in the firewall. In HTTPS mode bind the ports to a trusted certificate.
-- **Service account** (when installing as a Windows service): a least-privilege account is recommended (see [Best practices](#windows-deployment-best-practices)). It needs read access to the executable/config/certificates and write access to the `db/`, `logs/`, and configuration-repository checkout directories.
+- **Service account** (when installing as a Windows service): a least-privilege account is recommended (see [Best practices](#windows-deployment-best-practices)). It needs **read** access to the executable, `config.json`, the certificates, and the `web/`, `templates/`, and `db/` (schema) directories; and **write** access to the **installation directory** (where the SQLite `dsc.db` file and the `dsc-pull-server.log` file are created) and the configuration-repository checkout directory (if used).
 
 ## Steps
 
 1. **Download the latest release:**
    - Go to the [GitHub Releases page](https://github.com/openinfraops/powershell-dsc-pullserver/releases) and download the pre-built executable for your platform.
-   - Extract the archive. Make sure to keep the `web/` and `templates/` directories, which are required for the web interface and are included in the release zip.
+   - Extract the archive. Make sure to keep the `web/`, `templates/`, and `db/` directories, which are required (the web interface, the HTML templates, and the SQL schema files) and are included in the release zip.
    - Place the executable and all required directories in your desired location.
 
    **Expected directory structure:**
@@ -95,7 +95,7 @@ The server is a single self-contained **Go** executable (no Go runtime required 
    - Authenticate and manage agents, modules, and configurations.
 
 ## Troubleshooting
-- Check logs for errors in the `logs/` directory.
+- Check the `dsc-pull-server.log` file (written next to the executable) for errors.
 - Ensure all ports are open and certificates are valid.
 - Review `config.json` for correct paths and settings.
 
@@ -107,15 +107,15 @@ The server is a single self-contained **Go** executable (no Go runtime required 
 ## Windows Deployment Best Practices
 
 - **Run as a least-privilege service account**, not `LocalSystem`. Grant only the permissions the server needs:
-  - read: the executable, `config.json`, the TLS certificate/key, the SAML SP key/cert;
-  - write: the `db/` directory (SQLite), `logs/`, and the configuration-repository checkout directory.
+  - read: the executable, `config.json`, the TLS certificate/key, the SAML SP key/cert, and the `web/`, `templates/`, and `db/` (schema) directories;
+  - write: the **installation directory** (for the SQLite `dsc.db` file and the `dsc-pull-server.log` file), and the configuration-repository checkout directory (if used).
   - If the account does not have rights to `C:\Windows\System32\...` etc., that is expected — do not widen permissions.
 - **Restrict file permissions.** Set `config.json` to `0600` (it holds secrets and the DB password). Protect the TLS private key and the SAML SP key the same way. The server writes `config.json` with `0600` when it persists settings.
 - **Use a properly formed HTTPS certificate.** The certificate hostname/SAN must match the hostname or IP the clients use. For the DSC endpoint the certificate is presented to the node LCM; for the web UI it is presented to browsers. Add a `WARN` check: the server logs at startup when HTTPS is disabled or client-certificate validation is enabled over plain HTTP.
 - **Open only the needed ports** in the firewall (DSC `8484`, web UI `443`). Do not expose plain HTTP to the network.
-- **Enable log rotation** (`enable_log_rotation: true`) and monitor the `logs/` directory size.
+- **Enable log rotation** (`enable_log_rotation: true`) and monitor the size of `dsc-pull-server.log` and its rotated backups.
 - **Graceful shutdown.** Stopping the Windows service lets in-flight requests finish and the scheduler tasks stop cleanly (the service uses a cancellable context): prefer `sc.exe stop DSCPullServer` over killing the process. Avoid `taskkill /F`, which tears down requests mid-flight.
-- **Upgrade procedure.** Back up the database and `config.json` first. Apply the relevant `db/migration_*.sql` script, replace the executable, then restart the service. Verify schema initialisation in the logs.
+- **Upgrade procedure.** Back up the database and `config.json` first. Apply the relevant `db/migration_*.sql` script, replace the executable, then restart the service. Verify schema initialisation in `dsc-pull-server.log`.
 - **Back up the database** (and the configuration-repository checkout if used) before any upgrade or maintenance.
 
 ## Security Notes
