@@ -77,6 +77,9 @@ func ConfigurationContentHandler(w http.ResponseWriter, r *http.Request) {
 	// Calcul du checksum SHA256
 	hash := sha256.Sum256(data)
 	checksum := hex.EncodeToString(hash[:])
+	// Signale au nœud, le cas échéant, que son certificat est dans la fenêtre
+	// de renouvellement (en-tête DSC-certificateRotation, §2.2.2.8).
+	maybeSetCertificateRotationHeader(w, dbConn, agentId)
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(data)))
 	w.Header().Set("Checksum", strings.ToUpper(checksum))

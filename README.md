@@ -22,6 +22,7 @@ Detailed documentation is organized into two main sections:
 - [Configuration repository (Git) & Scheduler](doc/dscpull/configuration-repo.md)
 - [Node Registration](doc/dscpull/registration.md)
 - [Security](doc/dscpull/security.md)
+- [MS-DSCPM protocol implementation state](doc/dscpull/protocol-implementation.md)
 - [API v1 Reference](doc/APIv1.md)
 - [SAML Integration](doc/SAML.md)
 - [Web Authentication](doc/webui/authentication.md)

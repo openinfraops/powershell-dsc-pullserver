@@ -59,8 +59,8 @@ CREATE TABLE IF NOT EXISTS dsc_infra_info (
     release_checked_at TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-INSERT OR IGNORE INTO dsc_infra_info (id, web_version, db_version, updated_at) VALUES (1, '0.0.1', '1.2.0', CURRENT_TIMESTAMP);
-UPDATE dsc_infra_info SET db_version = '1.2.0', updated_at = CURRENT_TIMESTAMP WHERE id = 1;
+INSERT OR IGNORE INTO dsc_infra_info (id, web_version, db_version, updated_at) VALUES (1, '0.0.1', '1.6.7', CURRENT_TIMESTAMP);
+UPDATE dsc_infra_info SET db_version = '1.6.7', updated_at = CURRENT_TIMESTAMP WHERE id = 1;
 
 CREATE TABLE IF NOT EXISTS scheduler_tasks (
     task_name TEXT PRIMARY KEY,
@@ -88,6 +88,17 @@ CREATE TABLE IF NOT EXISTS configuration_repo_settings (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 INSERT OR IGNORE INTO configuration_repo_settings (id) VALUES (1);
+
+-- Réglages DSC stockés en base (mono-ligne id=1), ajustables à chaud via l'API
+-- admin sans redémarrage. Contrôlent le renouvellement de certificat (§2.2.2.8).
+CREATE TABLE IF NOT EXISTS dsc_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    certificate_rotation_enabled INTEGER NOT NULL DEFAULT 0,
+    certificate_renewal_days INTEGER NOT NULL DEFAULT 30,
+    legacy_imported INTEGER NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+INSERT OR IGNORE INTO dsc_settings (id, certificate_rotation_enabled, certificate_renewal_days, legacy_imported) VALUES (1, 0, 30, 1);
 
 CREATE TABLE IF NOT EXISTS scheduler_task_runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

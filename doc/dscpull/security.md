@@ -47,7 +47,36 @@ A client certificate requires HTTPS. In pure HTTP mode (`enable_https: false`) n
 
 At registration the node sends `RegistrationInformation.CertificateInformation` (thumbprint, subject, issuer, `notBefore`/`notAfter`), which the server stores in the `agents` table. The middleware uses the **certificate thumbprint** to identify the node on subsequent pull requests.
 
-When a node's certificate is renewed, the node **re-registers** (same endpoint, same registration key). The server refreshes the stored certificate fields; the new thumbprint becomes the one checked by the middleware. `state`, `last_communication`, `has_error_last_report`, `needs_recompile` and `registered_at` are preserved. This works on both SQLite and MSSQL.
+There are **two** ways to renew a node certificate, both supported:
+
+1. **Server-initiated rotation (recommended, MS-DSCPM `CertificateRotation`)**. When the DB setting `certificate_rotation_enabled` is `true`, the server adds the `DSC-certificateRotation: True` response header to node-scoped pull responses (`GetDscAction`, `ConfigurationContent`, `SendReport`) when the node's certificate is inside the configured renewal window (`certificate_renewal_days` days before `certificate_notafter`, or already expired). The LCM then sends `POST /PSDSCPullServer.svc/Nodes(AgentId='…')/CertificateRotation` with its **new** `CertificateInformation`; the server stores it and answers **HTTP 201**. `state`, `registered_at`, `last_communication`, `has_error_last_report` and `needs_recompile` are preserved.
+
+2. **Client-driven re-registration (classic)**. The node re-registers on the same endpoint (`PUT`/`POST /PSDSCPullServer.svc/{node}`) with the same registration key. The server refreshes the stored certificate fields; the new thumbprint becomes the one checked by the middleware. `state`, `last_communication`, `has_error_last_report`, `needs_recompile` and `registered_at` are preserved. This works on both SQLite and MSSQL.
+
+### When does rotation trigger?
+
+The MS-DSCPM protocol has **no protocol-level timer** that forces a renewal: `DSC-certificateRotation` (§2.2.2.8) is a **`MAY`**, i.e. the server decides. In this implementation the server emits the header **opportunistically** on the next pull request of a node, based on the **database setting** `dsc_settings`:
+
+| Setting | Default | Purpose |
+|---|---|---|
+| `certificate_rotation_enabled` | `0` (off) | Enables emitting `DSC-certificateRotation: True` to nodes whose certificate is inside the renewal window. **Opt-in**; when off the server behaves as before (classic re-registration only). |
+| `certificate_renewal_days` | `30` | Renewal window: number of days before `certificate_notafter` at which the server starts asking the node to rotate. A **zero/negative** value disables the time-based trigger even if the feature is enabled. |
+
+The renewal is therefore **"when the node's certificate expires within N days"**, evaluated from the stored `agents.certificate_notafter` (sent by the node at registration or during a previous rotation). The window is **adjustable at runtime** through the admin API (`GET`/`PUT /api/v1/dsc/settings`, admin-only) and is stored in the `dsc_settings` table — not in `config.json`. Use the `db/migration_v1.6.7.sql` script (MSSQL) or the schema files to create the table on existing databases.
+
+### CertificateRotation security model
+
+The rotation endpoint authenticates with the node's **current (old) certificate** at the TLS layer: `verifyNodeCertBinding` requires the presented thumbprint to equal the one stored for the `agentId` in the path. The **new** `CertificateInformation` only travels in the request body. Consequently, an attacker cannot rotate a node's certificate unless they already hold the node's **current** private key — there is no hijack vector (you must already be the legitimate node to replace its certificate).
+
+> **Note on the middleware:** the DSC client-certificate middleware (main.go) exempts only the registration route (`PUT`) from the "known thumbprint" check. `CertificateRotation` is **not** exempt: the presented certificate must be a thumbprint already registered in the `agents` table. Since the client presents its current (registered) certificate, the request passes both the middleware and the per-node binding.
+
+### When does the header NOT appear?
+
+- When `certificate_rotation_enabled` is `false` (default).
+- When the node has no `certificate_notafter` stored.
+- When the certificate expires more than `certificate_renewal_days` days from now.
+- On the `CertificateRotation` and registration responses themselves (the spec explicitly excludes them).
+- On `ModuleContent`: this endpoint has no node identifier in its URL (`GET /PSDSCPullServer.svc/{module}/ModuleContent`), so the header is not emitted there even though the client certificate is present.
 
 ---
 

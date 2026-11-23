@@ -8,3 +8,4 @@ This section details the operation, installation, and security of the DSC Pull S
 - [Configuration repository (Git) & Scheduler](configuration-repo.md)
 - [Node Registration](registration.md)
 - [Security](security.md)
+- [MS-DSCPM protocol implementation state](protocol-implementation.md)

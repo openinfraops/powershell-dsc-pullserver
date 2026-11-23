@@ -15,6 +15,8 @@ func RegisterDSCRoutes(mux *http.ServeMux, dbConn *sql.DB) {
 	mux.HandleFunc("PUT /PSDSCPullServer.svc/{node}", handlers.RegisterHandler)
 	mux.HandleFunc("GET /PSDSCPullServer.svc/{node}/{config}/ConfigurationContent", handlers.ConfigurationContentHandler)
 	mux.HandleFunc("POST /PSDSCPullServer.svc/{node}/SendReport", handlers.SendReportHandler)
+	mux.HandleFunc("POST /PSDSCPullServer.svc/{node}/CertificateRotation", handlers.CertificateRotationHandler)
+	mux.HandleFunc("GET /PSDSCPullServer.svc/{node}/{reports}", handlers.GetReportsHandler)
 	mux.HandleFunc("POST /PSDSCPullServer.svc/{id}/GetDscAction", func(w http.ResponseWriter, r *http.Request) {
 		raw := r.PathValue("id")
 		agentId := utils.ExtractAgentId(raw)

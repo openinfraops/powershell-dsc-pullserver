@@ -175,6 +175,10 @@ func GetDscActionNodeHandlerWithId(w http.ResponseWriter, r *http.Request, agent
 		}
 	}
 
+	// Signale au nœud, le cas échéant, que son certificat est dans la fenêtre
+	// de renouvellement (en-tête DSC-certificateRotation, §2.2.2.8).
+	maybeSetCertificateRotationHeader(w, database, agentId)
+
 	resp := schema.DscActionResponse{
 		NodeStatus: nodeStatus,
 		Details:    details,

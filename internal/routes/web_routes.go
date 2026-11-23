@@ -90,6 +90,8 @@ func RegisterWebRoutes(mux *http.ServeMux, dbConn *sql.DB, jwtAuthMiddleware fun
 	mux.Handle("POST /api/v1/saml/upload_sp_keycert", jwtAuthMiddleware(adminOnly(http.HandlerFunc(handlers.SAMLUploadSPKeyCertHandler))))
 	mux.Handle("GET /api/v1/scheduler/config", jwtAuthMiddleware(adminOnly(http.HandlerFunc(handlers.SchedulerConfigAPIHandler))))
 	mux.Handle("PUT /api/v1/scheduler/config", jwtAuthMiddleware(adminOnly(http.HandlerFunc(handlers.SchedulerConfigAPIHandler))))
+	mux.Handle("GET /api/v1/dsc/settings", jwtAuthMiddleware(adminOnly(http.HandlerFunc(handlers.DscSettingsAPIHandler))))
+	mux.Handle("PUT /api/v1/dsc/settings", jwtAuthMiddleware(adminOnly(http.HandlerFunc(handlers.DscSettingsAPIHandler))))
 	mux.Handle("GET /api/v1/scheduler/tasks", jwtAuthMiddleware(adminOnly(http.HandlerFunc(handlers.SchedulerTasksAPIHandler))))
 	mux.Handle("GET /api/v1/scheduler/tasks/{task}/history", jwtAuthMiddleware(adminOnly(http.HandlerFunc(handlers.SchedulerTaskHistoryAPIHandler))))
 	mux.Handle("POST /api/v1/scheduler/cleanup/run", jwtAuthMiddleware(adminOnly(http.HandlerFunc(handlers.SchedulerRunCleanupAPIHandler))))

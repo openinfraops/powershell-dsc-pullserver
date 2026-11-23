@@ -62,5 +62,10 @@ func InitDB(cfg *schema.DBConfig) {
 		os.Exit(1)
 	}
 
+	if _, err := InitializeDscSettings(database, cfg.Driver); err != nil {
+		logs.WriteLogFile("ERROR [INITDB] Failed to initialize dsc_settings: " + err.Error())
+		os.Exit(1)
+	}
+
     logs.WriteLogFile("INFO [INITDB] DB schema checked/created.")
 }

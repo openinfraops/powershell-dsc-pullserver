@@ -49,6 +49,17 @@ These keys are also accepted in the `dsc_pullserver` block (shared `HTTPConfig` 
 - **enable_configuration_version_cleanup**, **configuration_version_max_keep**, **configuration_version_cleanup_interval_mins**: retention of old configuration versions.
 - **enable_configuration_repo_sync**, **configuration_repo_***: legacy migration source for the Git-backed configuration repository. These are **imported once** and then **stored in the database** (`configuration_repo_settings`), managed from the **Scheduler administration page** — see [Configuration repository (Git) & Scheduler](configuration-repo.md).
 
+## Settings stored in the database (not `config.json`)
+
+Some DSC behaviour is **not** configured in `config.json` but in the **`dsc_settings` table** (single row, `id=1`). These are adjustable at runtime via the admin API (`GET`/`PUT /api/v1/dsc/settings`) without restarting the service:
+
+| Setting | Default | Purpose |
+|---|---|---|
+| `certificate_rotation_enabled` | `0` (`false`) | Enables server-initiated certificate rotation (`DSC-certificateRotation: True` header). **Opt-in.** |
+| `certificate_renewal_days` | `30` | Renewal window in days before certificate expiration at which the server solicits rotation. |
+
+See [Security](security.md) for the certificate-renewal "when", and [MS-DSCPM protocol implementation state](protocol-implementation.md) for the `CertificateRotation` / `GetReports` endpoints.
+
 ## Additional Sections
 
 The `database`, `web_ui`, and `saml` blocks are described in [Configuration.md](../Configuration.md). The `web_ui` block shares the same structure as `dsc_pullserver` (both use `HTTPConfig`); in practice only `cert_file`, `key_file`, `enable_https`, `port`, `shared_secret` and `trusted_proxies` are meaningful for the web/API server.
@@ -58,6 +69,7 @@ The `database`, `web_ui`, and `saml` blocks are described in [Configuration.md](
 - [DSC Pull Server documentation](README.md)
 - [Node registration](registration.md)
 - [Security](security.md)
+- [MS-DSCPM protocol implementation state](protocol-implementation.md)
 - [Configuration repository (Git) & Scheduler](configuration-repo.md)
 - [Full configuration reference](../Configuration.md)
 

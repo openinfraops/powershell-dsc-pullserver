@@ -136,6 +136,10 @@ func SendReportHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Signale au nœud, le cas échéant, que son certificat est dans la fenêtre
+	// de renouvellement (en-tête DSC-certificateRotation, §2.2.2.8).
+	maybeSetCertificateRotationHeader(w, database, agentId)
+
 	w.Header().Set("ProtocolVersion", "2.0")
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
