@@ -53,6 +53,8 @@ The sync flow:
 4. The generated MOFs are imported into the configuration model store, **versioned**, and agents assigned to a changed configuration are marked `pending_apply` so they receive the update.
 
 > **Compilation only runs when the Git checkout actually changed** (fresh clone or fast-forward). Because the generated MOF is not byte-stable across runs, recompiling an unchanged repository would otherwise bump every configuration version and reset agents to `pending_apply` on every tick. A newly registered node always compiles, even when the repository is current.
+>
+> To match this, the **node compilation context is resolved lazily** on the scheduled worker: each node's properties/tags (`Node properties resolved`) are read **only when the repository has changed and a compilation is about to run**. When the repository is up to date (the common case), the periodic worker makes **no** per-node resolution pass.
 
 ### Requirements
 

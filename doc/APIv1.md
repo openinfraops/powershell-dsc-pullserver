@@ -138,6 +138,22 @@ Both JWT and API tokens grant access to the API according to the user's permissi
 
 ---
 
+## DSC Settings
+
+### GET `/api/v1/dsc/settings`
+- **Admin only.** Read the current DSC settings stored in the `dsc_settings` table (single row `id=1`).
+- Response: `{ "certificate_rotation_enabled": boolean, "certificate_renewal_days": int }`.
+
+### PUT `/api/v1/dsc/settings`
+- **Admin only.** Update the DSC settings.
+- Body: `{ "certificate_rotation_enabled": boolean, "certificate_renewal_days": int }`.
+- `certificate_renewal_days` must be `> 0` (otherwise `400`).
+- Stored in the database — **no service restart required**.
+
+> **Scope:** these two settings control server-initiated certificate rotation. `certificate_rotation_enabled` (default `false`) turns on the `DSC-certificateRotation: True` response header for nodes whose certificate is inside the renewal window; `certificate_renewal_days` (default `30`) is that window in days before `certificate_notafter`. See [DSC Security](dscpull/security.md) and [Configuration](dscpull/configuration.md).
+
+---
+
 ## Audit
 
 ### GET `/api/v1/audit`
