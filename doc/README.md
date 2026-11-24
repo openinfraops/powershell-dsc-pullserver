@@ -25,6 +25,19 @@ The documentation is organized into three layers:
 
 - [MS-DSCPM] Desired State Configuration Pull Model Protocol: [`[MS-DSCPM].pdf`](%5BMS-DSCPM%5D.pdf) (reference specification, v20240423).
 
+## Tested platforms & support lifecycle
+
+The pull server is validated **end-to-end** (registration, pull, report, certificate rotation) against real Windows LCMs running on the following Windows Server versions. Support dates are the Microsoft lifecycle end-of-support dates.
+
+| Platform | Tested | Mainstream support end | Extended support end |
+| --- | --- | --- | --- |
+| Windows Server 2019 | Yes | Jan 9, 2024 | **Jan 9, 2029** |
+| Windows Server 2022 | Yes | Oct 13, 2026 | **Oct 14, 2031** |
+
+Dates per the Microsoft lifecycle pages for [Windows Server 2019](https://learn.microsoft.com/en-us/lifecycle/products/windows-server-2019) and [Windows Server 2022](https://learn.microsoft.com/en-us/lifecycle/products/windows-server-2022). After the **Extended support end** date a platform no longer receives security updates.
+
+> **Lifecycle projection.** Because the solution is exercised against these two platforms, its longest supported horizon is bounded by the most restrictive of them — **Windows Server 2019, until January 9, 2029**. Plan the migration of the pull server and the LCM nodes to Windows Server 2022 (supported until **October 14, 2031**) within that window, then re-validate against a later LTSC release.
+
 ## Release notes
 
 - [v1.7.2](release_v1.7.2.md)
