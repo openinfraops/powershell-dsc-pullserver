@@ -51,7 +51,7 @@ CREATE INDEX IF NOT EXISTS idx_reports_agent_id ON reports(agent_id);
 CREATE TABLE IF NOT EXISTS dsc_infra_info (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     web_version TEXT DEFAULT '0.0.1',
-    db_version TEXT DEFAULT '1.2.0',
+    db_version TEXT DEFAULT '1.7.1',
     latest_release TEXT,
     latest_release_url TEXT,
     update_available INTEGER DEFAULT 0,
@@ -59,8 +59,8 @@ CREATE TABLE IF NOT EXISTS dsc_infra_info (
     release_checked_at TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-INSERT OR IGNORE INTO dsc_infra_info (id, web_version, db_version, updated_at) VALUES (1, '0.0.1', '1.6.7', CURRENT_TIMESTAMP);
-UPDATE dsc_infra_info SET db_version = '1.6.7', updated_at = CURRENT_TIMESTAMP WHERE id = 1;
+INSERT OR IGNORE INTO dsc_infra_info (id, web_version, db_version, updated_at) VALUES (1, '0.0.1', '1.7.1', CURRENT_TIMESTAMP);
+UPDATE dsc_infra_info SET db_version = '1.7.1', updated_at = CURRENT_TIMESTAMP WHERE id = 1;
 
 CREATE TABLE IF NOT EXISTS scheduler_tasks (
     task_name TEXT PRIMARY KEY,
