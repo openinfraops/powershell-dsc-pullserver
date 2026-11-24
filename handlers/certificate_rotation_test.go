@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"net/http"
@@ -141,6 +142,57 @@ func TestCertificateRotationHandler_RotatesCert(t *testing.T) {
 	}
 	if stored != newThumb {
 		t.Fatalf("expected thumbprint %q, got %q", newThumb, stored)
+	}
+}
+
+// TestCertificateRotationHandler_StoresPublicKey vérifie que le renouvellement
+// stocke la clé publique du NOUVEAU certificat (champ "PublicKey" du
+// CertificateInformation, base64 DER §3.12) dans certificate_public_key /
+// certificate_key_algorithm.
+func TestCertificateRotationHandler_StoresPublicKey(t *testing.T) {
+	database := setupAgentsDB(t)
+	if err := setupDscSettingsDB(database, true); err != nil {
+		t.Fatal(err)
+	}
+	injectShared(t, database, true)
+
+	cert := genDSCClientCert(t)
+	sum := sha1.Sum(cert.Raw)
+	oldThumb := strings.ToLower(hex.EncodeToString(sum[:]))
+	const agentID = "09B8DF8D-2A1E-11EE-84B4-005056B8D6BE"
+	if _, err := database.Exec(`INSERT INTO agents (agent_id, node_name, certificate_thumbprint, state) VALUES (?, ?, ?, ?)`,
+		agentID, "NODE", oldThumb, "compliant"); err != nil {
+		t.Fatal(err)
+	}
+
+	// La clé publique du nouveau certificat, encodée en base64 (DER SubjectPublicKeyInfo).
+	der, err := x509.MarshalPKIXPublicKey(cert.PublicKey)
+	if err != nil {
+		t.Fatalf("marshal pubkey: %v", err)
+	}
+	pubKeyB64 := base64.StdEncoding.EncodeToString(der)
+
+	const newThumb = "aabbccddeeff00112233445566778899aabbccdd"
+	body := fmt.Sprintf(`{"RotationInformation":{"CertificateInformation":{"Thumbprint":"%s","Subject":"NewSubj","Issuer":"NewIssuer","NotBefore":"2026-01-01T00:00:00Z","NotAfter":"2031-01-01T00:00:00Z","PublicKey":"%s"}}}`, newThumb, pubKeyB64)
+	req := httptest.NewRequest(http.MethodPost, "/PSDSCPullServer.svc/Nodes(AgentId='"+agentID+"')/CertificateRotation", strings.NewReader(body))
+	req.SetPathValue("node", "Nodes(AgentId='"+agentID+"')")
+	req.TLS = &tls.ConnectionState{PeerCertificates: []*x509.Certificate{cert}}
+
+	rec := httptest.NewRecorder()
+	CertificateRotationHandler(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d (body: %s)", rec.Code, rec.Body.String())
+	}
+	var storedPubKey, storedAlgo string
+	if err := database.QueryRow(`SELECT certificate_public_key, certificate_key_algorithm FROM agents WHERE agent_id = ?`, agentID).Scan(&storedPubKey, &storedAlgo); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(storedPubKey, "-----BEGIN PUBLIC KEY-----") {
+		t.Fatalf("expected PEM PUBLIC KEY in certificate_public_key, got %q", storedPubKey)
+	}
+	if storedAlgo != "ECDSA" {
+		t.Fatalf("expected certificate_key_algorithm ECDSA, got %q", storedAlgo)
 	}
 }
 
