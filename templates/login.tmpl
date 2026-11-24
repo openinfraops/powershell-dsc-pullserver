@@ -47,10 +47,12 @@ $(function() {
     var error = getUrlParam('error');
     if (error) {
         var msg = '';
-        if (error === 'blocked') {
-            msg = 'Your account is disable. Please contact an administrator.';
+        if (error === 'deny') {
+            msg = 'Accès refusé : votre compte ne fait partie d\'aucun groupe autorisé pour accéder à la console. Veuillez contacter un administrateur.';
+        } else if (error === 'blocked') {
+            msg = 'Votre compte est désactivé. Veuillez contacter un administrateur pour le réactiver.';
         } else {
-            msg = error;
+            msg = 'Une erreur est survenue lors de la connexion. Veuillez réessayer ou contacter un administrateur.';
         }
         $('#loginError').text(msg).show();
     }
