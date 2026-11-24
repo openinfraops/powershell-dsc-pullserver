@@ -107,6 +107,53 @@ func TestUpsertAgent_Renewal(t *testing.T) {
 	}
 }
 
+// TestUpsertAgent_StoresPublicKey vérifie que le chemin d'enregistrement /
+// ré-enregistrement stocke la clé publique (certificate_public_key) et
+// l'algorithme (certificate_key_algorithm), et qu'un ré-enregistrement sans
+// clé conserve la valeur existante (COALESCE).
+//
+// NB : le champ est alimenté par clientPublicKeyInfo(r) qui lit la clé
+// directement depuis le certificat TLS présenté (r.TLS.PeerCertificates[0].
+// PublicKey) — testé dans dsc_node_auth_test.go. Ici on vérifie que upsertAgent
+// (le récepteur SQL) fait bien le stockage.
+func TestUpsertAgent_StoresPublicKey(t *testing.T) {
+	database := setupAgentsDB(t)
+
+	// Nouvel agent (enrôlement) : la clé publique doit être insérée.
+	if err := upsertAgent(database, "sqlite", "agent-1", "node-1", "1.0", "Initial", "AAA", "subject", "issuer", "2024-01-01", "2030-01-01", "PEMKEY-INITIAL", "RSA", true); err != nil {
+		t.Fatalf("upsertAgent new node: %v", err)
+	}
+	var pk, algo string
+	if err := database.QueryRow(`SELECT certificate_public_key, certificate_key_algorithm FROM agents WHERE agent_id = ?`, "agent-1").Scan(&pk, &algo); err != nil {
+		t.Fatalf("query new node pubkey: %v", err)
+	}
+	if pk != "PEMKEY-INITIAL" || algo != "RSA" {
+		t.Fatalf("expected stored pubkey PEMKEY-INITIAL/RSA, got %q/%q", pk, algo)
+	}
+
+	// Ré-enregistrement avec une NOUVELLE clé : la valeur est rafraîchie.
+	if err := upsertAgent(database, "sqlite", "agent-1", "node-1", "2.0", "Renewal", "NEWTHUMB", "subject2", "issuer2", "2026-01-01", "2031-01-01", "PEMKEY-NEW", "RSA", false); err != nil {
+		t.Fatalf("upsertAgent renewal: %v", err)
+	}
+	if err := database.QueryRow(`SELECT certificate_public_key, certificate_key_algorithm FROM agents WHERE agent_id = ?`, "agent-1").Scan(&pk, &algo); err != nil {
+		t.Fatalf("query after renewal pubkey: %v", err)
+	}
+	if pk != "PEMKEY-NEW" || algo != "RSA" {
+		t.Fatalf("expected refreshed pubkey PEMKEY-NEW/RSA, got %q/%q", pk, algo)
+	}
+
+	// Ré-enregistrement sans clé ("") : la valeur existante est conservée.
+	if err := upsertAgent(database, "sqlite", "agent-1", "node-1", "3.0", "Renewal", "THUMB3", "subject3", "issuer3", "2027-01-01", "2032-01-01", "", "", false); err != nil {
+		t.Fatalf("upsertAgent renewal no key: %v", err)
+	}
+	if err := database.QueryRow(`SELECT certificate_public_key, certificate_key_algorithm FROM agents WHERE agent_id = ?`, "agent-1").Scan(&pk, &algo); err != nil {
+		t.Fatalf("query after no-key renewal pubkey: %v", err)
+	}
+	if pk != "PEMKEY-NEW" || algo != "RSA" {
+		t.Fatalf("expected pubkey preserved PEMKEY-NEW/RSA, got %q/%q", pk, algo)
+	}
+}
+
 // TestUpsertAgent_Renewal_UnknownAgent vérifie qu'un UPDATE sur un agent
 // inexistant ne provoque pas d'erreur (0 ligne affectée), sans régression.
 func TestUpsertAgent_Renewal_UnknownAgent(t *testing.T) {
