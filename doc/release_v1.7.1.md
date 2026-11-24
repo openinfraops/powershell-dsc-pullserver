@@ -27,6 +27,7 @@ The server now captures each node certificate's **public key** and **key algorit
 - **Registration / re-registration** reads the public key from the **presented mTLS client certificate** (`r.TLS.PeerCertificates[0].PublicKey`).
 - **`CertificateRotation`** reads it from the body's `CertificateInformation.PublicKey` (the **new** certificate). If absent/unparseable, the previous value is kept (the next node re-registration refreshes it).
 - The key is normalized to a PEM `PUBLIC KEY` with an algorithm label (`RSA`/`ECDSA`/`Ed25519`).
+- **Observed wire format (Windows LCM):** `PublicKey` is `<base64>;<OID-algorithm>` (e.g. `…QIDAQAB;1.2.840.113549.1.1.1` = RSA). For RSA the base64 part is a **PKCS#1 `RSAPublicKey`** (`SEQUENCE { INTEGER modulus, INTEGER exponent }`), not a PKIX `SubjectPublicKeyInfo` — the parser tries both (`ParsePKIXPublicKey`, then `ParsePKCS1PublicKey`) and ignores the trailing `;OID`. This was confirmed against a real node and covered by a regression test using the actual value.
 
 **Not consumed yet:** these columns are reserved as a building block for a future **per-node secret-encryption** feature — the private key of a node's mTLS certificate lives on the node, so the server can encrypt a secret with the node's public key and the node can decrypt it. `RSA` supports direct encryption; `ECDSA` would require key agreement (ECDH). Schema added via `db/schema_*.sql` and `db/migration_v1.7.1.sql`.
 

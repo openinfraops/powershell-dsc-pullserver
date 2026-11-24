@@ -65,6 +65,22 @@ func TestParsePublicKeyField_EmptyAndGarbage(t *testing.T) {
 	}
 }
 
+// TestParsePublicKeyField_WithOIDSuffix reproduit exactement le format réel
+// envoyé par le LCM Windows : "<base64-DER>;<OID-algorithme>". Il faut isoler
+// la partie base64 (avant le ';') sinon le décodage échoue à cause du ';' et
+// des '.' de l'OID, et la clé n'est jamais stockée.
+func TestParsePublicKeyField_WithOIDSuffix(t *testing.T) {
+	// Valeur réelle observée (nœud 946D6360-...), OID rsaEncryption.
+	const val = "MIIBCgKCAQEAwo+Papxmur7NtZ5FNgwHgGl14O7Z7n/V50VaIY+u62sHp12xIKTppuCoICoMTqsaKwu+ilPMfObbuM1oviXiJ3mc1rpvTMcXiF4E1EmDJchI3poPzTv7WhdAqvcP2Dz1XCeBb3TfAofKNW4EGbWrbMB2s/KDP+V64AkaeIKZtQHkp81p8cg74N6gIebLnokHK+8XrtD7stvgE2G+AeIIKjRnqyJCyKl0lbDnSrkDqLnoDNdpHEsFOnrMaUNWEh6PS9Pm0S8WDUsqV7bwbNjSaFCcmxecxNpscDkRivUG2SkVMZyu/SqLJVwaPWDERAsUbcGSnvoLM03lrjcdiIQz5QIDAQAB;1.2.840.113549.1.1.1"
+	pemStr, algo := parsePublicKeyField(val)
+	if !strings.HasPrefix(pemStr, "-----BEGIN PUBLIC KEY-----") {
+		t.Fatalf("expected PEM PUBLIC KEY, got %q", pemStr)
+	}
+	if algo != "RSA" {
+		t.Fatalf("expected algorithm RSA, got %q", algo)
+	}
+}
+
 func TestPublicKeyAlgorithm_RSA(t *testing.T) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"sort"
 	"strings"
 	"time"
 
@@ -149,17 +148,6 @@ func asObject(v interface{}, path ...string) map[string]interface{} {
 	return m
 }
 
-// sortedKeysOf renvoie les clés d'un objet JSON triées par ordre alphabétique
-// (pour une journalisation déterministe et lisible).
-func sortedKeysOf(m map[string]interface{}) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
-}
-
 // CertificateRotationHandler gère POST /PSDSCPullServer.svc/Nodes(AgentId='...')/CertificateRotation
 // (§3.12 du MS-DSCPM). Le client (LCM) y publie son nouveau certificat ; le
 // serveur met à jour les champs certificat du nœud en place, sans toucher à
@@ -230,24 +218,6 @@ func CertificateRotationHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad request: CertificateInformation missing", http.StatusBadRequest)
 		return
 	}
-	// --- Instrumentation (temporaire) : confirmer ce que le LCM envoie ---
-	// Journalise les clés de CertificateInformation reçues, et si le champ
-	// "PublicKey" est présent (type + taille) ou omis. Permet de trancher entre
-	// « le LCM n'envoie pas la clé » et « clé envoyée mais sous une autre casse
-	// / structure ». À retirer une fois le comportement confirmé.
-	_ = logs.WriteLogFile(fmt.Sprintf("[CERTROTATION] agentId=%q: CertificateInformation keys=%v", agentId, sortedKeysOf(certInfo)))
-	if rawPk, present := certInfo["PublicKey"]; present {
-		_ = logs.WriteLogFile(fmt.Sprintf("[CERTROTATION] agentId=%q: PublicKey present (type=%T, len=%d)", agentId, rawPk, len(fmt.Sprintf("%v", rawPk))))
-	} else {
-		_ = logs.WriteLogFile(fmt.Sprintf("[CERTROTATION] agentId=%q: PublicKey ABSENT from CertificateInformation", agentId))
-	}
-	// Journalise aussi le corps brut (tronqué) pour voir la structure exacte.
-	if len(body) <= 4096 {
-		_ = logs.WriteLogFile(fmt.Sprintf("[CERTROTATION] agentId=%q: raw body=%s", agentId, string(body)))
-	} else {
-		_ = logs.WriteLogFile(fmt.Sprintf("[CERTROTATION] agentId=%q: raw body (truncated)=%s", agentId, string(body[:4096])))
-	}
-
 	thumbprint := strings.ToLower(strings.TrimSpace(asString(certInfo["Thumbprint"])))
 	if thumbprint == "" {
 		http.Error(w, "Bad request: CertificateInformation.Thumbprint missing", http.StatusBadRequest)

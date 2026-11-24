@@ -74,16 +74,30 @@ func parsePublicKeyField(value string) (publicKey, algorithm string) {
 	if value == "" {
 		return "", ""
 	}
-	der, err := base64.StdEncoding.DecodeString(value)
+	// Le champ "PublicKey" du LCM est de la forme "<base64>;<OID-algorithme>"
+	// (ex. "MIIBCgKCAQEA...QIDAQAB;1.2.840.113549.1.1.1" pour RSA). Le type de
+	// la partie base64 dépend de l'algorithme : pour RSA c'est un RSAPublicKey
+	// PKCS#1 (SEQUENCE { INTEGER modulus, INTEGER exponent }), et non un
+	// SubjectPublicKeyInfo. On isole la partie avant le ';', on base64-décode
+	// (repli en DER brut si échec), puis on essaie successivement
+	// SubjectPublicKeyInfo (PKIX, EC/Ed25519) et RSAPublicKey (PKCS#1, RSA).
+	payload := value
+	if i := strings.IndexByte(value, ';'); i >= 0 {
+		payload = value[:i]
+	}
+	der, err := base64.StdEncoding.DecodeString(payload)
 	if err != nil {
 		// Pas du base64 : on tente de l'interpréter comme du DER brut.
-		der = []byte(value)
+		der = []byte(payload)
 	}
 	pub, err := x509.ParsePKIXPublicKey(der)
-	if err != nil {
-		return "", ""
+	if err == nil {
+		return marshalPublicKeyPEM(pub), publicKeyAlgorithm(pub)
 	}
-	return marshalPublicKeyPEM(pub), publicKeyAlgorithm(pub)
+	if rsaPub, rsaErr := x509.ParsePKCS1PublicKey(der); rsaErr == nil {
+		return marshalPublicKeyPEM(rsaPub), publicKeyAlgorithm(rsaPub)
+	}
+	return "", ""
 }
 
 // verifyNodeCertBinding vérifie que le certificat client présenté correspond à
