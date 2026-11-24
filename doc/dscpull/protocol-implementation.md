@@ -153,4 +153,4 @@ The following MS-DSCPM **Product Behavior** notes apply to this server's support
 - `<17>` (§3.12) — `CertificateRotation` is not available on Windows 7 / Server 2008 R2 / 2012 / 8.1 / 2012 R2 / Windows 10 (LCM limitation, not server-side).
 
 ---
-*Last updated for release v1.7.1.*
+*Last updated for release v1.7.2.*

@@ -1,4 +1,4 @@
--- Migration v1.7.1 : colonnes nullable certificate_public_key / certificate_key_algorithm
+-- Migration v1.7.2 : colonnes nullable certificate_public_key / certificate_key_algorithm
 -- sur la table agents + bump db_version.
 --
 -- Ces colonnes sont capturées depuis le certificat client mTLS du nœud (à
@@ -17,6 +17,6 @@ IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'agen
     ALTER TABLE agents ADD certificate_key_algorithm NVARCHAR(16) NULL;
 
 IF EXISTS (SELECT 1 FROM dsc_infra_info WHERE id = 1)
-    UPDATE dsc_infra_info SET db_version = '1.7.1', updated_at = GETDATE() WHERE id = 1;
+    UPDATE dsc_infra_info SET db_version = '1.7.2', updated_at = GETDATE() WHERE id = 1;
 ELSE
-    INSERT INTO dsc_infra_info (id, web_version, db_version, updated_at) VALUES (1, '1.7.1', '1.7.1', GETDATE());
+    INSERT INTO dsc_infra_info (id, web_version, db_version, updated_at) VALUES (1, '1.7.2', '1.7.2', GETDATE());

@@ -27,7 +27,7 @@ The documentation is organized into three layers:
 
 ## Release notes
 
-- [v1.7.1](release_v1.7.1.md)
+- [v1.7.2](release_v1.7.2.md)
 - [v1.7.0](release_v1.7.0.md)
 - [v1.6.7](release_v1.6.7.md)
 - [v1.6.6](release_v1.6.6.md)

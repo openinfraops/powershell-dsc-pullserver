@@ -1,8 +1,8 @@
-# Release v1.7.1
+# Release v1.7.2
 
-Date: 2026-11-23
+Date: 2026-11-24
 
-Follow-up release fixing the certificate-rotation flow (validated end-to-end against a real Windows LCM) and removing an unnecessary per-node scan in the configuration-repository worker every cycle.
+Follow-up release fixing the certificate-rotation flow (validated end-to-end against a real Windows LCM) and the CI release workflow, and removing an unnecessary per-node scan in the configuration-repository worker every cycle. Supersedes the never-shipped v1.7.1.
 
 ## Changes
 
@@ -29,7 +29,19 @@ The server now captures each node certificate's **public key** and **key algorit
 - The key is normalized to a PEM `PUBLIC KEY` with an algorithm label (`RSA`/`ECDSA`/`Ed25519`).
 - **Observed wire format (Windows LCM):** `PublicKey` is `<base64>;<OID-algorithm>` (e.g. `…QIDAQAB;1.2.840.113549.1.1.1` = RSA). For RSA the base64 part is a **PKCS#1 `RSAPublicKey`** (`SEQUENCE { INTEGER modulus, INTEGER exponent }`), not a PKIX `SubjectPublicKeyInfo` — the parser tries both (`ParsePKIXPublicKey`, then `ParsePKCS1PublicKey`) and ignores the trailing `;OID`. This was confirmed against a real node and covered by a regression test using the actual value.
 
-**Not consumed yet:** these columns are reserved as a building block for a future **per-node secret-encryption** feature — the private key of a node's mTLS certificate lives on the node, so the server can encrypt a secret with the node's public key and the node can decrypt it. `RSA` supports direct encryption; `ECDSA` would require key agreement (ECDH). Schema added via `db/schema_*.sql` and `db/migration_v1.7.1.sql`.
+**Not consumed yet:** these columns are reserved as a building block for a future **per-node secret-encryption** feature — the private key of a node's mTLS certificate lives on the node, so the server can encrypt a secret with the node's public key and the node can decrypt it. `RSA` supports direct encryption; `ECDSA` would require key agreement (ECDH). Schema added via `db/schema_*.sql` and `db/migration_v1.7.2.sql`.
+
+### `db_version` bumped to 1.7.2
+
+`dsc_infra_info.db_version` (read by the **About** page via `dsc_infra_info`) is now `1.7.2` in both `db/schema_sqlite.sql` and `db/schema_mssql.sql` (the MSSQL script now raises it **unconditionally**, matching the SQLite behaviour at startup).
+
+### Registration / re-registration stores the certificate public key (regression test)
+
+The registration path reads the public key from the **presented mTLS client certificate** (`r.TLS.PeerCertificates[0].PublicKey`) via `clientPublicKeyInfo(r)` and hands it to `upsertAgent`, but no test asserted that `upsertAgent` actually persists it. Added `TestUpsertAgent_StoresPublicKey` covering: new-node insert stores the key + algorithm, re-registration refreshes it, and a re-registration with an empty key preserves the existing value (`COALESCE`).
+
+### CI release workflow fixed
+
+The `release` job of `.github/workflows/release.yml` is now deterministic: it downloads both release artifacts with a single `actions/download-artifact@v8` step (`pattern: 'DSC*'`, `merge-multiple: true`) into `${{ github.workspace }}`, so the zips are guaranteed at the root where `softprops/action-gh-release` expects them. Add a `List downloaded artifacts` step to surface the file layout in logs, keep `fail_on_unmatched_files: true`, and reference the release notes as the release body (`body_path: doc/release_v1.7.2.md`).
 
 ### Documentation
 
@@ -49,5 +61,6 @@ The server now captures each node certificate's **public key** and **key algorit
 - `internal/schema/agent.go`, `internal/db/agent_schema_ensure.go`
 - `main.go`
 - `internal/service/configuration_repo.go`
-- `db/schema_sqlite.sql`, `db/schema_mssql.sql`, `db/migration_v1.7.1.sql`
+- `db/schema_sqlite.sql`, `db/schema_mssql.sql`, `db/migration_v1.7.2.sql`
+- `.github/workflows/release.yml`
 - `doc/dscpull/protocol-implementation.md`, `doc/dscpull/security.md`, `doc/dscpull/configuration.md`, `doc/dscpull/configuration-repo.md`, `doc/APIv1.md`, `doc/DatabaseSchema.md`
