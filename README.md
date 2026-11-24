@@ -2,6 +2,9 @@
 
 A secure, versioned DSC Pull Server with a modern web interface, written in Go.
 
+[![Latest release](https://img.shields.io/github/v/release/openinfraops/powershell-dsc-pullserver?label=Latest%20release)](https://github.com/openinfraops/powershell-dsc-pullserver/releases/latest)
+[![License](https://img.shields.io/github/license/openinfraops/powershell-dsc-pullserver)](LICENSE)
+
 ## Purpose
 
 Centralized management of DSC configurations, modules, users, and reports, with advanced access controls and a user-friendly web UI. It implements the [MS-DSCPM] pull-server protocol for Windows DSC nodes (LCM) and exposes a REST API plus a PowerShell module for remote management.
@@ -24,6 +27,7 @@ The full [documentation index](doc/README.md) lists every reference page, sectio
 - [Configuration repository (Git) & Scheduler](doc/dscpull/configuration-repo.md)
 - [Node Registration](doc/dscpull/registration.md)
 - [Security](doc/dscpull/security.md)
+- [Report a security vulnerability](SECURITY.md)
 - [MS-DSCPM protocol implementation state](doc/dscpull/protocol-implementation.md)
 - [API v1 Reference](doc/APIv1.md)
 - [SAML Integration](doc/SAML.md)
@@ -58,6 +62,11 @@ To build the binary yourself, see [CONTRIBUTING.md](CONTRIBUTING.md).
 ## Contributing
 
 Contributions to the code or documentation are welcome. Open an issue for bug reports and ideas; to build, test and open a pull request, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Security
+
+- [Security model & hardening](doc/dscpull/security.md) — authentication, client-certificate validation, certificate lifecycle, rate limiting.
+- [Report a security vulnerability](SECURITY.md) — how to disclose a vulnerability privately (GitHub Security Advisory) and our response timeline.
 
 ## License
 
