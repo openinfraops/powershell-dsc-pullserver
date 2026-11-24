@@ -58,6 +58,8 @@ DSC nodes (agents). Also stores the node certificate used for client-cert authen
 | certificate_issuer        | TEXT    | Certificate issuer                       |
 | certificate_notbefore     | TEXT    | Certificate validity start (raw)         |
 | certificate_notafter      | TEXT    | Certificate validity end (raw)           |
+| certificate_public_key    | TEXT    | Node cert public key, PEM `PUBLIC KEY` (nullable). Captured from the presented mTLS client cert at registration, and from the `CertificateInformation.PublicKey` field on `CertificateRotation`. Not consumed yet — reserved for per-node secret encryption. |
+| certificate_key_algorithm | TEXT    | Node cert public-key algorithm: `RSA`/`ECDSA`/`Ed25519` (nullable). `RSA` supports direct encryption; `ECDSA` would require key agreement (ECDH). |
 | registered_at             | TIMESTAMP | Registration timestamp (default now)  |
 | last_communication        | TIMESTAMP | Last check-in timestamp (default now) |
 | has_error_last_report     | BOOLEAN | Whether the last report had errors       |

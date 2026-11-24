@@ -76,6 +76,11 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	notbefore, _ := certInfo["NotBefore"].(string)
 	notafter, _ := certInfo["NotAfter"].(string)
 
+	// Clé publique du certificat client présenté au TLS (le certificat COURANT).
+	// Stockée (nullable) pour un futur chiffrement de secret par nœud — non
+	// consommée aujourd'hui.
+	pubKey, keyAlgo := clientPublicKeyInfo(r)
+
 	// Vérifie si NodeName existe avec un AgentId TEMP
 	var tempAgentId string
 	err = database.QueryRow(`SELECT agent_id FROM agents WHERE node_name = ? AND agent_id LIKE 'TEMP-%' AND deleted_at IS NULL`, nodeName).Scan(&tempAgentId)
@@ -87,13 +92,13 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		// de contrainte (constaté en production sur MSSQL). On insère donc une
 		// nouvelle ligne avec l'ID réel, on ré-attache les lignes enfants, puis on
 		// supprime la ligne TEMP, le tout dans une transaction.
-		if migrateErr := migrateTempAgentToRealID(database, driver, tempAgentId, agentId, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter); migrateErr != nil {
+		if migrateErr := migrateTempAgentToRealID(database, driver, tempAgentId, agentId, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter, pubKey, keyAlgo); migrateErr != nil {
 			logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][DB] Migration of TEMP agent %s to %s failed: %v", tempAgentId, agentId, migrateErr))
 		}
 	} else {
 		// Upsert de la ligne principale de l'agent (enrôlement ou
 		// ré-enregistrement / renouvellement de certificat).
-		err = upsertAgent(database, driver, agentId, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter, isNewNode)
+		err = upsertAgent(database, driver, agentId, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter, pubKey, keyAlgo, isNewNode)
 		if err != nil {
 			logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][DB] Error upserting agent: %v", err))
 		}
@@ -170,22 +175,22 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 //     (thumbprint, subject, issuer, notbefore, notafter) SANS écraser
 //     registered_at, last_communication, has_error_last_report, needs_recompile,
 //     state ni deleted_at. C'est ce qui permet le renouvellement de certificat.
-func upsertAgent(database *sql.DB, driver, agentId, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter string, isNewNode bool) error {
+func upsertAgent(database *sql.DB, driver, agentId, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter, pubKey, keyAlgo string, isNewNode bool) error {
 	if isNewNode {
 		if driver == "sqlite" {
-			_, err := database.Exec(`INSERT OR REPLACE INTO agents (agent_id, node_name, lcm_version, registration_type, certificate_thumbprint, certificate_subject, certificate_issuer, certificate_notbefore, certificate_notafter, state) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				agentId, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter, "pending_apply")
+			_, err := database.Exec(`INSERT OR REPLACE INTO agents (agent_id, node_name, lcm_version, registration_type, certificate_thumbprint, certificate_subject, certificate_issuer, certificate_notbefore, certificate_notafter, certificate_public_key, certificate_key_algorithm, state) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				agentId, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter, pubKey, keyAlgo, "pending_apply")
 			return err
 		}
-		_, err := database.Exec(`IF NOT EXISTS (SELECT 1 FROM agents WHERE agent_id = ?) INSERT INTO agents (agent_id, node_name, lcm_version, registration_type, certificate_thumbprint, certificate_subject, certificate_issuer, certificate_notbefore, certificate_notafter, registered_at, last_communication, has_error_last_report) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			agentId, agentId, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter, nil, nil, 0)
+		_, err := database.Exec(`IF NOT EXISTS (SELECT 1 FROM agents WHERE agent_id = ?) INSERT INTO agents (agent_id, node_name, lcm_version, registration_type, certificate_thumbprint, certificate_subject, certificate_issuer, certificate_notbefore, certificate_notafter, certificate_public_key, certificate_key_algorithm, registered_at, last_communication, has_error_last_report) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			agentId, agentId, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter, pubKey, keyAlgo, nil, nil, 0)
 		return err
 	}
 	// Ré-enregistrement : mise à jour (le renouvellement de certificat aboutit ici).
 	// On lève aussi force_cert_rotation=0 : le nœud a présenté un nouveau
 	// certificat (le renouvellement « ASAP » demandé par un admin est satisfait).
-	_, err := database.Exec(`UPDATE agents SET node_name=?, lcm_version=?, registration_type=?, certificate_thumbprint=?, certificate_subject=?, certificate_issuer=?, certificate_notbefore=?, certificate_notafter=?, force_cert_rotation=0 WHERE agent_id=?`,
-		nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter, agentId)
+	_, err := database.Exec(`UPDATE agents SET node_name=?, lcm_version=?, registration_type=?, certificate_thumbprint=?, certificate_subject=?, certificate_issuer=?, certificate_notbefore=?, certificate_notafter=?, certificate_public_key=COALESCE(NULLIF(?, ''), certificate_public_key), certificate_key_algorithm=COALESCE(NULLIF(?, ''), certificate_key_algorithm), force_cert_rotation=0 WHERE agent_id=?`,
+		nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter, pubKey, keyAlgo, agentId)
 	return err
 }
 
@@ -193,7 +198,7 @@ func upsertAgent(database *sql.DB, driver, agentId, nodeName, lcmVersion, regist
 // agent après enregistrement authentifié. MSSQL refuse de modifier la PK agents.agent_id
 // référencée par les tables enfants, d'où l'insertion d'une nouvelle ligne puis la
 // ré-attribution des enfants et la suppression de la ligne TEMP, dans une transaction.
-func migrateTempAgentToRealID(database *sql.DB, driver, tempAgentID, realAgentID, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter string) error {
+func migrateTempAgentToRealID(database *sql.DB, driver, tempAgentID, realAgentID, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter, pubKey, keyAlgo string) error {
 	tx, err := database.Begin()
 	if err != nil {
 		return err
@@ -201,11 +206,11 @@ func migrateTempAgentToRealID(database *sql.DB, driver, tempAgentID, realAgentID
 	defer tx.Rollback()
 
 	if driver == "sqlite" {
-		_, err = tx.Exec(`INSERT OR REPLACE INTO agents (agent_id, node_name, lcm_version, registration_type, certificate_thumbprint, certificate_subject, certificate_issuer, certificate_notbefore, certificate_notafter, state) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			realAgentID, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter, "pending_apply")
+		_, err = tx.Exec(`INSERT OR REPLACE INTO agents (agent_id, node_name, lcm_version, registration_type, certificate_thumbprint, certificate_subject, certificate_issuer, certificate_notbefore, certificate_notafter, certificate_public_key, certificate_key_algorithm, state) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			realAgentID, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter, pubKey, keyAlgo, "pending_apply")
 	} else {
-		_, err = tx.Exec(`IF NOT EXISTS (SELECT 1 FROM agents WHERE agent_id = ?) INSERT INTO agents (agent_id, node_name, lcm_version, registration_type, certificate_thumbprint, certificate_subject, certificate_issuer, certificate_notbefore, certificate_notafter, registered_at, last_communication, state, has_error_last_report) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, GETUTCDATE(), GETUTCDATE(), 'pending_apply', 0)`,
-			realAgentID, realAgentID, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter)
+		_, err = tx.Exec(`IF NOT EXISTS (SELECT 1 FROM agents WHERE agent_id = ?) INSERT INTO agents (agent_id, node_name, lcm_version, registration_type, certificate_thumbprint, certificate_subject, certificate_issuer, certificate_notbefore, certificate_notafter, certificate_public_key, certificate_key_algorithm, registered_at, last_communication, state, has_error_last_report) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, GETUTCDATE(), GETUTCDATE(), 'pending_apply', 0)`,
+			realAgentID, realAgentID, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter, pubKey, keyAlgo)
 	}
 	if err != nil {
 		return fmt.Errorf("insert real agent %s: %w", realAgentID, err)

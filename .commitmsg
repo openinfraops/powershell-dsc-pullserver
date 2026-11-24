@@ -1,0 +1,29 @@
+feat(dsc): capture and store the node certificate public key (building block)
+
+Add two nullable columns to agents (certificate_public_key,
+certificate_key_algorithm) and capture the node's certificate public key so it
+can later be used for per-node secret encryption (the node holds the private
+key of its mTLS certificate, so the server can encrypt with the public key).
+
+- Schema: schema_sqlite.sql / schema_mssql.sql add certificate_public_key
+  (TEXT / NVARCHAR(MAX)) and certificate_key_algorithm (TEXT / NVARCHAR(16)),
+  both nullable. EnsureAgentSchema adds them idempotently on existing DBs.
+  New db/migration_v1.7.1.sql (MSSQL) for manual pre-provisioning + db_version.
+- handlers/dsc_node_auth.go: clientPublicKeyInfo(r) extracts the public key
+  (PEM "PUBLIC KEY") + algorithm (RSA/ECDSA/Ed25519) from the presented mTLS
+  client cert; parsePublicKeyField(value) reads the base64
+  CertificateInformation.PublicKey (new cert) at rotation; publicKeyAlgorithm +
+  marshalPublicKeyPEM helpers.
+- handlers/register.go: capture the public key from the presented client cert
+  and store it in upsertAgent / migrateTempAgentToRealID (insert for new nodes,
+  COALESCE so a re-registration keeps an existing key when no cert is present).
+- handlers/certificate_rotation.go: parse the new cert's PublicKey from the
+  body and store it (COALESCE keeps the previous value if absent/unparseable).
+- internal/schema/agent.go + handlers/agent_byid_api.go: expose
+  certificate_public_key / certificate_key_algorithm in the agent detail API.
+- Tests: dsc_node_auth_test.go covers the new helpers; updated the shared test
+  agents schema and upsertAgent call sites.
+- Docs: DatabaseSchema.md, dscpull/security.md, dscpull/protocol-implementation.md
+  and release_v1.7.1.md note the capture and that the columns are not consumed yet.
+
+Verify: go build ./... && go vet ./... && go test ./... all pass.

@@ -95,7 +95,8 @@ Content-Type: application/json
 
 - **Response:** no body (§3.12.5.1.1.2). Status **`201 Created`** on success.
 - **Status codes:** `201` created · `400` malformed/missing `CertificateInformation`/`Thumbprint` · `401` unauthorized certificate · `403` cert-to-node binding failed · `404` unknown node/job · `409` rotation not enabled (spec allows the server to reject a rotation it did not solicit).
-- **State preserved:** only `certificate_thumbprint`, `certificate_subject`, `certificate_issuer`, `certificate_notbefore`, `certificate_notafter` and `force_cert_rotation` (reset to `0`) are updated; `state`, `registered_at`, `last_communication`, `has_error_last_report`, `needs_recompile` and `deleted_at` are left untouched.
+- **State preserved:** only `certificate_thumbprint`, `certificate_subject`, `certificate_issuer`, `certificate_notbefore`, `certificate_notafter`, `certificate_public_key`, `certificate_key_algorithm` and `force_cert_rotation` (reset to `0`) are updated; `state`, `registered_at`, `last_communication`, `has_error_last_report`, `needs_recompile` and `deleted_at` are left untouched.
+- **Public key:** the `CertificateInformation.PublicKey` field (base64 DER, §3.12) is read and normalized to a PEM `PUBLIC KEY` plus a key-algorithm label (`RSA`/`ECDSA`/`Ed25519`), stored in `certificate_public_key` / `certificate_key_algorithm`. If the field is absent or not parseable, the previous value is kept (the next node re-registration refreshes it from the presented certificate). These columns are **not consumed today** — reserved for future per-node secret encryption.
 
 ### Soliciting a rotation (DSC-certificateRotation header)
 

@@ -124,6 +124,8 @@ CREATE TABLE IF NOT EXISTS agents (
     certificate_issuer TEXT,
     certificate_notbefore TEXT,
     certificate_notafter TEXT,
+    certificate_public_key TEXT NULL,
+    certificate_key_algorithm TEXT NULL,
     registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_communication TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     has_error_last_report BOOLEAN DEFAULT 0,

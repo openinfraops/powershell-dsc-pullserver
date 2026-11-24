@@ -28,6 +28,8 @@ func setupAgentsDB(t *testing.T) *sql.DB {
 		certificate_issuer TEXT,
 		certificate_notbefore TEXT,
 		certificate_notafter TEXT,
+		certificate_public_key TEXT,
+		certificate_key_algorithm TEXT,
 		registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		last_communication TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		has_error_last_report BOOLEAN DEFAULT 0,
@@ -47,7 +49,7 @@ func setupAgentsDB(t *testing.T) *sql.DB {
 // insère l'agent avec un état 'pending_apply' et le certificat fourni.
 func TestUpsertAgent_NewNode(t *testing.T) {
 	database := setupAgentsDB(t)
-	err := upsertAgent(database, "sqlite", "agent-1", "node-1", "1.0", "Initial", "AAA", "subject", "issuer", "2024-01-01", "2030-01-01", true)
+	err := upsertAgent(database, "sqlite", "agent-1", "node-1", "1.0", "Initial", "AAA", "subject", "issuer", "2024-01-01", "2030-01-01", "", "", true)
 	if err != nil {
 		t.Fatalf("upsertAgent new node: %v", err)
 	}
@@ -77,7 +79,7 @@ func TestUpsertAgent_Renewal(t *testing.T) {
 	}
 
 	// Ré-enregistrement avec un NOUVEAU certificat (renouvellement).
-	err := upsertAgent(database, "sqlite", "agent-1", "node-1", "2.0", "Renewal", "NEWTHUMB", "subject2", "issuer2", "2026-01-01", "2031-01-01", false)
+	err := upsertAgent(database, "sqlite", "agent-1", "node-1", "2.0", "Renewal", "NEWTHUMB", "subject2", "issuer2", "2026-01-01", "2031-01-01", "PEMKEY", "RSA", false)
 	if err != nil {
 		t.Fatalf("upsertAgent renewal: %v", err)
 	}
@@ -109,7 +111,7 @@ func TestUpsertAgent_Renewal(t *testing.T) {
 // inexistant ne provoque pas d'erreur (0 ligne affectée), sans régression.
 func TestUpsertAgent_Renewal_UnknownAgent(t *testing.T) {
 	database := setupAgentsDB(t)
-	err := upsertAgent(database, "sqlite", "ghost", "node-x", "1.0", "Initial", "THUMB", "subject", "issuer", "2024-01-01", "2030-01-01", false)
+	err := upsertAgent(database, "sqlite", "ghost", "node-x", "1.0", "Initial", "THUMB", "subject", "issuer", "2024-01-01", "2030-01-01", "", "", false)
 	if err != nil {
 		t.Fatalf("upsertAgent on missing agent should not error, got: %v", err)
 	}
@@ -125,7 +127,7 @@ func TestUpsertAgent_Renewal_ClearsForceRotation(t *testing.T) {
 		t.Fatalf("seed agent: %v", err)
 	}
 
-	if err := upsertAgent(database, "sqlite", "agent-1", "node-1", "2.0", "Renewal", "NEWTHUMB", "subject2", "issuer2", "2026-01-01", "2031-01-01", false); err != nil {
+	if err := upsertAgent(database, "sqlite", "agent-1", "node-1", "2.0", "Renewal", "NEWTHUMB", "subject2", "issuer2", "2026-01-01", "2031-01-01", "PEMKEY", "RSA", false); err != nil {
 		t.Fatalf("upsertAgent renewal: %v", err)
 	}
 

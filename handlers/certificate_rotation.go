@@ -227,6 +227,12 @@ func CertificateRotationHandler(w http.ResponseWriter, r *http.Request) {
 	issuer := asString(certInfo["Issuer"])
 	notbefore := asString(certInfo["NotBefore"])
 	notafter := asString(certInfo["NotAfter"])
+	// Clé publique du NOUVEAU certificat, portée par le champ "PublicKey" du
+	// CertificateInformation (base64, §3.12). Le certificat présenté au TLS est
+	// l'ANCIEN, on ne peut donc pas l'extraire du handshake. Si le champ est
+	// absent/illisible, on conserve la valeur existante (COALESCE) : la prochaine
+	// ré-inscription du nœud la rafraîchira depuis le cert courant.
+	pubKey, keyAlgo := parsePublicKeyField(asString(certInfo["PublicKey"]))
 
 	// Vérifie que le nœud existe (404 sinon).
 	var exists int
@@ -241,8 +247,8 @@ func CertificateRotationHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Met à jour le certificat et lève le drapeau de renouvellement forcé : la
 	// rotation a abouti, le nœud ne doit plus être sollicité « ASAP ».
-	if _, err := database.Exec(`UPDATE agents SET certificate_thumbprint=?, certificate_subject=?, certificate_issuer=?, certificate_notbefore=?, certificate_notafter=?, force_cert_rotation=0 WHERE agent_id=?`,
-		thumbprint, subject, issuer, notbefore, notafter, agentId); err != nil {
+	if _, err := database.Exec(`UPDATE agents SET certificate_thumbprint=?, certificate_subject=?, certificate_issuer=?, certificate_notbefore=?, certificate_notafter=?, certificate_public_key=COALESCE(NULLIF(?, ''), certificate_public_key), certificate_key_algorithm=COALESCE(NULLIF(?, ''), certificate_key_algorithm), force_cert_rotation=0 WHERE agent_id=?`,
+		thumbprint, subject, issuer, notbefore, notafter, pubKey, keyAlgo, agentId); err != nil {
 		_ = logs.WriteLogFile(fmt.Sprintf("[CERTROTATION] Failed to update certificate for agentId=%q: %v", agentId, err))
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return

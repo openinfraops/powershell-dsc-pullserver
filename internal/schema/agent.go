@@ -10,6 +10,8 @@ type Agent struct {
 	CertificateIssuer     *string             `json:"certificate_issuer,omitempty"`
 	CertificateNotBefore  *string             `json:"certificate_notbefore,omitempty"`
 	CertificateNotAfter   *string             `json:"certificate_notafter,omitempty"`
+	CertificatePublicKey  *string             `json:"certificate_public_key,omitempty"`
+	CertificateKeyAlg     *string             `json:"certificate_key_algorithm,omitempty"`
 	RegisteredAt          *string             `json:"registered_at,omitempty"`
 	LastCommunication     string              `json:"last_communication"`
 	HasErrorLastReport    bool                `json:"has_error_last_report"`

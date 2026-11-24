@@ -171,6 +171,8 @@ CREATE TABLE agents (
     certificate_issuer NVARCHAR(255) NULL,
     certificate_notbefore NVARCHAR(50) NULL,
     certificate_notafter NVARCHAR(50) NULL,
+    certificate_public_key NVARCHAR(MAX) NULL,
+    certificate_key_algorithm NVARCHAR(16) NULL,
     registered_at DATETIME DEFAULT GETUTCDATE(),
     last_communication DATETIME DEFAULT GETUTCDATE(),
     needs_recompile BIT NOT NULL DEFAULT 0,

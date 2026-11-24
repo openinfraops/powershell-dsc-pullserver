@@ -20,17 +20,33 @@ The MS-DSCPM `CertificateRotation` flow (added in v1.7.0) is now validated again
 
 The periodic worker resolved every node's compilation properties twice per cycle even when the repository had not changed (the common case). The per-node resolution is now **lazy** — it runs only when the repository actually changed and a compilation is about to run. An up-to-date repository triggers **no** `Node properties resolved` pass.
 
+### Node certificate public key captured (building block)
+
+The server now captures each node certificate's **public key** and **key algorithm** into the `agents` table (`certificate_public_key`, `certificate_key_algorithm`, both nullable):
+
+- **Registration / re-registration** reads the public key from the **presented mTLS client certificate** (`r.TLS.PeerCertificates[0].PublicKey`).
+- **`CertificateRotation`** reads it from the body's `CertificateInformation.PublicKey` (the **new** certificate). If absent/unparseable, the previous value is kept (the next node re-registration refreshes it).
+- The key is normalized to a PEM `PUBLIC KEY` with an algorithm label (`RSA`/`ECDSA`/`Ed25519`).
+
+**Not consumed yet:** these columns are reserved as a building block for a future **per-node secret-encryption** feature — the private key of a node's mTLS certificate lives on the node, so the server can encrypt a secret with the node's public key and the node can decrypt it. `RSA` supports direct encryption; `ECDSA` would require key agreement (ECDH). Schema added via `db/schema_*.sql` and `db/migration_v1.7.1.sql`.
+
 ### Documentation
 
-- [MS-DSCPM protocol implementation state](dscpull/protocol-implementation.md) documents the spec-correct `RotationInformation` payload, the end-to-end renewal flow, the Windows LCM caveat, and the `[CERTROTATION]` observability.
-- [DSC Security](dscpull/security.md) updated with the `RotationInformation` envelope and the Windows LCM caveat.
+- [MS-DSCPM protocol implementation state](dscpull/protocol-implementation.md) documents the spec-correct `RotationInformation` payload, the end-to-end renewal flow, the Windows LCM caveat, the `[CERTROTATION]` observability, and the public-key capture.
+- [DSC Security](dscpull/security.md) updated with the `RotationInformation` envelope, the Windows LCM caveat, and the public-key capture (registration from the presented cert, rotation from the body).
 - [DSC Pull Server configuration](dscpull/configuration.md) documents how to read/set the renewal window via the admin API.
-- [API v1 reference](APIv1.md) adds the `GET`/`PUT /api/v1/dsc/settings` endpoints.
+- [API v1 reference](APIv1.md) adds the `GET`/`PUT /api/v1/dsc/settings` endpoints, and the agent detail endpoint now returns `certificate_public_key` / `certificate_key_algorithm`.
 - [Configuration repository](dscpull/configuration-repo.md) notes the lazy node-context resolution.
+- [Database schema](DatabaseSchema.md) documents the two new `agents` columns.
 
 ## Impacted files
 
 - `handlers/certificate_rotation.go`, `handlers/certificate_rotation_test.go`, `handlers/agent_rotate_cert_api_test.go`
+- `handlers/dsc_node_auth.go`, `handlers/dsc_node_auth_test.go`
+- `handlers/register.go`, `handlers/register_test.go`
+- `handlers/agent_byid_api.go`
+- `internal/schema/agent.go`, `internal/db/agent_schema_ensure.go`
 - `main.go`
 - `internal/service/configuration_repo.go`
-- `doc/dscpull/protocol-implementation.md`, `doc/dscpull/security.md`, `doc/dscpull/configuration.md`, `doc/dscpull/configuration-repo.md`, `doc/APIv1.md`
+- `db/schema_sqlite.sql`, `db/schema_mssql.sql`, `db/migration_v1.7.1.sql`
+- `doc/dscpull/protocol-implementation.md`, `doc/dscpull/security.md`, `doc/dscpull/configuration.md`, `doc/dscpull/configuration-repo.md`, `doc/APIv1.md`, `doc/DatabaseSchema.md`
