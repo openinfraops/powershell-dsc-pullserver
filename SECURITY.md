@@ -20,8 +20,7 @@ this repository:
 2. Click **Report a vulnerability** (or **Advisories → New advisory**).
 3. Fill in the details below. The draft stays private until you publish it.
 
-Alternatively, email the maintainers at `SECURITY@example.com`
-<!-- TODO: replace with the real security contact mailbox. -->
+Alternatively, contact the maintainer directly on GitHub: [@gerardlemetayerc](https://github.com/gerardlemetayerc).
 
 ## What to include
 
