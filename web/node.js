@@ -229,12 +229,45 @@ function renderAgentTags() {
     return html;
 }
 
+function formatDateTime(ts) {
+    if (!ts) return '';
+    let d = new Date(ts);
+    if (isNaN(d.getTime())) return String(ts);
+    let y = d.getFullYear();
+    let m = (d.getMonth()+1).toString().padStart(2,'0');
+    let day = d.getDate().toString().padStart(2,'0');
+    let h = d.getHours().toString().padStart(2,'0');
+    let min = d.getMinutes().toString().padStart(2,'0');
+    let s = d.getSeconds().toString().padStart(2,'0');
+    return `${y}-${m}-${day} ${h}:${min}:${s}`;
+}
+
+function renderRebootInfo() {
+    if (!state.agent) return '';
+    const a = state.agent;
+    if (!a.reboot_pending) return '';
+    const since = formatDateTime(a.reboot_pending_since);
+    const by = a.reboot_requested_by || '';
+    const count = (a.reboot_request_count || 0);
+    const loop = !!a.reboot_loop;
+    let html = '<div class="alert ' + (loop ? 'alert-danger' : 'alert-warning') + ' py-2 px-3" style="max-width:520px;">';
+    html += '<strong>' + (loop ? '⚠️ Redémarrage en boucle' : '🔄 Redémarrage demandé') + '</strong>';
+    html += '<ul class="mb-0 pl-3 mt-1" style="font-size:0.95em;">';
+    if (since) html += '<li>Demandé depuis : ' + since + '</li>';
+    if (by) html += '<li>Par : ' + by + '</li>';
+    html += '<li>Rapports consécutifs : ' + count + '</li>';
+    if (loop) html += '<li>Le nœud ne semble pas redémarrer malgré des demandes répétées.</li>';
+    html += '</ul></div>';
+    return html;
+}
+
 function fillAgentInfo() {
     if (!state.agent) {
         $('#agent-name').text('Error loading');
         $('#agent-thumbprint').text('');
         $('#agent-lastcomm').text('');
         $('#agent-config-block').html('');
+        $('#agent-reboot-block').html('');
         return;
     }
     let certExpRaw = state.agent.certificate_notafter || '';
@@ -283,6 +316,7 @@ function fillAgentInfo() {
     } else {
         $('#agent-config-block').html('');
     }
+    $('#agent-reboot-block').html(renderRebootInfo());
 }
 
 function renderSelectedReport() {
@@ -367,6 +401,17 @@ function renderSelectedReport() {
     }
     let operationType = report.OperationType || report.operationType || '';
 
+    // Flag de redémarrage demandé par ce rapport ; l'endpoint détaillé renvoie
+    // "RebootRequested" (bool, DscReport), le résumé renvoie "reboot_requested".
+    let rebootRequested = false;
+    if (typeof report.RebootRequested === 'boolean') {
+        rebootRequested = report.RebootRequested;
+    } else if (typeof report.reboot_requested === 'boolean') {
+        rebootRequested = report.reboot_requested;
+    } else if ('RebootRequested' in report) {
+        rebootRequested = !!report.RebootRequested;
+    }
+
     // Partie détails/erreurs
     let hasErrors = Array.isArray(report.Errors) && report.Errors.length > 0;
     let errorsHtml = '';
@@ -398,6 +443,7 @@ function renderSelectedReport() {
         <div><strong>Start Time:</strong> <span id="report-starttime">${startTime}</span></div>
         <div><strong>End Time:</strong> <span id="report-endtime">${endTime}</span></div>
         <div><strong>Operation Type:</strong> <span id="report-operationtype">${operationType}</span></div>
+        <div><strong>Reboot Requested:</strong> <span id="report-rebootreq">${rebootRequested ? 'Oui' : 'Non'}</span></div>
         <hr>
         ${renderResourceTable(resourcesInDesired, 'Resources In Desired State')}
         ${renderResourceTable(resourcesNotInDesired, 'Resources Not In Desired State')}
