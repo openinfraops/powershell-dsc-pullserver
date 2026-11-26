@@ -2,9 +2,11 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"time"
 
 	"go-dsc-pull/internal/db"
+	"go-dsc-pull/internal/logs"
 )
 
 // taskMeta describes a scheduled background task: its scheduler key/display name,
@@ -40,13 +42,17 @@ func (t taskMeta) firstRun() *time.Time {
 
 // register upserts the scheduler task row.
 func (t taskMeta) register(dbConn *sql.DB, driver string) {
-	_ = db.UpsertSchedulerTask(dbConn, driver, t.key, t.display, t.firstRun())
+	if err := db.UpsertSchedulerTask(dbConn, driver, t.key, t.display, t.firstRun()); err != nil {
+		logs.WriteLogFile(fmt.Sprintf("WARN [SCHEDULER] Failed to register scheduler task %q: %v", t.key, err))
+	}
 }
 
 // beginRecord returns a callback that records the start of a task run.
 func (t taskMeta) beginRecord(dbConn *sql.DB, driver string) func(time.Time, *time.Time) {
 	return func(startedAt time.Time, nextRunAt *time.Time) {
-		_ = db.BeginSchedulerTaskRun(dbConn, driver, t.key, t.display, "automatic", startedAt, nextRunAt)
+		if err := db.BeginSchedulerTaskRun(dbConn, driver, t.key, t.display, "automatic", startedAt, nextRunAt); err != nil {
+			logs.WriteLogFile(fmt.Sprintf("WARN [SCHEDULER] Failed to record the start of task %q: %v", t.key, err))
+		}
 	}
 }
 
@@ -59,6 +65,8 @@ func (t taskMeta) completeRecord(dbConn *sql.DB, driver string) func(startedAt t
 		if runErr != nil {
 			status = "error"
 		}
-		_ = db.CompleteSchedulerTaskRun(dbConn, driver, t.key, status, msg, time.Now().UTC(), &next)
+		if err := db.CompleteSchedulerTaskRun(dbConn, driver, t.key, status, msg, time.Now().UTC(), &next); err != nil {
+			logs.WriteLogFile(fmt.Sprintf("WARN [SCHEDULER] Failed to record the completion of task %q: %v", t.key, err))
+		}
 	}
 }

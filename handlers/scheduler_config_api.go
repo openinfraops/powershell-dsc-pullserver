@@ -678,11 +678,17 @@ func SchedulerTasksAPIHandler(w http.ResponseWriter, r *http.Request) {
 	database := db.Shared()
 
 	driver := global.AppConfig.Database.Driver
-	_ = db.UpsertSchedulerTask(database, driver, schedulerTaskReportCleanup, schedulerDisplayName(schedulerTaskReportCleanup), schedulerNextRunFromConfig(schedulerTaskReportCleanup))
-	_ = db.UpsertSchedulerTask(database, driver, schedulerTaskReleaseCheck, schedulerDisplayName(schedulerTaskReleaseCheck), schedulerNextRunFromConfig(schedulerTaskReleaseCheck))
-	_ = db.UpsertSchedulerTask(database, driver, schedulerTaskLogCleanup, schedulerDisplayName(schedulerTaskLogCleanup), schedulerNextRunFromConfig(schedulerTaskLogCleanup))
-	_ = db.UpsertSchedulerTask(database, driver, schedulerTaskAgentPurge, schedulerDisplayName(schedulerTaskAgentPurge), schedulerNextRunFromConfig(schedulerTaskAgentPurge))
-	_ = db.UpsertSchedulerTask(database, driver, schedulerTaskConfigurationVersionCleanup, schedulerDisplayName(schedulerTaskConfigurationVersionCleanup), schedulerNextRunFromConfig(schedulerTaskConfigurationVersionCleanup))
+	for _, taskKey := range []string{
+		schedulerTaskReportCleanup,
+		schedulerTaskReleaseCheck,
+		schedulerTaskLogCleanup,
+		schedulerTaskAgentPurge,
+		schedulerTaskConfigurationVersionCleanup,
+	} {
+		if err := db.UpsertSchedulerTask(database, driver, taskKey, schedulerDisplayName(taskKey), schedulerNextRunFromConfig(taskKey)); err != nil {
+			logs.WriteLogFile(fmt.Sprintf("WARN [SCHEDULER] Failed to register scheduler task %q: %v", taskKey, err))
+		}
+	}
 
 	tasks, err := db.ListSchedulerTasks(database)
 	if err != nil {

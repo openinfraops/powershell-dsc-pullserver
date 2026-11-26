@@ -306,11 +306,15 @@ func main() {
 				func(startedAt time.Time, result service.ReleaseCheckResult, checkErr error) {
 					if checkErr != nil {
 						logs.WriteLogFile(fmt.Sprintf("WARN [RELEASE CHECK] %v", checkErr))
-						_ = db.PersistReleaseCheckFailure(dbConn, global.AppConfig.Database.Driver)
+						if err := db.PersistReleaseCheckFailure(dbConn, global.AppConfig.Database.Driver); err != nil {
+							logs.WriteLogFile(fmt.Sprintf("WARN [RELEASE CHECK] Failed to persist failure: %v", err))
+						}
 						releaseCheck.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, checkErr.Error(), checkErr)
 						return
 					}
-					_ = db.PersistReleaseCheckSuccess(dbConn, global.AppConfig.Database.Driver, result.LatestRelease, result.LatestReleaseURL, result.UpdateAvailable)
+					if err := db.PersistReleaseCheckSuccess(dbConn, global.AppConfig.Database.Driver, result.LatestRelease, result.LatestReleaseURL, result.UpdateAvailable); err != nil {
+						logs.WriteLogFile(fmt.Sprintf("WARN [RELEASE CHECK] Failed to persist result: %v", err))
+					}
 					if result.UpdateAvailable {
 						logs.WriteLogFile(fmt.Sprintf("INFO [RELEASE CHECK] Update available: current=%s latest=%s", result.CurrentVersion, result.LatestRelease))
 						releaseCheck.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, fmt.Sprintf("Update available: %s", result.LatestRelease), nil)
@@ -396,7 +400,11 @@ func main() {
 			var count int
 			err := dbConn.QueryRow("SELECT COUNT(*) FROM users").Scan(&count)
 			if err == nil && count == 0 {
-				logs.WriteLogFile("WARN [INITDB] No user in the database: create the initial admin account via \"DSC-Admin-Console.exe init-bootstrap-admin\" (random password). The server no longer creates a default admin account.")
+				exeName := "DSC-Admin-Console.exe"
+				if p, pathErr := utils.ExePath(); pathErr == nil {
+					exeName = filepath.Base(p)
+				}
+				logs.WriteLogFile(fmt.Sprintf("WARN [INITDB] No user in the database: create the initial admin account via \"%s init-bootstrap-admin\" (random password). The server no longer creates a default admin account.", exeName))
 			}
 		}
 
@@ -412,7 +420,11 @@ func main() {
 					h.Write(clientCert.Raw)
 					sha1sum := hex.EncodeToString(h.Sum(nil))
 					sha1sumLower := strings.ToLower(sha1sum)
-					logs.WriteLogFile(fmt.Sprintf("[DSC][TLS] Client certificate received: Subject=%s, Thumbprint=%s", clientCert.Subject, sha1sumLower))
+					// Neutralise les caractères de contrôle (retours à la ligne,
+					// tabulations…) du Subject du certificat client avant de
+					// l'écrire dans le log, pour empêcher toute injection de ligne.
+					subject := logs.SanitizeLogMessage(clientCert.Subject.String())
+					logs.WriteLogFile(fmt.Sprintf("[DSC][TLS] Client certificate received: Subject=%s, Thumbprint=%s", subject, sha1sumLower))
 					// Vérification de l'empreinte si la validation du certificat client est activée
 					// On ne fait PAS ce contrôle pour la route de registration DSC (PUT /PSDSCPullServer.svc/{node})
 					isRegister := r.Method == "PUT" && strings.HasPrefix(r.URL.Path, "/PSDSCPullServer.svc/") && len(strings.Split(r.URL.Path, "/")) == 3

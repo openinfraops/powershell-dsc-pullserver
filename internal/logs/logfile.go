@@ -50,7 +50,7 @@ func WriteLogFile(message string) error {
     }
     defer f.Close()
     now := time.Now().Format("2006-01-02 15:04:05")
-    logLine := fmt.Sprintf("[%s] %s\n", now, sanitizeLogMessage(message))
+    logLine := fmt.Sprintf("[%s] %s\n", now, SanitizeLogMessage(message))
     if _, err := f.WriteString(logLine); err != nil {
         return fmt.Errorf("[LOG] Impossible d'écrire dans le fichier log: %v", err)
     }
@@ -242,10 +242,11 @@ func logRotationConfig() (enabled bool, maxSizeBytes int64, maxBackups int, maxA
     return enabled, maxSizeBytes, maxBackups, maxAgeDays
 }
 
-// sanitizeLogMessage neutralise les caractères de contrôle (retours à la ligne,
+// SanitizeLogMessage neutralise les caractères de contrôle (retours à la ligne,
 // tabulations, etc.) afin d'empêcher l'injection de lignes de log via des
-// champs contrôlés par l'utilisateur (URL, RemoteAddr, auteur, noms de modules…).
-func sanitizeLogMessage(s string) string {
+// champs contrôlés par l'utilisateur (URL, RemoteAddr, auteur, noms de modules…,
+// et notamment le Subject d'un certificat client DSC).
+func SanitizeLogMessage(s string) string {
     var b strings.Builder
     for _, r := range s {
         switch {
