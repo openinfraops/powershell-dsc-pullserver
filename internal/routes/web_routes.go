@@ -65,8 +65,8 @@ func RegisterWebRoutes(mux *http.ServeMux, dbConn *sql.DB, jwtAuthMiddleware fun
 		handlers.NotFoundHandler(w, r)
 	})
 	// Monitoring endpoints. /health is unauthenticated (for load balancers and
-	// health checks); /metrics is gated by web_ui.metrics_token (not exposed
-	// when the token is empty).
+	// health checks); /metrics is gated by web_ui.metrics_token or a valid user
+	// API token (the same {TOKEN_API} used by /api/v1/*).
 	mux.Handle("GET /health", handlers.HealthHandler(dbConn))
 	mux.Handle("GET /metrics", handlers.MetricsHandler(dbConn))
 	exeDir, err := utils.ExePath()

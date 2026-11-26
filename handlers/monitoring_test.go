@@ -9,6 +9,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
+	"go-dsc-pull/internal/db"
 	"go-dsc-pull/internal/global"
 	"go-dsc-pull/internal/schema"
 )
@@ -115,17 +116,68 @@ func TestHealthHandler_DBUnreachable(t *testing.T) {
 	}
 }
 
-func TestMetricsHandler_NotExposedWhenNoToken(t *testing.T) {
+func TestMetricsHandler_Unauthenticated(t *testing.T) {
 	database := setupMonitoringDB(t)
-	setMetricsToken(t, "") // empty token -> /metrics disabled
+	// No credentials and no metrics_token configured -> 401. The endpoint now
+	// requires either web_ui.metrics_token or a valid user API token.
+	setMetricsToken(t, "")
 
 	h := MetricsHandler(database)
 	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusNotFound {
-		t.Fatalf("status = %d, want 404 (not exposed)", rec.Code)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401 (unauthorized)", rec.Code)
+	}
+}
+
+func TestMetricsHandler_UserAPIToken(t *testing.T) {
+	database := setupMonitoringDB(t)
+	// Table nécessaire pour valider un token API d'utilisateur (voir CheckAPIToken).
+	mustExec(t, database, `CREATE TABLE user_api_tokens (
+		user_id INTEGER NOT NULL,
+		token_hash TEXT NOT NULL,
+		label TEXT,
+		is_active INTEGER DEFAULT 1,
+		created_at TEXT,
+		revoked_at TEXT NULL
+	)`)
+	plain := "zabbix-api-token"
+	// AppConfig avec driver "" (sqlite) pour que StoreAPIToken utilise la branche sqlite.
+	setMetricsToken(t, "")
+	if err := db.StoreAPIToken(database, 1, plain, "zabbix"); err != nil {
+		t.Fatalf("store api token: %v", err)
+	}
+
+	h := MetricsHandler(database)
+
+	// Token API utilisateur valide -> 200, même sans web_ui.metrics_token.
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	req.Header.Set("Authorization", "Token "+plain)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("user api token (no metrics token) status = %d, want 200", rec.Code)
+	}
+
+	// Le token API utilisateur fonctionne aussi quand web_ui.metrics_token est défini.
+	setMetricsToken(t, "super-secret")
+	req = httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	req.Header.Set("Authorization", "Token "+plain)
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("user api token (metrics token set) status = %d, want 200", rec.Code)
+	}
+
+	// Token API utilisateur invalide -> 401.
+	req = httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	req.Header.Set("Authorization", "Token wrong-token")
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("wrong api token status = %d, want 401", rec.Code)
 	}
 }
 

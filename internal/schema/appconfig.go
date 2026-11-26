@@ -28,10 +28,12 @@ type HTTPConfig struct {
 	LegacyConfigurationRepoPassword         string `json:"configuration_repo_password"`
 	LegacyConfigurationRepoSyncIntervalMins int    `json:"configuration_repo_sync_interval_mins"`
 	// MetricsToken est un jeton optionnel qui protège le endpoint GET /metrics
-	// (format texte Prometheus). S'il est vide, /metrics n'est pas exposé
-	// (retour 404). S'il est défini, une requête doit présenter ce jeton via un
-	// en-tête "Authorization: Bearer <token>" ou un paramètre "?token=<token>".
-	// Le endpoint /health reste, lui, non authentifié.
+	// (format texte Prometheus). S'il est défini, une requête doit présenter ce
+	// jeton via un en-tête "Authorization: Bearer <token>" ou un paramètre
+	// "?token=<token>". Le endpoint /metrics accepte aussi un token API
+	// utilisateur valide (le même que /api/v1/*, "Authorization: Token
+	// <token>"), même lorsque MetricsToken est vide. Le endpoint /health reste,
+	// lui, non authentifié.
 	MetricsToken string `json:"metrics_token"`
 	// TrustedProxies liste les adresses IP ou CIDR des reverse-proxies de
 	// confiance. Si le client direct appartient à cette liste, les en-têtes

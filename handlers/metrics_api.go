@@ -22,22 +22,19 @@ import (
 
 // MetricsHandler returns the GET /metrics endpoint (Prometheus text format).
 //
-// The endpoint is gated by web_ui.metrics_token:
-//   - when the token is empty the endpoint is not exposed (404);
-//   - when the token is set the caller must present it via an
-//     "Authorization: Bearer <token>" header or a "?token=<token>" query
-//     parameter (401 otherwise).
+// The endpoint is gated by a token. A caller is accepted when it presents
+// either:
+//   - the configured web_ui.metrics_token (via an "Authorization: Bearer
+//     <token>" header or a "?token=<token>" query parameter), or
+//   - a valid user API token (the same "Authorization: Token <token>" used by
+//     the /api/v1/* endpoints), so a single {TOKEN_API} can scrape both the
+//     REST API and /metrics.
 //
 // No node names or secrets are exposed; the only label values are build
 // version, compliance states, scheduler task keys and task statuses.
 func MetricsHandler(dbConn *sql.DB) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		token := metricsToken()
-		if token == "" {
-			http.NotFound(w, r)
-			return
-		}
-		if !validMetricsToken(r, token) {
+		if !validMetricsToken(r, metricsToken(), dbConn) {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
@@ -53,13 +50,20 @@ func metricsToken() string {
 	return global.AppConfig.WebUI.MetricsToken
 }
 
-// validMetricsToken performs a constant-time comparison of the token supplied
-// by the caller (Bearer header or ?token= query) against the configured token.
-func validMetricsToken(r *http.Request, expected string) bool {
+// validMetricsToken reports whether the request presents a token accepted by
+// /metrics. A request is accepted when either:
+//   - the presented token matches web_ui.metrics_token (Bearer header or
+//     ?token= query), or
+//   - the presented token is a valid user API token (the same {TOKEN_API} used
+//     by the /api/v1/* endpoints), so Zabbix/Prometheus can reuse one token.
+func validMetricsToken(r *http.Request, expected string, dbConn *sql.DB) bool {
 	provided := ""
 	if auth := r.Header.Get("Authorization"); auth != "" {
-		if strings.HasPrefix(auth, "Bearer ") {
+		switch {
+		case strings.HasPrefix(auth, "Bearer "):
 			provided = strings.TrimSpace(strings.TrimPrefix(auth, "Bearer "))
+		case strings.HasPrefix(auth, "Token "):
+			provided = strings.TrimSpace(strings.TrimPrefix(auth, "Token "))
 		}
 	}
 	if provided == "" {
@@ -68,7 +72,19 @@ func validMetricsToken(r *http.Request, expected string) bool {
 	if provided == "" {
 		return false
 	}
-	return subtle.ConstantTimeCompare([]byte(provided), []byte(expected)) == 1
+
+	// 1. Match against the configured metrics token (constant-time).
+	if expected != "" && subtle.ConstantTimeCompare([]byte(provided), []byte(expected)) == 1 {
+		return true
+	}
+
+	// 2. Fall back to a valid user API token, so the same {TOKEN_API} used for
+	//    /api/v1/* can also scrape /metrics.
+	if userId, err := internaldb.CheckAPIToken(dbConn, provided); err == nil && userId > 0 {
+		return true
+	}
+
+	return false
 }
 
 // renderMetrics writes the Prometheus text exposition for the process.
