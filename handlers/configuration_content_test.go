@@ -31,7 +31,7 @@ func genDSCClientCert(t *testing.T) *x509.Certificate {
 	}
 	tmpl := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
-		Subject:      pkix.Name{CommonName: "https://dsc-console.boursorama.fr:8484/PSDSCPullServer.svc"},
+		Subject:      pkix.Name{CommonName: "https://dsc-console.example.com:8484/PSDSCPullServer.svc"},
 		NotBefore:    time.Now().Add(-time.Hour),
 		NotAfter:     time.Now().Add(24 * time.Hour),
 	}
