@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"go-dsc-pull/internal/global"
 	"go-dsc-pull/internal/schema"
 )
 
@@ -16,6 +17,18 @@ const (
 	ErrorGroupStatusKnown    = "known"
 	ErrorGroupStatusResolved = "resolved"
 )
+
+// isMSSQL reports whether the configured database driver is Microsoft SQL
+// Server (T-SQL). T-SQL does not support "LIMIT ? OFFSET ?" like SQLite, so
+// queries must use "OFFSET ? ROWS FETCH NEXT ? ROWS ONLY" (or "SELECT TOP n")
+// instead.
+func isMSSQL() bool {
+	if global.AppConfig == nil {
+		return false
+	}
+	d := strings.ToLower(global.AppConfig.Database.Driver)
+	return strings.Contains(d, "mssql") || strings.Contains(d, "sqlserver")
+}
 
 // DefaultErrorFingerprintDailyLimit bounds the number of distinct fingerprints a
 // single node can introduce per day, to prevent database flooding by a noisy
@@ -226,7 +239,13 @@ func removeOrphanGroup(tx *sql.Tx, fingerprint string) error {
 // configuration version (name == original_name), or "" when none exists.
 func currentActiveConfigVersionTx(tx *sql.Tx) string {
 	var name string
-	err := tx.QueryRow(`SELECT name FROM configuration_model WHERE name = original_name ORDER BY upload_date DESC LIMIT 1`).Scan(&name)
+	var q string
+	if isMSSQL() {
+		q = `SELECT TOP 1 name FROM configuration_model WHERE name = original_name ORDER BY upload_date DESC`
+	} else {
+		q = `SELECT name FROM configuration_model WHERE name = original_name ORDER BY upload_date DESC LIMIT 1`
+	}
+	err := tx.QueryRow(q).Scan(&name)
 	if err != nil {
 		return ""
 	}
@@ -237,7 +256,13 @@ func currentActiveConfigVersionTx(tx *sql.Tx) string {
 // its upload (publish) time. ok is false when no active version exists.
 func LatestActiveConfig(database *sql.DB) (version string, publish time.Time, ok bool, err error) {
 	var raw interface{}
-	err = database.QueryRow(`SELECT name, upload_date FROM configuration_model WHERE name = original_name ORDER BY upload_date DESC LIMIT 1`).Scan(&version, &raw)
+	var q string
+	if isMSSQL() {
+		q = `SELECT TOP 1 name, upload_date FROM configuration_model WHERE name = original_name ORDER BY upload_date DESC`
+	} else {
+		q = `SELECT name, upload_date FROM configuration_model WHERE name = original_name ORDER BY upload_date DESC LIMIT 1`
+	}
+	err = database.QueryRow(q).Scan(&version, &raw)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return "", time.Time{}, false, nil
@@ -540,8 +565,13 @@ func ListErrorGroups(database *sql.DB, f ErrorGroupFilter) ([]ErrorGroup, error)
 	q += " ORDER BY node_count DESC, g.last_seen DESC"
 
 	if f.Limit > 0 {
-		q += " LIMIT ? OFFSET ?"
-		args = append(args, f.Limit, f.Offset)
+		if isMSSQL() {
+			q += " OFFSET ? ROWS FETCH NEXT ? ROWS ONLY"
+			args = append(args, f.Offset, f.Limit)
+		} else {
+			q += " LIMIT ? OFFSET ?"
+			args = append(args, f.Limit, f.Offset)
+		}
 	}
 
 	rows, err := database.Query(q, args...)
@@ -610,8 +640,13 @@ func ListErrorGroupNodes(database *sql.DB, fingerprint string, offset, limit int
 	q := `SELECT fingerprint, node_id, first_seen, last_seen, count, last_report_id FROM error_occurrences WHERE fingerprint = ? ORDER BY last_seen DESC, node_id ASC`
 	args := []interface{}{fingerprint}
 	if limit > 0 {
-		q += " LIMIT ? OFFSET ?"
-		args = append(args, limit, offset)
+		if isMSSQL() {
+			q += " OFFSET ? ROWS FETCH NEXT ? ROWS ONLY"
+			args = append(args, offset, limit)
+		} else {
+			q += " LIMIT ? OFFSET ?"
+			args = append(args, limit, offset)
+		}
 	}
 	rows, err := database.Query(q, args...)
 	if err != nil {
