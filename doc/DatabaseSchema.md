@@ -177,6 +177,38 @@ Property values per node.
 
 PK = (`node_id`, `property_id`).
 
+### `error_groups`
+A distinct DSC report error, identified by a normalized fingerprint so repeated occurrences of the same root problem collapse into a single tracked group. Populated in the same transaction as the report ingest; updated by the error-detection task.
+
+| Column               | Type      | Description                              |
+|----------------------|-----------|-------------------------------------------|
+| fingerprint          | TEXT      | PK. First 8 bytes of SHA-256 of `resourceType | normalized message`. |
+| category             | TEXT      | Detected category (e.g. `access_denied`, `module_missing`, `unknown`). |
+| resource_type        | TEXT      | Resource type that produced the error.    |
+| sample_message       | TEXT      | Truncated (2048 bytes) sample of the error message. |
+| first_seen           | TIMESTAMP | First time the error group was seen.      |
+| last_seen            | TIMESTAMP | Most recent occurrence.                   |
+| first_config_version | TEXT      | Configuration version of the first occurrence. |
+| status               | TEXT      | Triage state: `open` (default), `known`, `resolved`. |
+| status_changed_by    | TEXT      | Email of the user who last changed the status. |
+| status_changed_at    | TIMESTAMP | When the status was last changed.         |
+| note                 | TEXT      | Admin note attached to the group.         |
+| last_alerted_at      | TIMESTAMP | Last time the group was alerted (repeat-delay dedup). |
+
+### `error_occurrences`
+Per-node counters for a group, updated in place. One row per (`fingerprint`, `node_id`) pair.
+
+| Column         | Type      | Description                  |
+|----------------|-----------|------------------------------|
+| fingerprint    | TEXT      | FK → `error_groups.fingerprint`. |
+| node_id        | TEXT      | Affected node identifier.    |
+| first_seen     | TIMESTAMP | First time this node reported the error. |
+| last_seen      | TIMESTAMP | Most recent occurrence on this node. |
+| count          | INTEGER   | Number of occurrences on this node (default 1). |
+| last_report_id | INTEGER   | Id of the most recent report. |
+
+PK = (`fingerprint`, `node_id`). Indexes: `idx_error_occ_fp_lastseen` on (`fingerprint`, `last_seen`); `idx_error_occ_node` on `node_id`.
+
 ---
 
 ## Infrastructure / Scheduler Tables
@@ -256,6 +288,8 @@ Single-row table holding the configuration-repository sync settings.
 - `configuration_model.previous_id` → `configuration_model.id` (version chain)
 - `node_properties.property_id` → `properties.id`
 - `reports.agent_id` → `agents.agent_id` (logical; no strict FK)
+- `error_occurrences.fingerprint` → `error_groups.fingerprint`
+- `error_occurrences.node_id` → `agents.agent_id` (logical; the error-detection grace period joins on this)
 
 ---
 

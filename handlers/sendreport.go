@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
 	"go-dsc-pull/internal/db"
 	"go-dsc-pull/internal/global"
@@ -81,6 +82,7 @@ func SendReportHandler(w http.ResponseWriter, r *http.Request) {
 			log.Printf("[SENDREPORT] Error starting transaction: %v", err)
 		} else {
 			txFailed := false
+			reportId := int64(0)
 
 			// Vérifie si un rapport existe déjà pour ce job_id
 			var count int
@@ -112,9 +114,12 @@ func SendReportHandler(w http.ResponseWriter, r *http.Request) {
 					log.Printf("[SENDREPORT] Error updating report in database: %v", err)
 					txFailed = true
 				}
+				if !txFailed {
+					_ = tx.QueryRow(`SELECT id FROM reports WHERE job_id = ?`, report.JobId).Scan(&reportId)
+				}
 			} else {
 				log.Printf("[SENDREPORT] Inserting report in database: agent_id=%s, job_id=%s, operation_type=%s", agentId, report.JobId, report.OperationType)
-				_, err = tx.Exec(`INSERT INTO reports (
+				insRes, err := tx.Exec(`INSERT INTO reports (
 						agent_id, job_id, report_format_version, operation_type, refresh_mode, status, start_time, end_time, reboot_requested, errors, status_data, additional_data, mof_applied, raw_json, created_at
 					) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, `+db.NowExpr(global.AppConfig.Database.Driver)+`)`,
 					agentId,
@@ -135,6 +140,8 @@ func SendReportHandler(w http.ResponseWriter, r *http.Request) {
 				if err != nil {
 					log.Printf("[SENDREPORT] Error inserting report in database: %v", err)
 					txFailed = true
+				} else if id, e := insRes.LastInsertId(); e == nil {
+					reportId = id
 				}
 			}
 			// Toujours mettre à jour le heartbeat agent. Le front suppose un stockage
@@ -170,6 +177,9 @@ func SendReportHandler(w http.ResponseWriter, r *http.Request) {
 				if err := db.ApplyRebootReportState(tx, agentId, rebootRequested, requester, now, thr, win); err != nil {
 					log.Printf("[SENDREPORT] Error applying reboot report state: %v", err)
 					_ = tx.Rollback()
+				} else if err := applyErrorGroups(tx, agentId, report, now, reportId); err != nil {
+					log.Printf("[SENDREPORT] Error applying error groups: %v", err)
+					_ = tx.Rollback()
 				} else if err := tx.Commit(); err != nil {
 					log.Printf("[SENDREPORT] Error committing transaction: %v", err)
 				}
@@ -185,6 +195,28 @@ func SendReportHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("{}"))
+}
+
+// applyErrorGroups regroupe, dans la transaction en cours, les erreurs du rapport
+// (niveau rapport + ressources en échec) en groupes dérivés. Les règles de
+// catégorisation et la limite quotidienne d'empreintes proviennent de la
+// configuration.
+func applyErrorGroups(tx *sql.Tx, agentId string, report schema.DscReport, now time.Time, reportId int64) error {
+	var rules []schema.CategoryRule
+	dailyLimit := 0
+	if global.AppConfig != nil {
+		rules = global.AppConfig.DSCPullServer.ErrorCategories
+		dailyLimit = global.AppConfig.DSCPullServer.ErrorFingerprintDailyLimit
+	}
+	return db.ApplyErrorGroupsTx(tx, db.ErrorGroupWriteInput{
+		AgentID:    agentId,
+		ReportID:   reportId,
+		Errors:     report.Errors,
+		StatusData: report.StatusData,
+		Now:        now,
+		Rules:      rules,
+		DailyLimit: dailyLimit,
+	})
 }
 
 // rebootRequestedString normalise la colonne reports.reboot_requested (TEXT) :

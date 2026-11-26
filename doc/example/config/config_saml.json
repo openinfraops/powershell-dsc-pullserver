@@ -16,7 +16,16 @@
     "port": 8484,
     "registrationKey": "AnyString",
     "reboot_loop_threshold": 3,
-    "reboot_loop_window_mins": 60
+    "reboot_loop_window_mins": 60,
+    "enable_error_detection": true,
+    "error_detection_interval_mins": 5,
+    "error_spike_min_nodes": 5,
+    "error_spike_percent": 10,
+    "error_new_window_hours": 24,
+    "error_deployment_window_mins": 60,
+    "error_fingerprint_daily_limit": 1000,
+    "error_detection_repeat_minutes": 0,
+    "error_detection_grace_minutes": 5
   },
   "web_ui": {
     "cert_file": "dsc-dev.local.crt",

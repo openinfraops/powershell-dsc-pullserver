@@ -47,6 +47,34 @@ CREATE TABLE IF NOT EXISTS reports (
     raw_json TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_reports_agent_id ON reports(agent_id);
+
+-- Table pour grouper les erreurs DSC par empreinte (un problème distinct).
+CREATE TABLE IF NOT EXISTS error_groups (
+    fingerprint TEXT PRIMARY KEY,
+    category TEXT,
+    resource_type TEXT,
+    sample_message TEXT,
+    first_seen TIMESTAMP,
+    last_seen TIMESTAMP,
+    first_config_version TEXT,
+    status TEXT DEFAULT 'open',
+    status_changed_by TEXT,
+    status_changed_at TIMESTAMP,
+    note TEXT,
+    last_alerted_at TIMESTAMP
+);
+-- Table pour compter les occurrences par nœud et empreinte (une ligne par couple).
+CREATE TABLE IF NOT EXISTS error_occurrences (
+    fingerprint TEXT,
+    node_id TEXT,
+    first_seen TIMESTAMP,
+    last_seen TIMESTAMP,
+    count INTEGER DEFAULT 1,
+    last_report_id INTEGER,
+    PRIMARY KEY (fingerprint, node_id)
+);
+CREATE INDEX IF NOT EXISTS idx_error_occ_fp_lastseen ON error_occurrences(fingerprint, last_seen);
+CREATE INDEX IF NOT EXISTS idx_error_occ_node ON error_occurrences(node_id);
 -- Table pour suivre les informations d'infrastructure DSC (version web, version db, date MAJ)
 CREATE TABLE IF NOT EXISTS dsc_infra_info (
     id INTEGER PRIMARY KEY CHECK (id = 1),

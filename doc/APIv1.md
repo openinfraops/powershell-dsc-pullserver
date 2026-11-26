@@ -262,6 +262,40 @@ Both JWT and API tokens grant access to the API according to the user's permissi
 
 ---
 
+## Error Groups
+
+Groups DSC report errors by a normalized fingerprint so repeated occurrences of the same problem collapse into a single tracked issue. Errors are extracted from the `status_data` JSON of each report and classified into categories. Each group carries detection flags (spike / new / after-deployment) and a trend.
+
+### GET `/api/v1/error_groups`
+- List error groups, ordered by node count then most recently seen.
+- Query params supported:
+	- `status=<open|known|resolved>`: filter by status.
+	- `category=<name>`: filter by category.
+	- `since=<YYYY-MM-DD|ISO datetime>`: only groups first seen at or after this time.
+	- `min_nodes=<n>`: only groups affecting at least `n` distinct nodes.
+	- `tag=<key:value>`: only groups affecting a node carrying that tag. Repeatable.
+	- `limit=<n>` (default `20`, max `200`) and `offset=<n>`: pagination.
+- Response: `{ "groups": [ ... ], "total": <n>, "offset": <n>, "limit": <n> }`.
+- Each item has `fingerprint`, `category`, `resource_type`, `sample_message` (HTML-escaped), `first_seen`, `last_seen`, `first_config_version`, `status` (`open`/`known`/`resolved`), `status_changed_by`, `status_changed_at`, `note`, `node_count`, and the detection fields: `spike`, `new`, `after_deployment`, `trend` (`rising`/`stable`/`falling`), `node_count_last_hour`, `node_count_prev_hour`, `detection_alerted`, `detection_suppressed`.
+
+### GET `/api/v1/error_groups/{fingerprint}`
+- Get a single error group (same shape as a list item).
+- `404` when the fingerprint is unknown.
+
+### GET `/api/v1/error_groups/{fingerprint}/nodes`
+- List the affected nodes and their occurrence counters for a group, most recently seen first.
+- Query params: `limit` (default `100`), `offset`.
+- Response: `{ "nodes": [ { "node_id": "...", "first_seen": "...", "last_seen": "...", "count": <n>, "last_report_id": <id> } ], "offset": <n>, "limit": <n>, "count": <n> }`.
+
+### PUT `/api/v1/error_groups/{fingerprint}`
+- **Admin only.** Update a group's triage state.
+- Body: `{ "status": "known|resolved|open", "note": "..." }`.
+- `status` is required; `note` is optional.
+- Returns `204 No Content`. The change is audited (action `error_group.<status>`).
+- `404` when the fingerprint is unknown.
+
+---
+
 ## Notes
 - All endpoints (except login) require a valid JWT in `Authorization: Bearer <token>`.
 - Admin endpoints require admin role.

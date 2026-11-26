@@ -164,6 +164,7 @@ func main() {
 			taskConfigurationRepoSync       = "configuration_repo_sync"
 			taskAgentPurge                  = "agent_purge"
 			taskConfigurationVersionCleanup = "configuration_version_cleanup"
+			taskErrorDetection              = "error_detection"
 		)
 
 		const logMaintenanceInterval = time.Hour
@@ -211,6 +212,14 @@ func main() {
 		}
 		configVersionCleanup.register(dbConn, global.AppConfig.Database.Driver)
 
+		errorDetection := taskMeta{
+			key:      taskErrorDetection,
+			display:  "Error detection",
+			enabled:  global.AppConfig.DSCPullServer.EnableErrorDetection,
+			interval: intervalFromMins(global.AppConfig.DSCPullServer.ErrorDetectionIntervalMins, 5),
+		}
+		errorDetection.register(dbConn, global.AppConfig.Database.Driver)
+
 		repoCfg := service.ConfigurationRepoConfig{URL: repoSettings.URL, Branch: repoSettings.Branch, Directory: repoSettings.Directory, CompilerScript: repoSettings.CompilerScript, PowerShellExecutable: repoSettings.PowerShellExecutable, RepositoryUsername: repoSettings.RepositoryUsername, RepositoryPassword: repoSettings.RepositoryPassword}
 		repoSync := taskMeta{
 			key:      taskConfigurationRepoSync,
@@ -239,8 +248,15 @@ func main() {
 							reportCleanup.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, cleanupErr.Error(), cleanupErr)
 							return
 						}
-						logs.WriteLogFile(fmt.Sprintf("INFO [REPORT CLEANUP] Deleted %d old report(s)", deleted))
-						reportCleanup.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, fmt.Sprintf("Deleted %d old report(s)", deleted), nil)
+						// Purge les occurrences d'erreur avec la même rétention que les
+						// rapports, pour borner la croissance de error_occurrences.
+						occPurged, occErr := db.PurgeErrorOccurrences(dbConn, global.AppConfig.Database.Driver, retentionDays)
+						if occErr != nil {
+							logs.WriteLogFile(fmt.Sprintf("WARN [REPORT CLEANUP] Error purging error occurrences: %v", occErr))
+						}
+						msg := fmt.Sprintf("Deleted %d old report(s), %d stale error occurrence(s)", deleted, occPurged)
+						logs.WriteLogFile(fmt.Sprintf("INFO [REPORT CLEANUP] %s", msg))
+						reportCleanup.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, msg, nil)
 					},
 				)
 			}
@@ -265,8 +281,15 @@ func main() {
 							agentPurge.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, cleanupErr.Error(), cleanupErr)
 							return
 						}
-						logs.WriteLogFile(fmt.Sprintf("INFO [AGENT PURGE] Purged %d trashed agent(s)", purged))
-						agentPurge.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, fmt.Sprintf("Purged %d trashed agent(s)", purged), nil)
+						// Purge les occurrences d'erreur des nœuds éphémères (supprimés)
+						// pour ne pas laisser de nœuds fantômes dans les groupes.
+						occPurged, occErr := db.PurgeEphemeralErrorOccurrences(dbConn)
+						if occErr != nil {
+							logs.WriteLogFile(fmt.Sprintf("WARN [AGENT PURGE] Error purging ephemeral error occurrences: %v", occErr))
+						}
+						msg := fmt.Sprintf("Purged %d trashed agent(s), %d ephemeral error occurrence(s)", purged, occPurged)
+						logs.WriteLogFile(fmt.Sprintf("INFO [AGENT PURGE] %s", msg))
+						agentPurge.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, msg, nil)
 					},
 				)
 			}
@@ -295,6 +318,54 @@ func main() {
 					},
 				)
 			}
+		}
+
+		if global.AppConfig.DSCPullServer.EnableErrorDetection {
+			ecfg := global.AppConfig.DSCPullServer
+			detParams := db.ErrorDetectionParams{
+				Now:              time.Now().UTC(),
+				SpikeMinNodes:    5,
+				SpikePercent:     10,
+				NewWindow:        24 * time.Hour,
+				DeploymentWindow: 60 * time.Minute,
+				GracePeriod:      5 * time.Minute,
+			}
+			if ecfg.ErrorSpikeMinNodes > 0 {
+				detParams.SpikeMinNodes = ecfg.ErrorSpikeMinNodes
+			}
+			if ecfg.ErrorSpikePercent > 0 {
+				detParams.SpikePercent = float64(ecfg.ErrorSpikePercent)
+			}
+			if ecfg.ErrorNewWindowHours > 0 {
+				detParams.NewWindow = time.Duration(ecfg.ErrorNewWindowHours) * time.Hour
+			}
+			if ecfg.ErrorDeploymentWindowMins > 0 {
+				detParams.DeploymentWindow = time.Duration(ecfg.ErrorDeploymentWindowMins) * time.Minute
+			}
+			if ecfg.ErrorDetectionRepeatMinutes > 0 {
+				detParams.RepeatDelay = time.Duration(ecfg.ErrorDetectionRepeatMinutes) * time.Minute
+			}
+			if ecfg.ErrorDetectionGraceMinutes > 0 {
+				detParams.GracePeriod = time.Duration(ecfg.ErrorDetectionGraceMinutes) * time.Minute
+			}
+			logs.WriteLogFile(fmt.Sprintf("INFO [ERROR DETECTION] Enabled: interval=%d minute(s), spike=%d node(s)/%d%%, new=%dh, deploy=%dm", errorDetection.interval/time.Minute, detParams.SpikeMinNodes, int(detParams.SpikePercent), ecfg.ErrorNewWindowHours, ecfg.ErrorDeploymentWindowMins))
+			db.StartErrorDetectionWorker(
+				ctx,
+				dbConn,
+				detParams,
+				errorDetection.interval,
+				errorDetection.beginRecord(dbConn, global.AppConfig.Database.Driver),
+				func(startedAt time.Time, alerted int, detErr error) {
+					if detErr != nil {
+						logs.WriteLogFile(fmt.Sprintf("ERROR [ERROR DETECTION] %v", detErr))
+						errorDetection.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, detErr.Error(), detErr)
+						return
+					}
+					msg := fmt.Sprintf("Evaluated error groups: %d alert(s)", alerted)
+					logs.WriteLogFile(fmt.Sprintf("INFO [ERROR DETECTION] %s", msg))
+					errorDetection.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, msg, nil)
+				},
+			)
 		}
 
 		if global.AppConfig.DSCPullServer.EnableReleaseCheck {

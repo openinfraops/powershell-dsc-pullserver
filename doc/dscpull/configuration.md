@@ -48,6 +48,7 @@ These keys are also accepted in the `dsc_pullserver` block (shared `HTTPConfig` 
 - **enable_agent_purge**, **agent_purge_retention_days**, **agent_purge_interval_mins**: periodic purge of soft-deleted agents.
 - **enable_configuration_version_cleanup**, **configuration_version_max_keep**, **configuration_version_cleanup_interval_mins**: retention of old configuration versions.
 - **reboot_loop_threshold**, **reboot_loop_window_mins**: reboot-loop detection. A node is flagged `reboot_loop` when it requests a reboot on **N consecutive reports** (default `3`) over at least **M minutes** (default `60`) — see [Reboot pending & loop detection](#reboot-pending--loop-detection).
+- **enable_error_detection**, **error_detection_interval_mins**, **error_spike_min_nodes**, **error_spike_percent**, **error_new_window_hours**, **error_deployment_window_mins**, **error_fingerprint_daily_limit**, **error_categories**, **error_detection_repeat_minutes**, **error_detection_grace_minutes**: error classification, grouping and alert detection — see [Error detection](#error-detection).
 - **enable_configuration_repo_sync**, **configuration_repo_***: legacy migration source for the Git-backed configuration repository. These are **imported once** and then **stored in the database** (`configuration_repo_settings`), managed from the **Scheduler administration page** — see [Configuration repository (Git) & Scheduler](configuration-repo.md).
 
 ## Reboot pending & loop detection
@@ -81,6 +82,66 @@ The state is updated **in the same transaction** as the report ingest, so the re
 The flags are exposed through the API (`/api/v1/agents`, `/api/v1/agents/{id}`, and `reboot_requested` on `/api/v1/agents/{id}/reports`), the `agents?stats` counters and the `/metrics` endpoint (`dsc_nodes_reboot_pending`, `dsc_nodes_reboot_loop`).
 
 > **Note on `RebootNodeIfNeeded`:** a pending reboot is a *request* made by a resource during a run, not a record of a reboot that actually happened. With `RebootNodeIfNeeded = $true` the LCM reboots the node itself and the next report no longer shows the request; with `$false` (or when the LCM cannot reboot) the node stays pending until someone reboots it. The server does **not** reboot nodes.
+
+## Error detection
+
+The server classifies, groups and alerts on DSC report errors. Each report's per-resource errors are read from the `status_data` JSON, normalized (node names, GUIDs, paths and IPs are masked; `0x…` HRESULT/hex and context numbers are preserved) and collapsed into an **error group** identified by a fingerprint. The fingerprint is the first 8 bytes of the SHA-256 of `resourceType` + normalized message, so the same root problem across many nodes and reports becomes a single tracked issue.
+
+### Categories
+
+Each error is classified into a category by an **ordered, first-match-wins** rule list. When `error_categories` is absent, the built-in defaults apply:
+
+| Category | Meaning |
+|---|---|
+| `module_missing` | A required module/resource is missing on the node. |
+| `access_denied` | An access/authorization error (permissions, credentials to a resource). |
+| `credential_decryption` | Credential decryption failed. |
+| `reboot_required` | A resource requested a reboot. |
+| `timeout_network` | A timeout or network connectivity failure. |
+| `checksum_download` | A MOF/module checksum or download integrity failure. |
+| `unknown` | Fallback when nothing above matches. |
+
+You can override the list (and its order) with `error_categories` in the `dsc_pullserver` block. Each rule has a `name`, a `pattern` (a regular expression matched against the message) and an optional `resource_type` (matched against the resource type):
+
+```json
+{
+  "dsc_pullserver": {
+    "enable_error_detection": true,
+    "error_categories": [
+      { "name": "module_missing", "pattern": "not (found|installed|imported)" },
+      { "name": "access_denied",   "pattern": "access is denied" },
+      { "name": "timeout_network", "pattern": "timed? ?out|network.*unreachable", "resource_type": "MSFT_x" }
+    ]
+  }
+}
+```
+
+### Detection rules
+
+When `enable_error_detection` is `true`, a periodic task (default every **5 minutes**) evaluates each group and flags it:
+
+- **Spike** — the number of distinct nodes reporting the group in the last hour is at least `max(error_spike_min_nodes, ceil(error_spike_percent% of active nodes))`.
+- **New** — the group was first seen within the last `error_new_window_hours` hours.
+- **After-deployment** — the group was first seen with the latest active configuration version, or first appeared within `error_deployment_window_mins` after the latest configuration publish.
+
+For each flagged group, a message is emitted to the **log file** and exposed on the API (`detection_alerted`, `spike`, `new`, `after_deployment`, `trend`). Alert delivery (webhook/notification) and a dedicated **Errors** UI page are not part of the backend yet — the results are available via the API under `/api/v1/error_groups` (see [API v1 reference](../APIv1.md)).
+
+### Configuration reference
+
+| Key | Default | Purpose |
+|---|---|---|
+| `enable_error_detection` | `false` | Enable the periodic detection task. |
+| `error_detection_interval_mins` | `5` | Execution interval of the detection task, in minutes. |
+| `error_spike_min_nodes` | `5` | Minimum distinct nodes in the last hour for a spike (`N`). |
+| `error_spike_percent` | `10` | If `X%` of active nodes exceeds `N`, it replaces `N`. |
+| `error_new_window_hours` | `24` | Window (hours) in which a first-seen error is "new". |
+| `error_deployment_window_mins` | `60` | Window (minutes) after the latest publish for "after-deployment". |
+| `error_fingerprint_daily_limit` | `1000` | Per-node cap on distinct fingerprints introduced per day. |
+| `error_detection_repeat_minutes` | `0` | Minimum delay between two alerts for the same fingerprint (`0` = none). |
+| `error_detection_grace_minutes` | `5` | Grace period after a node registers during which a new error is not alerted. |
+| `error_categories` | built-ins | Ordered, first-match-wins category rules. |
+
+The grouped errors are exposed through the API under `/api/v1/error_groups` (list / detail / nodes / admin triage) — see [API v1 reference](../APIv1.md).
 
 ## Settings stored in the database (not `config.json`)
 

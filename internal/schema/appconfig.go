@@ -53,6 +53,37 @@ type HTTPConfig struct {
 	// N rapports doivent se produire pour déclencher la détection de boucle.
 	// 0/absent -> défaut 60.
 	RebootLoopWindowMins int `json:"reboot_loop_window_mins"`
+	// EnableErrorDetection active la tâche périodique de détection d'erreurs
+	// (spike, nouvelle erreur, erreur après déploiement).
+	EnableErrorDetection bool `json:"enable_error_detection"`
+	// ErrorDetectionIntervalMins est la fréquence (en minutes) de la tâche de
+	// détection. 0/absent -> défaut 5.
+	ErrorDetectionIntervalMins int `json:"error_detection_interval_mins"`
+	// ErrorSpikeMinNodes est le nombre N minimal de nœuds touchés sur la dernière
+	// heure pour déclencher un « spike ». 0/absent -> défaut 5.
+	ErrorSpikeMinNodes int `json:"error_spike_min_nodes"`
+	// ErrorSpikePercent est le pourcentage X des nœuds actifs qui, s'il donne un
+	// seuil supérieur à N, remplace N. 0/absent -> défaut 10.
+	ErrorSpikePercent int `json:"error_spike_percent"`
+	// ErrorNewWindowHours est la fenêtre (en heures) sous laquelle une première
+	// apparition est considérée comme une « nouvelle erreur ». 0 -> défaut 24.
+	ErrorNewWindowHours int `json:"error_new_window_hours"`
+	// ErrorDeploymentWindowMins est la fenêtre (en minutes) après la publication
+	// de la dernière configuration dans laquelle une erreur est considérée comme
+	// « apparue après déploiement ». 0 -> défaut 60.
+	ErrorDeploymentWindowMins int `json:"error_deployment_window_mins"`
+	// ErrorFingerprintDailyLimit borne le nombre d'empreintes distinctes qu'un
+	// nœud peut créer par jour. 0/absent -> défaut 1000.
+	ErrorFingerprintDailyLimit int `json:"error_fingerprint_daily_limit"`
+	// ErrorCategories est la liste ordonnée (premier match gagnant) des règles de
+	// catégorisation. Absente -> règles par défaut embarquées.
+	ErrorCategories []CategoryRule `json:"error_categories"`
+	// ErrorDetectionRepeatMinutes est le délai minimal entre deux alertes pour une
+	// même empreinte. 0 -> aucune déduplication temporelle.
+	ErrorDetectionRepeatMinutes int `json:"error_detection_repeat_minutes"`
+	// ErrorDetectionGraceMinutes est la période de grâce après le démarrage d'un
+	// nœud pendant laquelle une nouvelle erreur n'est pas alertée. 0 -> défaut 5.
+	ErrorDetectionGraceMinutes int `json:"error_detection_grace_minutes"`
 }
 
 type AppConfig struct {

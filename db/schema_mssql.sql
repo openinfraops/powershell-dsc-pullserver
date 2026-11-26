@@ -72,6 +72,37 @@ CREATE TABLE reports (
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_reports_agent_id' AND object_id = OBJECT_ID('reports'))
     CREATE INDEX idx_reports_agent_id ON reports(agent_id);
 
+IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='error_groups' AND xtype='U')
+CREATE TABLE error_groups (
+    fingerprint NVARCHAR(64) PRIMARY KEY,
+    category NVARCHAR(64),
+    resource_type NVARCHAR(255),
+    sample_message NVARCHAR(MAX),
+    first_seen DATETIME,
+    last_seen DATETIME,
+    first_config_version NVARCHAR(255),
+    status NVARCHAR(16) NOT NULL DEFAULT 'open',
+    status_changed_by NVARCHAR(200),
+    status_changed_at DATETIME,
+    note NVARCHAR(MAX),
+    last_alerted_at DATETIME
+);
+
+IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='error_occurrences' AND xtype='U')
+CREATE TABLE error_occurrences (
+    fingerprint NVARCHAR(64),
+    node_id NVARCHAR(128),
+    first_seen DATETIME,
+    last_seen DATETIME,
+    count INT NOT NULL DEFAULT 1,
+    last_report_id INT,
+    PRIMARY KEY (fingerprint, node_id)
+);
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_error_occ_fp_lastseen' AND object_id = OBJECT_ID('error_occurrences'))
+    CREATE INDEX idx_error_occ_fp_lastseen ON error_occurrences(fingerprint, last_seen);
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_error_occ_node' AND object_id = OBJECT_ID('error_occurrences'))
+    CREATE INDEX idx_error_occ_node ON error_occurrences(node_id);
+
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='dsc_infra_info' AND xtype='U')
 CREATE TABLE dsc_infra_info (
     id INT PRIMARY KEY CHECK (id = 1),
