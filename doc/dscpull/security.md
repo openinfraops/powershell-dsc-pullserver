@@ -149,6 +149,64 @@ The `/api/v1/login` endpoint is protected by an **in-memory, per-client-IP rate 
 
 ---
 
+## Threat Model
+
+This section records the **trust assumptions** the server makes and the scenarios that matter, so an operator can reason about the residual risk. It complements the hardening guidance above.
+
+### Trust anchors
+
+| Trust anchor | What it protects | What breaks it |
+|---|---|---|
+| Registered node **certificate thumbprint** (`agents.certificate_thumbprint`) | Node identity on the pull endpoints (mTLS binding) | The node's private key is compromised, or the thumbprint is overwritten via re-registration with the registration key. |
+| **Registration key** (`dsc_pullserver.registrationKey`) | Bootstrap enrollment / re-registration | Key leak or reuse: any holder can enroll or re-register a node. |
+| Server **TLS key/cert** | Transport confidentiality & authenticity of the DSC/web endpoints | Private key compromise, or `enable_https: false`. |
+| OS **system trust store** (when `bypass_ca_validation: false`) | Chain/signature validation of node certificates | Trust store poisoned, or a bad CA issues a node certificate. |
+| Web/API **`shared_secret`** (JWT signing) | Web/API session tokens | Leak, or a weak/placeholder value. |
+
+### Identity certificate vs encryption certificate
+
+In the registration-key model the **LCM mints its own identity certificate** — there is no CA-issued node certificate. The same key pair therefore serves **both node identity (mTLS)** and, by design of the public-key capture feature, the **future** per-node secret-encryption key.
+
+**Consequence: one key pair does double duty.** If a node's private key is compromised, an attacker can both (a) impersonate that node on the pull endpoints and (b) decrypt anything encrypted to that node's public key. There is **no separation of duties** between "prove identity" and "read encrypted secrets". This is a deliberate limitation of a single certificate per node; if you need to isolate duties, issue the node a **separate** encryption key.
+
+### Effect of a compromised node
+
+If a node is compromised (its certificate private key is stolen), the attacker can, **for that node only**:
+
+- present the node certificate to authenticate on the pull endpoints;
+- pull the configurations **linked to that node** (`agent_configurations`) — which may embed secrets;
+- trigger a certificate rotation (rotation requires proof of possession of the **current** key);
+- read any current/future secrets encrypted to the node's public key.
+
+The compromise is **contained to that node**: the per-node thumbprint binding prevents impersonating **another** node, and the configuration-to-node linkage prevents pulling an arbitrary MOF **by name**. Compromising one node does **not** expose other nodes' configurations or secrets.
+
+### `bypass_ca_validation: true`
+
+With `bypass_ca_validation: true`, the TLS layer accepts **any** client certificate (`RequireAnyClientCert`): the certificate's signature/chain is **not** validated against a CA. Node identity then rests **only** on the enrolled thumbprint.
+
+Residual risk: a certificate can be presented by anyone who can supply a matching thumbprint (i.e. who holds the enrolled private key or copies the certificate), and **no CA revocation** (CRL/OCSP) ever applies. If a node certificate leaks, `bypass_ca_validation: false` adds the ability to revoke it at the CA. Keep `false` when node certificates come from a trusted authority; keep `true` only for the classic self-signed model where the thumbprint is the sole anchor.
+
+### In-memory rate limiter
+
+The `/api/v1/login` brute-force limiter is **in-memory and per-process**:
+
+- a **restart** resets the failure counters;
+- a **multi-instance** deployment gives a per-node limit, so an attacker can spread attempts across instances;
+- there is **no shared, durable** defence across restarts or instances.
+
+Mitigation: front the server with a reverse proxy / WAF that provides a shared rate limit, or accept the per-process limit for a single-instance deployment. Configure `web_ui.trusted_proxies` so the limiter keys on the real client IP rather than the proxy.
+
+### SQLite single instance
+
+SQLite is a **single-file, single-writer** database. Only **one server instance** should use a given SQLite database at a time:
+
+- writing from multiple processes/instances against the same SQLite file causes lock contention (`SQLITE_BUSY`) and risks corruption;
+- the scheduler assumes a single writer, so concurrent instances would double-run scheduled tasks.
+
+For **multi-instance / high-availability** deployments use the **MSSQL** driver (the other supported backend). SQLite is appropriate for a single-instance, single-host deployment.
+
+---
+
 ## Security Notes & Recommendations
 
 - Always use **HTTPS** in production (both the DSC endpoint and the web UI).

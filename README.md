@@ -65,7 +65,7 @@ Contributions to the code or documentation are welcome. Open an issue for bug re
 
 ## Security
 
-- [Security model & hardening](doc/dscpull/security.md) — authentication, client-certificate validation, certificate lifecycle, rate limiting.
+- [Security model & hardening](doc/dscpull/security.md) — authentication, client-certificate validation, certificate lifecycle, rate limiting, and the [threat model](doc/dscpull/security.md#threat-model).
 - [Report a security vulnerability](SECURITY.md) — how to disclose a vulnerability privately (GitHub Security Advisory) and our response timeline.
 
 ## License
