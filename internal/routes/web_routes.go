@@ -193,6 +193,7 @@ func RegisterWebRoutes(mux *http.ServeMux, dbConn *sql.DB, jwtAuthMiddleware fun
 	mux.Handle("/web/node/", handlers.WebJWTAuthMiddleware(http.HandlerFunc(handlers.WebNodeHandler)))
 	mux.Handle("/web/modules", handlers.WebJWTAuthMiddleware(http.HandlerFunc(handlers.WebModulesHandler)))
 	mux.Handle("/web/configuration_model", handlers.WebJWTAuthMiddleware(http.HandlerFunc(handlers.WebConfigurationModelHandler)))
+	mux.Handle("/web/errors", handlers.WebJWTAuthMiddleware(http.HandlerFunc(handlers.WebErrorGroupsHandler)))
 	mux.Handle("/templates/properties.tmpl", handlers.WebJWTAuthMiddleware(http.HandlerFunc(handlers.WebPropertiesHandler)))
 	mux.Handle("/web/users", handlers.WebJWTAuthMiddleware(middleware.WebAdminOnly(dbConn, renderDenied)(http.HandlerFunc(WebUsersHandler))))
 	mux.Handle("/web/user_edit", handlers.WebJWTAuthMiddleware(middleware.WebAdminOnly(dbConn, renderDenied)(http.HandlerFunc(WebUserEditHandler))))
