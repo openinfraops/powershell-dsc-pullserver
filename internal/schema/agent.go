@@ -20,6 +20,21 @@ type Agent struct {
 	State                 *string             `json:"state,omitempty"`
 	NeedsRecompile        bool                `json:"needs_recompile"`
 	ForceCertRotation     bool                `json:"force_cert_rotation"`
-	DeletedAt             *string             `json:"deleted_at,omitempty"`
-	DeletedBy             *string             `json:"deleted_by,omitempty"`
+	// RebootPending indique si le nœud a demandé un redémarrage lors de son
+	// dernier rapport (dérivé de reports.reboot_requested).
+	RebootPending bool `json:"reboot_pending"`
+	// RebootPendingSince est l'horodatage du premier rapport de la série courante
+	// de demandes de redémarrage (nil si jamais en attente).
+	RebootPendingSince *string `json:"reboot_pending_since,omitempty"`
+	// RebootRequestedBy identifie la ressource qui a demandé le redémarrage
+	// (ModuleName|SourceInfo:ResourceId), nil si inconnue.
+	RebootRequestedBy *string `json:"reboot_requested_by,omitempty"`
+	// RebootLoop est vrai quand le nœud a demandé un redémarrage sur N rapports
+	// consécutifs (seuil configurable).
+	RebootLoop bool `json:"reboot_loop"`
+	// RebootRequestCount est le nombre de rapports consécutifs avec une demande
+	// de redémarrage.
+	RebootRequestCount int     `json:"reboot_request_count"`
+	DeletedAt          *string `json:"deleted_at,omitempty"`
+	DeletedBy          *string `json:"deleted_by,omitempty"`
 }

@@ -47,7 +47,40 @@ These keys are also accepted in the `dsc_pullserver` block (shared `HTTPConfig` 
 - **enable_log_rotation**, **log_rotate_max_size_mb**, **log_rotate_max_backups**, **log_rotate_max_age_days**: log file rotation.
 - **enable_agent_purge**, **agent_purge_retention_days**, **agent_purge_interval_mins**: periodic purge of soft-deleted agents.
 - **enable_configuration_version_cleanup**, **configuration_version_max_keep**, **configuration_version_cleanup_interval_mins**: retention of old configuration versions.
+- **reboot_loop_threshold**, **reboot_loop_window_mins**: reboot-loop detection. A node is flagged `reboot_loop` when it requests a reboot on **N consecutive reports** (default `3`) over at least **M minutes** (default `60`) — see [Reboot pending & loop detection](#reboot-pending--loop-detection).
 - **enable_configuration_repo_sync**, **configuration_repo_***: legacy migration source for the Git-backed configuration repository. These are **imported once** and then **stored in the database** (`configuration_repo_settings`), managed from the **Scheduler administration page** — see [Configuration repository (Git) & Scheduler](configuration-repo.md).
+
+## Reboot pending & loop detection
+
+DSC reports tell the server when a resource asked for a reboot (`RebootRequested` in the report, and the per-resource flag inside `StatusData`). The server stores this information and derives a per-node state:
+
+- **`reboot_pending`**: `true` when the node's latest report requested a reboot.
+- **`reboot_pending_since`**: timestamp of the first report of the current pending streak (stays fixed until the streak ends).
+- **`reboot_requested_by`**: identifier of the latest requesting resource, in the form `<ModuleName|SourceInfo>:<ResourceId>` (fallback to either, or `(unknown)`).
+- **`reboot_request_count`**: number of consecutive reports with the flag set.
+- **`reboot_loop`**: `true` when the node requested a reboot on **N consecutive reports** over at least **M minutes**. It clears as soon as a report without a request arrives.
+
+The state is updated **in the same transaction** as the report ingest, so the report and the node record never diverge.
+
+**Configurable thresholds** (in the `dsc_pullserver` block, both optional):
+
+```json
+{
+  "dsc_pullserver": {
+    "reboot_loop_threshold": 3,
+    "reboot_loop_window_mins": 60
+  }
+}
+```
+
+| Key | Default | Purpose |
+|---|---|---|
+| `reboot_loop_threshold` | `3` | Number (`N`) of consecutive reports requesting a reboot before the node is flagged `reboot_loop`. |
+| `reboot_loop_window_mins` | `60` | Minimum number of minutes (`M`) the streak must span before the loop flag is raised. |
+
+The flags are exposed through the API (`/api/v1/agents`, `/api/v1/agents/{id}`, and `reboot_requested` on `/api/v1/agents/{id}/reports`), the `agents?stats` counters and the `/metrics` endpoint (`dsc_nodes_reboot_pending`, `dsc_nodes_reboot_loop`).
+
+> **Note on `RebootNodeIfNeeded`:** a pending reboot is a *request* made by a resource during a run, not a record of a reboot that actually happened. With `RebootNodeIfNeeded = $true` the LCM reboots the node itself and the next report no longer shows the request; with `$false` (or when the LCM cannot reboot) the node stays pending until someone reboots it. The server does **not** reboot nodes.
 
 ## Settings stored in the database (not `config.json`)
 
@@ -113,7 +146,7 @@ Prometheus text format, **protected** by `web_ui.metrics_token`:
 - **Empty token (default):** the endpoint is **not exposed** — any request returns `404`.
 - **Token set:** the caller must present it via `Authorization: Bearer <token>` or `?token=<token>`; a missing/wrong token returns `401`.
 
-The endpoint reports the build version, database/network health, node counts by compliance state, the stalest node last-report age, the last/next run of each scheduler task, the `401`/`403` HTTP response counters, the web TLS certificate expiry and release-update state. **It exposes no node names or secrets** (only build version, compliance states, scheduler task keys and task statuses).
+The endpoint reports the build version, database/network health, node counts by compliance state, the number of nodes pending a reboot and flagged in a reboot loop, the stalest node last-report age, the last/next run of each scheduler task, the `401`/`403` HTTP response counters, the web TLS certificate expiry and release-update state. **It exposes no node names or secrets** (only build version, compliance states, scheduler task keys and task statuses).
 
 ```bash
 # Scrape with a dedicated token (set web_ui.metrics_token in config.json)

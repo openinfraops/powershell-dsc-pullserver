@@ -13,7 +13,7 @@ type DscReport struct {
 	ReportFormatVersion string        `json:"ReportFormatVersion"`
 	StartTime           string        `json:"StartTime,omitempty"`
 	EndTime             string        `json:"EndTime,omitempty"`
-	RebootRequested     string        `json:"RebootRequested,omitempty"`
+	RebootRequested     FlexBool      `json:"RebootRequested"`
 	Errors              []string      `json:"Errors"`
 	StatusData          []string      `json:"StatusData"`
 	AdditionalData      []DscKeyValue `json:"AdditionalData"`

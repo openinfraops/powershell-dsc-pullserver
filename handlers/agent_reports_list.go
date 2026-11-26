@@ -1,11 +1,11 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
 	"go-dsc-pull/internal/db"
 	"go-dsc-pull/internal/schema"
 	"net/http"
-	"database/sql"
 	"strings"
 )
 
@@ -23,7 +23,7 @@ func AgentReportsListHandler(w http.ResponseWriter, r *http.Request) {
 	mofApplied := r.URL.Query().Get("mofapplied")
 	var rows *sql.Rows
 	var debugMsg string
-	query := `SELECT id, job_id, created_at, status FROM reports WHERE agent_id = ?`
+	query := `SELECT id, job_id, created_at, status, reboot_requested FROM reports WHERE agent_id = ?`
 	params := []interface{}{agentId}
 	if opType != "" {
 		opTypeLower := strings.ToLower(opType)
@@ -50,7 +50,9 @@ func AgentReportsListHandler(w http.ResponseWriter, r *http.Request) {
 	count := 0
 	for rows.Next() {
 		var rep schema.ReportSummary
-		if err := rows.Scan(&rep.ID, &rep.JobId, &rep.CreatedAt, &rep.Status); err == nil {
+		var rebootRequested string
+		if err := rows.Scan(&rep.ID, &rep.JobId, &rep.CreatedAt, &rep.Status, &rebootRequested); err == nil {
+			rep.RebootRequested = schema.ParseBoolFlexible(rebootRequested)
 			reports = append(reports, rep)
 			count++
 		}

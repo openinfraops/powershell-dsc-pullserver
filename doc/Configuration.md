@@ -68,6 +68,8 @@ This page describes all configuration options available in `config.json` for the
 | enable_configuration_version_cleanup | bool | Enable old configuration version cleanup       | `false`                |
 | configuration_version_max_keep | int  | Max configuration versions to keep                   | `10`                   |
 | configuration_version_cleanup_interval_mins | int | Cleanup interval in minutes                  | `1440`                 |
+| reboot_loop_threshold | int  | Number (`N`) of consecutive reports requesting a reboot before a node is flagged `reboot_loop`. `0`/absent = default `3`. | `3` |
+| reboot_loop_window_mins | int  | Minimum minutes (`M`) the reboot streak must span before the loop flag is raised. `0`/absent = default `60`. | `60` |
 
 > **Client certificate validation (DSC endpoint).** When `enable_client_cert_validation` is `true`, the DSC endpoint **always** requires a client certificate. `bypass_ca_validation` only controls the CA/chain validation of that certificate: `true` accepts any certificate (self-signed node certs work, the node is identified by its enrolled thumbprint only — classic DSC model); `false` additionally validates the chain/signature against the **OS system trust store** (`RequireAndVerifyClientCert`) and still checks the enrolled thumbprint. A client certificate requires HTTPS; in pure HTTP mode (`enable_https: false`) no certificate is negotiated. **If `enable_client_cert_validation` is `true` while `enable_https` is `false`, the server refuses to start (fail-closed).**
 

@@ -23,7 +23,9 @@
     "log_rotate_max_backups": 5,
     "log_rotate_max_age_days": 30,
     "report_retention_days": 90,
-    "report_cleanup_interval_mins": 1440
+    "report_cleanup_interval_mins": 1440,
+    "reboot_loop_threshold": 3,
+    "reboot_loop_window_mins": 60
   },
   "web_ui": {
     "cert_file": "dsc-dev.local.crt",

@@ -91,9 +91,18 @@ Both JWT and API tokens grant access to the API according to the user's permissi
 		- `pending_apply` (`state=pending_apply`)
 	- `node_name=<name>`: filter by exact node name.
 	- `has_error_last_report=true|false`: filter by last report error status.
+	- `reboot_pending=true|false`: filter by whether the node currently has a reboot pending.
+	- `reboot_loop=true`: filter by whether the node is flagged in a reboot loop.
 	- `tag=key:value`: filter by tag.
 	- Repeat `tag` multiple times to require all tags with `AND` semantics, for example: `/api/v1/agents?tag=env:prod&tag=role:web`.
 - Response objects may include `tags`, returned as a map of tag keys to arrays of values.
+- Response objects include the derived reboot state of the node:
+	- `reboot_pending` (boolean): whether the node has requested a reboot in its last report.
+	- `reboot_pending_since` (string, optional): timestamp of the first report of the current pending streak.
+	- `reboot_requested_by` (string, optional): identifier of the resource that requested the reboot, in the form `<ModuleName|SourceInfo>:<ResourceId>`.
+	- `reboot_loop` (boolean): whether the node has requested a reboot on N consecutive reports (default 3) over at least M minutes (default 60), i.e. it is stuck in a reboot loop.
+	- `reboot_request_count` (integer): number of consecutive reports with the reboot flag set.
+- The `stats` response additionally includes `reboot_pending` (nodes currently pending a reboot) and `reboot_loop` (nodes flagged in a reboot loop) counters.
 
 ### POST `/api/v1/agents/preenroll`
 - Pre-enroll an agent.
@@ -102,6 +111,7 @@ Both JWT and API tokens grant access to the API according to the user's permissi
 - Get agent details.
 - Response may include `tags`, returned as a map of tag keys to arrays of values.
 - Response also includes `force_cert_rotation` (boolean) — set when an admin has requested an ASAP certificate renewal.
+- Response includes the derived reboot state of the node (`reboot_pending`, `reboot_pending_since`, `reboot_requested_by`, `reboot_loop`, `reboot_request_count`) — see the same fields under `GET /api/v1/agents`.
 
 ### POST `/api/v1/agents/{id}/rotate-certificate`
 - **Admin only.** Ask the node to rotate its client certificate on its **next** cycle (sets `agents.force_cert_rotation` to `1`). The server then emits `DSC-certificateRotation: True` on the node's next pull, even outside the renewal window and even if the global certificate-rotation setting is off.
@@ -120,6 +130,10 @@ Both JWT and API tokens grant access to the API according to the user's permissi
 
 ### GET `/api/v1/agents/{id}/reports`
 - List agent's reports.
+- Each report summary includes `reboot_requested` (boolean): whether the corresponding run requested a reboot (accepts the DSC protocol's `"True"`/`"False"` and `"1"`/`"0"` values).
+- Query params supported:
+	- `operationtype=<type>`: filter by operation type.
+	- `mofapplied=<0|1>`: filter by whether a MOF was applied.
 
 ### GET `/api/v1/agents/{id}/reports/latest`
 - Get latest report for the agent.

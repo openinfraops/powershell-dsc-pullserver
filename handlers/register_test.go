@@ -37,7 +37,12 @@ func setupAgentsDB(t *testing.T) *sql.DB {
 		force_cert_rotation INTEGER DEFAULT 0,
 		deleted_at TIMESTAMP NULL,
 		deleted_by TEXT NULL,
-		state TEXT
+		state TEXT,
+		reboot_pending INTEGER DEFAULT 0,
+		reboot_pending_since TIMESTAMP NULL,
+		reboot_requested_by TEXT NULL,
+		reboot_loop INTEGER DEFAULT 0,
+		reboot_request_count INTEGER DEFAULT 0
 	)`)
 	if err != nil {
 		t.Fatalf("create agents table: %v", err)

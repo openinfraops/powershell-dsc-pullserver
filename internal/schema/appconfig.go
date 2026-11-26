@@ -45,6 +45,14 @@ type HTTPConfig struct {
 	EnableConfigurationVersionCleanup       bool     `json:"enable_configuration_version_cleanup"`
 	ConfigurationVersionMaxKeep             int      `json:"configuration_version_max_keep"`
 	ConfigurationVersionCleanupIntervalMins int      `json:"configuration_version_cleanup_interval_mins"`
+	// RebootLoopThreshold est le nombre N de rapports consécutifs demandant un
+	// redémarrage au-delà duquel un nœud est marqué en "boucle de redémarrage"
+	// (reboot_loop). 0/absent -> défaut 3.
+	RebootLoopThreshold int `json:"reboot_loop_threshold"`
+	// RebootLoopWindowMins est la fenêtre minimale (en minutes) sur laquelle les
+	// N rapports doivent se produire pour déclencher la détection de boucle.
+	// 0/absent -> défaut 60.
+	RebootLoopWindowMins int `json:"reboot_loop_window_mins"`
 }
 
 type AppConfig struct {

@@ -24,6 +24,11 @@ type agentDTRow struct {
 	LastCommunication     string  `json:"last_communication"`
 	HasErrorLastReport    bool    `json:"has_error_last_report"`
 	NeedsRecompile        bool    `json:"needs_recompile"`
+	RebootPending         bool    `json:"reboot_pending"`
+	RebootPendingSince    *string `json:"reboot_pending_since,omitempty"`
+	RebootRequestedBy     *string `json:"reboot_requested_by,omitempty"`
+	RebootLoop            bool    `json:"reboot_loop"`
+	RebootRequestCount    int     `json:"reboot_request_count"`
 	DeletedAt             *string `json:"deleted_at,omitempty"`
 	DeletedBy             *string `json:"deleted_by,omitempty"`
 }
@@ -139,6 +144,17 @@ func ListAgentsDataTableHandler(w http.ResponseWriter, r *http.Request) {
 		where += " AND has_error_last_report = 0"
 	}
 
+	// Filtres de redémarrage : ?reboot_pending=true|false, ?reboot_loop=true.
+	switch r.URL.Query().Get("reboot_pending") {
+	case "true":
+		where += " AND reboot_pending = 1"
+	case "false":
+		where += " AND reboot_pending = 0"
+	}
+	if r.URL.Query().Get("reboot_loop") == "true" {
+		where += " AND reboot_loop = 1"
+	}
+
 	for _, rawTag := range r.URL.Query()["tag"] {
 		tagKey, tagValue, found := strings.Cut(rawTag, ":")
 		if !found || tagKey == "" || tagValue == "" {
@@ -197,7 +213,7 @@ func ListAgentsDataTableHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	query := "SELECT agent_id, node_name, lcm_version, registration_type, state, certificate_thumbprint, certificate_notafter, last_communication, has_error_last_report, needs_recompile, deleted_at, deleted_by FROM agents" + where
+	query := "SELECT agent_id, node_name, lcm_version, registration_type, state, certificate_thumbprint, certificate_notafter, last_communication, has_error_last_report, needs_recompile, reboot_pending, reboot_pending_since, reboot_requested_by, reboot_loop, reboot_request_count, deleted_at, deleted_by FROM agents" + where
 	query += " ORDER BY " + orderCol + " " + orderDir
 
 	if isMSSQL {
@@ -219,8 +235,10 @@ func ListAgentsDataTableHandler(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var row agentDTRow
 		var lcmVersion, registrationType, state, certThumb, certNotAfter, deletedAt, deletedBy *string
-		var hasErr, needsRecompile bool
-		if err := rows.Scan(&row.AgentID, &row.NodeName, &lcmVersion, &registrationType, &state, &certThumb, &certNotAfter, &row.LastCommunication, &hasErr, &needsRecompile, &deletedAt, &deletedBy); err != nil {
+		var rebootPendingSince, rebootRequestedBy *string
+		var hasErr, needsRecompile, rebootPending, rebootLoop bool
+		var rebootRequestCount int
+		if err := rows.Scan(&row.AgentID, &row.NodeName, &lcmVersion, &registrationType, &state, &certThumb, &certNotAfter, &row.LastCommunication, &hasErr, &needsRecompile, &rebootPending, &rebootPendingSince, &rebootRequestedBy, &rebootLoop, &rebootRequestCount, &deletedAt, &deletedBy); err != nil {
 			http.Error(w, "DB scan error", http.StatusInternalServerError)
 			return
 		}
@@ -231,6 +249,11 @@ func ListAgentsDataTableHandler(w http.ResponseWriter, r *http.Request) {
 		row.CertificateNotAfter = certNotAfter
 		row.HasErrorLastReport = hasErr
 		row.NeedsRecompile = needsRecompile
+		row.RebootPending = rebootPending
+		row.RebootPendingSince = rebootPendingSince
+		row.RebootRequestedBy = rebootRequestedBy
+		row.RebootLoop = rebootLoop
+		row.RebootRequestCount = rebootRequestCount
 		row.DeletedAt = deletedAt
 		row.DeletedBy = deletedBy
 		data = append(data, row)

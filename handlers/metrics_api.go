@@ -103,6 +103,17 @@ func renderMetrics(w http.ResponseWriter, dbConn *sql.DB) {
 	} else {
 		dbUp = false
 	}
+	var rebootPending, rebootLoop int
+	if n, err := internaldb.CountRebootPending(dbConn); err == nil {
+		rebootPending = n
+	} else {
+		dbUp = false
+	}
+	if n, err := internaldb.CountRebootLoop(dbConn); err == nil {
+		rebootLoop = n
+	} else {
+		dbUp = false
+	}
 	rc, rcErr := internaldb.GetReleaseCheckState(dbConn)
 	if rcErr != nil {
 		dbUp = false
@@ -130,6 +141,11 @@ func renderMetrics(w http.ResponseWriter, dbConn *sql.DB) {
 
 		writeMetricHeader(&b, "dsc_last_report_age_seconds", "Age of the stalest node's last report, in seconds.", "gauge")
 		writeSample(&b, "dsc_last_report_age_seconds", "", float64(stalestAge))
+
+		writeMetricHeader(&b, "dsc_nodes_reboot_pending", "Number of active nodes currently pending a reboot.", "gauge")
+		writeSample(&b, "dsc_nodes_reboot_pending", "", float64(rebootPending))
+		writeMetricHeader(&b, "dsc_nodes_reboot_loop", "Number of active nodes flagged in a reboot loop.", "gauge")
+		writeSample(&b, "dsc_nodes_reboot_loop", "", float64(rebootLoop))
 
 		// Scheduler task metrics.
 		writeMetricHeader(&b, "dsc_scheduler_task_last_status", "Last status of each scheduled task.", "gauge")

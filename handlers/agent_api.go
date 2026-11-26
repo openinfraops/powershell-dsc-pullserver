@@ -18,13 +18,16 @@ func GetAgentsHandler(w http.ResponseWriter, r *http.Request) {
 	// Support de l'option ?stats (avec ou sans valeur), ex: /api/v1/agents?stats
 	if _, statsRequested := r.URL.Query()["stats"]; statsRequested {
 		var compliant, failed, pendingEnroll, pendingApply int
+		var rebootPending, rebootLoop int
 		err := database.QueryRow(`
 			SELECT
 				SUM(CASE WHEN LOWER(COALESCE(state, '')) IN ('success', 'ok') THEN 1 ELSE 0 END) AS compliant,
 				SUM(CASE WHEN LOWER(COALESCE(state, '')) = 'failure' THEN 1 ELSE 0 END) AS failed,
 				SUM(CASE WHEN LOWER(COALESCE(state, '')) = 'waiting_for_registration' THEN 1 ELSE 0 END) AS pending_enroll,
-				SUM(CASE WHEN LOWER(COALESCE(state, '')) = 'pending_apply' THEN 1 ELSE 0 END) AS pending_apply
-			FROM agents WHERE deleted_at IS NULL`).Scan(&compliant, &failed, &pendingEnroll, &pendingApply)
+				SUM(CASE WHEN LOWER(COALESCE(state, '')) = 'pending_apply' THEN 1 ELSE 0 END) AS pending_apply,
+				SUM(CASE WHEN reboot_pending = 1 THEN 1 ELSE 0 END) AS reboot_pending,
+				SUM(CASE WHEN reboot_loop = 1 THEN 1 ELSE 0 END) AS reboot_loop
+			FROM agents WHERE deleted_at IS NULL`).Scan(&compliant, &failed, &pendingEnroll, &pendingApply, &rebootPending, &rebootLoop)
 		if err != nil {
 			http.Error(w, "DB stats error", http.StatusInternalServerError)
 			return
@@ -65,6 +68,8 @@ func GetAgentsHandler(w http.ResponseWriter, r *http.Request) {
 			"pending_apply":  pendingApply,
 			"certs_expired":  certsExpired,
 			"certs_expiring": certsExpiring,
+			"reboot_pending": rebootPending,
+			"reboot_loop":    rebootLoop,
 		})
 		return
 	}
@@ -90,7 +95,7 @@ func GetAgentsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Filtrage dynamique
-	q := `SELECT agent_id, node_name, lcm_version, registration_type, certificate_thumbprint, certificate_subject, certificate_issuer, certificate_notbefore, certificate_notafter, registered_at, last_communication, has_error_last_report, needs_recompile, state, deleted_at, deleted_by FROM agents WHERE 1=1`
+	q := `SELECT agent_id, node_name, lcm_version, registration_type, certificate_thumbprint, certificate_subject, certificate_issuer, certificate_notbefore, certificate_notafter, registered_at, last_communication, has_error_last_report, needs_recompile, state, reboot_pending, reboot_pending_since, reboot_requested_by, reboot_loop, reboot_request_count, deleted_at, deleted_by FROM agents WHERE 1=1`
 	args := []interface{}{}
 	nodeName := r.URL.Query().Get("node_name")
 	if nodeName != "" {
@@ -108,6 +113,16 @@ func GetAgentsHandler(w http.ResponseWriter, r *http.Request) {
 		q += " AND has_error_last_report = 1"
 	} else if hasError == "false" {
 		q += " AND has_error_last_report = 0"
+	}
+	// Filtres de redémarrage : ?reboot_pending=true|false, ?reboot_loop=true.
+	switch r.URL.Query().Get("reboot_pending") {
+	case "true":
+		q += " AND reboot_pending = 1"
+	case "false":
+		q += " AND reboot_pending = 0"
+	}
+	if r.URL.Query().Get("reboot_loop") == "true" {
+		q += " AND reboot_loop = 1"
 	}
 	for _, rawTag := range r.URL.Query()["tag"] {
 		tagKey, tagValue, found := strings.Cut(rawTag, ":")
@@ -131,7 +146,10 @@ func GetAgentsHandler(w http.ResponseWriter, r *http.Request) {
 		var lcmVersion, registrationType, certificateThumbprint, certificateSubject, certificateIssuer, certificateNotBefore, certificateNotAfter, registeredAt, lastCommunication, state, deletedAt, deletedBy *string
 		var hasErrorBool bool
 		var needsRecompileBool bool
-		if err := rows.Scan(&a.AgentId, &a.NodeName, &lcmVersion, &registrationType, &certificateThumbprint, &certificateSubject, &certificateIssuer, &certificateNotBefore, &certificateNotAfter, &registeredAt, &lastCommunication, &hasErrorBool, &needsRecompileBool, &state, &deletedAt, &deletedBy); err == nil {
+		var rebootPendingBool, rebootLoopBool bool
+		var rebootPendingSince, rebootRequestedBy *string
+		var rebootRequestCount int
+		if err := rows.Scan(&a.AgentId, &a.NodeName, &lcmVersion, &registrationType, &certificateThumbprint, &certificateSubject, &certificateIssuer, &certificateNotBefore, &certificateNotAfter, &registeredAt, &lastCommunication, &hasErrorBool, &needsRecompileBool, &state, &rebootPendingBool, &rebootPendingSince, &rebootRequestedBy, &rebootLoopBool, &rebootRequestCount, &deletedAt, &deletedBy); err == nil {
 			// Pour DataTables, renvoyer les champs attendus même vides
 			empty := ""
 			a.LCMVersion = lcmVersion
@@ -174,6 +192,11 @@ func GetAgentsHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			a.HasErrorLastReport = hasErrorBool
 			a.NeedsRecompile = needsRecompileBool
+			a.RebootPending = rebootPendingBool
+			a.RebootPendingSince = rebootPendingSince
+			a.RebootRequestedBy = rebootRequestedBy
+			a.RebootLoop = rebootLoopBool
+			a.RebootRequestCount = rebootRequestCount
 			a.DeletedAt = deletedAt
 			a.DeletedBy = deletedBy
 			tags, tagErr := db.GetAgentTags(database, a.AgentId)

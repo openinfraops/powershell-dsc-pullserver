@@ -30,7 +30,12 @@ func setupMonitoringDB(t *testing.T) *sql.DB {
 		state TEXT,
 		last_communication TIMESTAMP,
 		deleted_at TIMESTAMP NULL,
-		deleted_by TEXT NULL
+		deleted_by TEXT NULL,
+		reboot_pending INTEGER DEFAULT 0,
+		reboot_pending_since TIMESTAMP NULL,
+		reboot_requested_by TEXT NULL,
+		reboot_loop INTEGER DEFAULT 0,
+		reboot_request_count INTEGER DEFAULT 0
 	)`); err != nil {
 		t.Fatalf("create agents: %v", err)
 	}

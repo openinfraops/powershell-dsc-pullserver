@@ -14,7 +14,9 @@
     "bypass_ca_validation": true,
     "key_file": "dsc-dev.local.key",
     "port": 8484,
-    "registrationKey": "AnyString"
+    "registrationKey": "AnyString",
+    "reboot_loop_threshold": 3,
+    "reboot_loop_window_mins": 60
   },
   "web_ui": {
     "cert_file": "dsc-dev.local.crt",

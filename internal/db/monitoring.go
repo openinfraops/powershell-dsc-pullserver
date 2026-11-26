@@ -63,6 +63,22 @@ func CountRunningSchedulerTasks(db *sql.DB) (int, error) {
 	return n, err
 }
 
+// CountRebootPending returns the number of non-deleted agents with a pending
+// reboot request (derived state from the latest report).
+func CountRebootPending(db *sql.DB) (int, error) {
+	var n int
+	err := db.QueryRow(`SELECT COUNT(*) FROM agents WHERE deleted_at IS NULL AND reboot_pending = 1`).Scan(&n)
+	return n, err
+}
+
+// CountRebootLoop returns the number of non-deleted agents currently flagged as
+// being in a reboot loop.
+func CountRebootLoop(db *sql.DB) (int, error) {
+	var n int
+	err := db.QueryRow(`SELECT COUNT(*) FROM agents WHERE deleted_at IS NULL AND reboot_loop = 1`).Scan(&n)
+	return n, err
+}
+
 // parseDBTime converts a value read from a DB timestamp column (SQLite stores
 // them as TEXT "2006-01-02 15:04:05", MSSQL returns a time.Time) into a UTC
 // time.Time. Sentinel values (pre-enrollment placeholders such as

@@ -183,7 +183,12 @@ CREATE TABLE agents (
     deleted_at DATETIME NULL,
     deleted_by NVARCHAR(200) NULL,
     state NVARCHAR(50),
-    has_error_last_report BIT DEFAULT 0
+    has_error_last_report BIT DEFAULT 0,
+    reboot_pending BIT NOT NULL DEFAULT 0,
+    reboot_pending_since DATETIME NULL,
+    reboot_requested_by NVARCHAR(200) NULL,
+    reboot_loop BIT NOT NULL DEFAULT 0,
+    reboot_request_count INT NOT NULL DEFAULT 0
 );
 
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='agent_configurations' AND xtype='U')
