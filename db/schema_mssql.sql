@@ -107,7 +107,7 @@ IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='dsc_infra_info' AND xtype='U
 CREATE TABLE dsc_infra_info (
     id INT PRIMARY KEY CHECK (id = 1),
     web_version NVARCHAR(20) DEFAULT '0.0.1',
-    db_version NVARCHAR(20) DEFAULT '1.8.1',
+    db_version NVARCHAR(20) DEFAULT '1.8.2',
     latest_release NVARCHAR(50) NULL,
     latest_release_url NVARCHAR(255) NULL,
     update_available BIT DEFAULT 0,
@@ -116,10 +116,10 @@ CREATE TABLE dsc_infra_info (
     updated_at DATETIME DEFAULT GETUTCDATE()
 );
 IF NOT EXISTS (SELECT 1 FROM dsc_infra_info WHERE id = 1)
-    INSERT INTO dsc_infra_info (id, web_version, db_version, updated_at) VALUES (1, '0.0.1', '1.8.1', GETUTCDATE());
+    INSERT INTO dsc_infra_info (id, web_version, db_version, updated_at) VALUES (1, '0.0.1', '1.8.2', GETUTCDATE());
 -- Rehausse db_version (lu par la page « À propos ») même sur une base existante,
 -- comme le fait schema_sqlite.sql au démarrage.
-UPDATE dsc_infra_info SET db_version = '1.8.1', updated_at = GETUTCDATE() WHERE id = 1;
+UPDATE dsc_infra_info SET db_version = '1.8.2', updated_at = GETUTCDATE() WHERE id = 1;
 
 IF EXISTS (SELECT * FROM sysobjects WHERE name='dsc_infra_info' AND xtype='U')
 BEGIN
