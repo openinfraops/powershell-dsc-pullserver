@@ -144,14 +144,89 @@ func ClassifyError(rules []CategoryRule, msg string) string {
 	return DefaultErrorCategory
 }
 
+// genericErrorMessages are exact (normalised) placeholder messages that carry no
+// actionable detail. When a DSC report fails without a usable message (e.g.
+// Event 4131 with ErrorCode=1 and ErrorMessage=NULL), the client often emits a
+// bare "Unknown"/"Error"/"NULL". These are treated as noise so they do not
+// create empty "unknown" error groups.
+var genericErrorMessages = map[string]bool{
+	"unknown":           true,
+	"unknown error":     true,
+	"unknown failure":   true,
+	"error":             true,
+	"error unknown":     true,
+	"null":              true,
+	"none":              true,
+	"nil":               true,
+	"n/a":               true,
+	"na":                true,
+	"-":                 true,
+	"failed":            true,
+	"failure":           true,
+	"generic":           true,
+	"no error":          true,
+	"not available":     true,
+	"not specified":     true,
+	"unavailable":       true,
+	"empty":             true,
+}
+
+// genericErrorWords are tokens that, when a message is composed solely of them,
+// still yield a generic placeholder (e.g. "unknown error", "error null",
+// "not available").
+var genericErrorWords = map[string]bool{
+	"unknown":     true,
+	"error":       true,
+	"failed":      true,
+	"failure":     true,
+	"null":        true,
+	"none":        true,
+	"nil":         true,
+	"no":          true,
+	"not":         true,
+	"available":   true,
+	"unavailable": true,
+	"specified":   true,
+	"generic":     true,
+	"empty":       true,
+}
+
+// isGenericErrorMessage reports whether a message is a generic placeholder with
+// no actionable detail. Empty/whitespace messages are generic by definition.
+func isGenericErrorMessage(msg string) bool {
+	m := strings.TrimSpace(msg)
+	if m == "" {
+		return true
+	}
+	// Normalise: lowercase, collapse whitespace, drop a trailing period.
+	norm := strings.TrimSuffix(strings.Join(strings.Fields(strings.ToLower(m)), " "), ".")
+	if genericErrorMessages[norm] {
+		return true
+	}
+	// A message made only of generic tokens (e.g. "error null") is still noise.
+	fields := strings.FieldsFunc(norm, func(r rune) bool {
+		return !(r >= 'a' && r <= 'z') && !(r >= '0' && r <= '9')
+	})
+	if len(fields) == 0 {
+		return false
+	}
+	for _, f := range fields {
+		if !genericErrorWords[f] {
+			return false
+		}
+	}
+	return true
+}
+
 // ExtractReportErrorParts extracts the error messages from a DSC report: the
 // report-level Errors array plus the per-resource failed StatusData entries
-// (InDesiredState = false). Malformed entries are skipped.
+// (InDesiredState = false). Malformed entries and generic placeholder messages
+// (e.g. "Unknown", "NULL") are skipped.
 func ExtractReportErrorParts(errors []string, statusData []string) []ErrorPart {
 	parts := make([]ErrorPart, 0, len(errors)+len(statusData))
 	for _, e := range errors {
 		msg := errorMessageFromValue(e)
-		if msg == "" {
+		if msg == "" || isGenericErrorMessage(msg) {
 			continue
 		}
 		parts = append(parts, ErrorPart{ResourceType: "", Message: msg})
@@ -165,7 +240,7 @@ func ExtractReportErrorParts(errors []string, statusData []string) []ErrorPart {
 			continue
 		}
 		msg := resourceErrorMessage(m)
-		if msg == "" {
+		if msg == "" || isGenericErrorMessage(msg) {
 			continue
 		}
 		parts = append(parts, ErrorPart{ResourceType: resourceType(m), Message: msg})

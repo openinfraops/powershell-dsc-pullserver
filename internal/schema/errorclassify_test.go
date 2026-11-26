@@ -190,6 +190,71 @@ func TestExtractReportErrorPartsSkipsMalformed(t *testing.T) {
 	}
 }
 
+func TestIsGenericErrorMessage(t *testing.T) {
+	cases := []struct {
+		name string
+		msg  string
+		want bool
+	}{
+		// Placeholder / noise messages -> generic.
+		{"empty", "", true},
+		{"spaces", "   ", true},
+		{"unknown", "Unknown", true},
+		{"lower unknown", "unknown", true},
+		{"unknown error", "Unknown error", true},
+		{"unknown failure", "unknown failure", true},
+		{"null", "NULL", true},
+		{"none", "None", true},
+		{"nil", "nil", true},
+		{"n/a", "n/a", true},
+		{"dash", "-", true},
+		{"error", "error", true},
+		{"failed", "Failed", true},
+		{"failure", "failure", true},
+		{"no error", "no error", true},
+		{"not available", "Not available", true},
+		{"error null", "error null", true},
+		{"unknown unknown", "Unknown unknown", true},
+		// Informative messages -> not generic.
+		{"report level", "Report-level failure", false},
+		{"access denied", "Access is denied", false},
+		{"module missing", "The module MSFT_xSqlPackage is not found", false},
+		{"resource failed", "Resource failed", false},
+		{"timeout", "The operation timed out", false},
+		{"ok", "ok", false},
+		{"good", "good", false},
+		{"exit code", "Process exited with exit code 101", false},
+		{"hresult", "Access denied (0x80070005)", false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := isGenericErrorMessage(c.msg); got != c.want {
+				t.Errorf("isGenericErrorMessage(%q) = %v, want %v", c.msg, got, c.want)
+			}
+		})
+	}
+}
+
+func TestExtractReportErrorPartsSkipsGeneric(t *testing.T) {
+	errors := []string{"Unknown", "NULL", "error", "Real report-level failure"}
+	statusData := []string{
+		`{"InDesiredState":false,"ModuleName":"MSFT_x","ResourceId":"R1","Message":"Unknown"}`,
+		`{"InDesiredState":false,"ModuleName":"MSFT_y","ResourceId":"R2","Message":"Access is denied"}`,
+	}
+	parts := ExtractReportErrorParts(errors, statusData)
+	if len(parts) != 2 {
+		t.Fatalf("ExtractReportErrorParts returned %d parts, want 2: %+v", len(parts), parts)
+	}
+	// Only the informative report-level error survives.
+	if parts[0].ResourceType != "" || parts[0].Message != "Real report-level failure" {
+		t.Fatalf("parts[0] = %+v, want the real report-level error", parts[0])
+	}
+	// The failed resource with a real message survives; the generic one is dropped.
+	if parts[1].ResourceType != "MSFT_y" || parts[1].Message != "Access is denied" {
+		t.Fatalf("parts[1] = %+v, want MSFT_y access denied resource", parts[1])
+	}
+}
+
 func TestTruncateMessage(t *testing.T) {
 	short := strings.Repeat("a", 100)
 	if got := TruncateMessage(short); len(got) != 100 {
