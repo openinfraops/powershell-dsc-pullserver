@@ -21,6 +21,7 @@
     "enable_https": true,
     "key_file": "dsc-dev.local.key",
     "shared_secret": "pQw8vZ3rT6sJkL2xQ9eBfG7hN1uVtX4yC5zR8aW0sD3mPqE6bH0jKfL9nS2tU7vY1",
+    "metrics_token": "",
     "port": 443
   }
 }

@@ -27,6 +27,7 @@ The full [documentation index](doc/README.md) lists every reference page, sectio
 - [Configuration repository (Git) & Scheduler](doc/dscpull/configuration-repo.md)
 - [Node Registration](doc/dscpull/registration.md)
 - [Security](doc/dscpull/security.md)
+- [Monitoring endpoints (`/health`, `/metrics`)](doc/dscpull/configuration.md#monitoring-endpoints)
 - [Report a security vulnerability](SECURITY.md)
 - [MS-DSCPM protocol implementation state](doc/dscpull/protocol-implementation.md)
 - [API v1 Reference](doc/APIv1.md)

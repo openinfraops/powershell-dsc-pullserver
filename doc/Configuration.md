@@ -87,8 +87,9 @@ The Git-backed **configuration repository** settings are **stored in the databas
 | port       | int     | Web UI port                                 | `443`                  |
 | shared_secret | string | JWT signing secret for the web/API. Takes precedence over `dsc_pullserver.shared_secret`. | `"pQw8vZ3rT6sJkL2xQ9eBfG7hN1uVtX4yC5zR8aW0sD3mPqE6bH0jKfL9nS2tU7vY1"` |
 | trusted_proxies | []string | IPs/CIDRs of trusted reverse proxies. The `X-Forwarded-For` / `X-Real-IP` headers are only honored for the login rate-limiter when the direct peer (`RemoteAddr`) belongs to this list; otherwise they are ignored (prevents brute-force bypass by spoofing a forward header). | `["10.0.0.0/8", "172.16.0.1"]` |
+| metrics_token | string | Bearer token protecting `GET /metrics` (Prometheus text). When empty, `/metrics` is **not exposed** (404). When set, the caller must present it via `Authorization: Bearer <token>` or `?token=<token>` (else 401). No node names or secrets are exposed. | `"a-strong-random-token"` |
 
-> **Note:** `web_ui` shares the same configuration structure as `dsc_pullserver` (both use `HTTPConfig`), so it also accepts the certificate/validation/cleanup keys. In practice only `cert_file`, `key_file`, `enable_https`, `port`, `shared_secret` and `trusted_proxies` are meaningful for the web/API server.
+> **Note:** `web_ui` shares the same configuration structure as `dsc_pullserver` (both use `HTTPConfig`), so it also accepts the certificate/validation/cleanup keys. In practice only `cert_file`, `key_file`, `enable_https`, `port`, `shared_secret`, `trusted_proxies` and `metrics_token` are meaningful for the web/API server.
 
 ---
 
@@ -175,6 +176,7 @@ The Git-backed **configuration repository** settings are **stored in the databas
     "enable_https": true,
     "key_file": "dsc-dev.local.key",
     "shared_secret": "pQw8vZ3rT6sJkL2xQ9eBfG7hN1uVtX4yC5zR8aW0sD3mPqE6bH0jKfL9nS2tU7vY1",
+    "metrics_token": "",
     "port": 443
   }
 }

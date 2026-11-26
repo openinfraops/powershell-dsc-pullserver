@@ -12,6 +12,7 @@ import (
 	"go-dsc-pull/internal/db"
 	"go-dsc-pull/internal/global"
 	"go-dsc-pull/internal/logs"
+	"go-dsc-pull/internal/monitor"
 	"go-dsc-pull/internal/routes"
 	"go-dsc-pull/internal/schema"
 	"go-dsc-pull/internal/service"
@@ -452,8 +453,8 @@ func main() {
 		routes.RegisterWebRoutes(webMux, dbConn, auth.JwtOrAPITokenAuthMiddleware(dbConn), samlMiddleware)
 
 		// Ajout du logging middleware
-		dscHandler := logs.LoggingMiddleware(dscCertLogMiddleware(dscMux))
-		webHandler := logs.LoggingMiddleware(webMux)
+		dscHandler := logs.LoggingMiddleware(monitor.StatusCodeMiddleware(dscCertLogMiddleware(dscMux)))
+		webHandler := logs.LoggingMiddleware(monitor.StatusCodeMiddleware(webMux))
 
 		// --- Serveurs HTTP avec arrêt propre (drivé par ctx.Done()) ---
 		// Chaque serveur est démarré dans une goroutine. À la réception d'un
@@ -544,6 +545,9 @@ func main() {
 
 		// Bloque jusqu'à l'arrêt, puis ferme gracieusement les deux serveurs.
 		<-ctx.Done()
+		// Signale aux consommateurs (GET /health) que le processus s'arrête :
+		// pendant la fenêtre de shutdown gracieux, workers.alive passe à false.
+		monitor.SetShutdown()
 		logs.WriteLogFile("INFO [SHUTDOWN] Shutdown requested, closing HTTP servers ...")
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer shutdownCancel()

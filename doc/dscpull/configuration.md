@@ -82,7 +82,46 @@ See [Security](security.md) for the certificate-renewal "when", and [MS-DSCPM pr
 
 ## Additional Sections
 
-The `database`, `web_ui`, and `saml` blocks are described in [Configuration.md](../Configuration.md). The `web_ui` block shares the same structure as `dsc_pullserver` (both use `HTTPConfig`); in practice only `cert_file`, `key_file`, `enable_https`, `port`, `shared_secret` and `trusted_proxies` are meaningful for the web/API server.
+The `database`, `web_ui`, and `saml` blocks are described in [Configuration.md](../Configuration.md). The `web_ui` block shares the same structure as `dsc_pullserver` (both use `HTTPConfig`); in practice only `cert_file`, `key_file`, `enable_https`, `port`, `shared_secret`, `trusted_proxies` and `metrics_token` are meaningful for the web/API server.
+
+## Monitoring endpoints
+
+The web/API server exposes two monitoring endpoints:
+
+### `GET /health`
+
+Unauthenticated (for load balancers, Zabbix and container health checks). Returns JSON:
+
+```json
+{
+  "status": "ok",
+  "version": "1.7.2",
+  "db": { "reachable": true },
+  "workers": { "alive": true, "running_tasks": 0 }
+}
+```
+
+- `status` is `ok`, `degraded` (database unreachable) or `unavailable` (process shutting down).
+- `workers.alive` is `false` when the process is shutting down **or** the database is unreachable (single-process model).
+- `workers.running_tasks` is the count of scheduler tasks currently in `running` state.
+- No node names or secrets are exposed.
+
+### `GET /metrics`
+
+Prometheus text format, **protected** by `web_ui.metrics_token`:
+
+- **Empty token (default):** the endpoint is **not exposed** — any request returns `404`.
+- **Token set:** the caller must present it via `Authorization: Bearer <token>` or `?token=<token>`; a missing/wrong token returns `401`.
+
+The endpoint reports the build version, database/network health, node counts by compliance state, the stalest node last-report age, the last/next run of each scheduler task, the `401`/`403` HTTP response counters, the web TLS certificate expiry and release-update state. **It exposes no node names or secrets** (only build version, compliance states, scheduler task keys and task statuses).
+
+```bash
+# Scrape with a dedicated token (set web_ui.metrics_token in config.json)
+curl -H "Authorization: Bearer <token>" https://dsc-console:443/metrics
+curl --url "https://dsc-console:443/metrics?token=<token>"
+```
+
+> **Production:** always set a strong, random `metrics_token` (generate one with [scripts/Generate-SecureKeys.ps1](../../scripts/Generate-SecureKeys.ps1)) and serve the web UI over HTTPS. Do **not** leave `metrics_token` empty on a publicly reachable server — the endpoint is only safe to publish when the surrounding network already restricts access.
 
 ## Related pages
 

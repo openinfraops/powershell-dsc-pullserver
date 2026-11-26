@@ -215,3 +215,9 @@ For **multi-instance / high-availability** deployments use the **MSSQL** driver 
 - Restrict admin access and review the logs (`logs/` directory) regularly.
 - Rotate the SAML SP key/cert and the JWT `shared_secret` periodically.
 - Keep the database connection and schema up to date (see the [Database Schema](../DatabaseSchema.md) reference).
+
+### Monitoring endpoints
+
+The web/API server exposes `GET /health` (unauthenticated) and `GET /metrics` (Prometheus text). The `/health` endpoint is intentionally public so load balancers and health checks can probe the process; it exposes **no node names or secrets** (only `status`, `version`, DB reachability and worker liveness). `/metrics` is **not exposed unless** `web_ui.metrics_token` is set — with an empty token it returns `404`; with a token it requires `Authorization: Bearer <token>` or `?token=<token>` (else `401`). The metrics stream also never exposes node names or secrets. When exposing `/metrics` to a scraper over an untrusted network, always serve it over HTTPS and use a strong, random `metrics_token`.
+
+> **401/403 counters.** The `dsc_http_responses_total{code="401"}` / `403` gauges count authentication/authorization failures across both the web and DSC servers. A sudden spike on a previously clean endpoint is a useful brute-force / misconfiguration signal. Note that `/metrics` itself counts its own failed token attempts in the `401` gauge, which is intended.
