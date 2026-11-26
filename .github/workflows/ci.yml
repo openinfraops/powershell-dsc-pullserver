@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: Build, vet, test, security
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: '1.26.6'
+
+      - name: Add Go bin to PATH
+        run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      # Tests must fail the job on any failing integration test, and the coverage
+      # profile is printed below so the total coverage is visible in CI output.
+      - name: Test and collect coverage
+        run: |
+          go test -coverprofile=coverage.out -timeout 300s ./...
+          go tool cover -func=coverage.out
+
+      # Fails the job (non-zero exit) when any known vulnerability is found in
+      # the module or its dependencies.
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.10.0
+          govulncheck ./...
+
+      # Fails the job (non-zero exit) on high-severity static-analysis findings.
+      - name: gosec
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@v2.30.0
+          gosec -severity=high ./...

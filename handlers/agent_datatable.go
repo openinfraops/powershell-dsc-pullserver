@@ -208,6 +208,8 @@ func ListAgentsDataTableHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var recordsFiltered int
+	// #nosec G701 -- query is composed from fixed fragments plus parameterized
+	// `?` placeholders (all user values travel in args); ORDER BY is whitelisted.
 	if err := database.QueryRow(countBase, args...).Scan(&recordsFiltered); err != nil {
 		http.Error(w, "DB count error", http.StatusInternalServerError)
 		return
@@ -224,6 +226,8 @@ func ListAgentsDataTableHandler(w http.ResponseWriter, r *http.Request) {
 		args = append(args, length, start)
 	}
 
+	// #nosec G701 -- query is composed from fixed fragments plus parameterized
+	// `?` placeholders (all user values travel in args); ORDER BY is whitelisted.
 	rows, err := database.Query(query, args...)
 	if err != nil {
 		http.Error(w, "DB query error", http.StatusInternalServerError)

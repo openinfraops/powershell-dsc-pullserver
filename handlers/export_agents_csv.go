@@ -82,6 +82,8 @@ func ExportAgentsCSVHandler(w http.ResponseWriter, r *http.Request) {
 
 	q += " ORDER BY node_name ASC"
 
+	// #nosec G701 -- query is composed from fixed fragments plus parameterized
+	// `?` placeholders (all user values travel in args); ORDER BY is a constant.
 	rows, err := database.Query(q, args...)
 	if err != nil {
 		http.Error(w, "DB query error", http.StatusInternalServerError)

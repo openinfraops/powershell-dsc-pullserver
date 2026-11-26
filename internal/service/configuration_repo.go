@@ -254,6 +254,8 @@ func SyncAndCompileConfigurationsForNodeContext(config ConfigurationRepoConfig, 
 		if entry.IsDir() || !strings.EqualFold(filepath.Ext(entry.Name()), ".mof") {
 			return nil
 		}
+		// #nosec G122 -- walking the freshly-compiled outputDir, created by the
+		// server for this compilation and not attacker-controlled.
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return err
