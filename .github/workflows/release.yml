@@ -44,6 +44,7 @@ jobs:
           xcopy web release\web /E /I
           xcopy templates release\templates /E /I
           xcopy scripts release\scripts /E /I
+          xcopy monitoring release\monitoring /E /I
 
       - name: Zip Admin Console
         run: |
