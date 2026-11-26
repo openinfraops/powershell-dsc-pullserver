@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Connexion - DSC Pull Server</title>
+    <title>Login - DSC Pull Server</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/css/adminlte.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
@@ -16,20 +16,20 @@
 <div class="login-box">
     <div class="card card-primary">
         <div class="card-header text-center">
-            <b>Connexion</b> DSC Pull Server
+            <b>Login</b> DSC Pull Server
         </div>
         <div class="card-body">
             <div id="loginError" class="text-danger mb-2" style="display:none;"></div>
             <form id="loginForm">
                 <div class="form-group">
-                    <label for="username">Utilisateur</label>
+                    <label for="username">Username</label>
                     <input type="text" class="form-control" id="username" name="username" required autofocus>
                 </div>
                 <div class="form-group">
-                    <label for="password">Mot de passe</label>
+                    <label for="password">Password</label>
                     <input type="password" class="form-control" id="password" name="password" required>
                 </div>
-                <button type="submit" class="btn btn-primary btn-block">Se connecter</button>
+                <button type="submit" class="btn btn-primary btn-block">Sign in</button>
                 <div id="saml-login-btn"></div>
             </form>
             <script src="login_saml.js"></script>
@@ -48,11 +48,11 @@ $(function() {
     if (error) {
         var msg = '';
         if (error === 'deny') {
-            msg = 'Accès refusé : votre compte ne fait partie d\'aucun groupe autorisé pour accéder à la console. Veuillez contacter un administrateur.';
+            msg = 'Access denied: your account is not part of any group authorized to access the console. Please contact an administrator.';
         } else if (error === 'blocked') {
-            msg = 'Votre compte est désactivé. Veuillez contacter un administrateur pour le réactiver.';
+            msg = 'Your account is disabled. Please contact an administrator to reactivate it.';
         } else {
-            msg = 'Une erreur est survenue lors de la connexion. Veuillez réessayer ou contacter un administrateur.';
+            msg = 'An error occurred during login. Please try again or contact an administrator.';
         }
         $('#loginError').text(msg).show();
     }
@@ -71,7 +71,7 @@ $(function() {
                 window.location.href = '/web';
             },
             error: function(xhr) {
-                $('#loginError').text('Identifiants invalides').show();
+                $('#loginError').text('Invalid credentials').show();
             }
         });
     });

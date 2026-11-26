@@ -47,11 +47,11 @@ function egStatusBadge(status) {
 
 function egDetectionBadges(g) {
     const parts = [];
-    if (g.new) parts.push('<span class="badge badge-danger">Nouveau</span>');
-    if (g.spike) parts.push('<span class="badge badge-danger">Pic</span>');
-    if (g.after_deployment) parts.push('<span class="badge badge-primary">Post-déploiement</span>');
-    if (g.trend) parts.push(`<span class="badge badge-secondary" title="Tendance">${egEsc(g.trend)}</span>`);
-    if (g.detection_suppressed) parts.push('<span class="badge badge-light">Supprimé</span>');
+    if (g.new) parts.push('<span class="badge badge-danger">New</span>');
+    if (g.spike) parts.push('<span class="badge badge-danger">Spike</span>');
+    if (g.after_deployment) parts.push('<span class="badge badge-primary">Post-deployment</span>');
+    if (g.trend) parts.push(`<span class="badge badge-secondary" title="Trend">${egEsc(g.trend)}</span>`);
+    if (g.detection_suppressed) parts.push('<span class="badge badge-light">Dismissed</span>');
     if (parts.length === 0) return '—';
     return parts.join(' ');
 }
@@ -75,7 +75,7 @@ function egLoadGroups(offset) {
     params.push('offset=' + egState.offset);
     params.push('limit=' + egState.limit);
     const url = '/api/v1/error_groups?' + params.join('&');
-    $('#eg-count').html('<span class="spinner-border spinner-border-sm"></span> Chargement…');
+    $('#eg-count').html('<span class="spinner-border spinner-border-sm"></span> Loading…');
     $.ajax({
         url: url,
         method: 'GET',
@@ -88,7 +88,7 @@ function egLoadGroups(offset) {
             egRenderPagination();
         },
         error: function(xhr) {
-            $('#eg-count').html('<span class="text-danger">Erreur de chargement : ' + egEsc(xhr.responseText || xhr.status) + '</span>');
+            $('#eg-count').html('<span class="text-danger">Load error: ' + egEsc(xhr.responseText || xhr.status) + '</span>');
         }
     });
 }
@@ -96,8 +96,8 @@ function egLoadGroups(offset) {
 function egRenderTable() {
     const $tbody = $('#eg-tbody').empty();
     if (!egState.groups.length) {
-        $tbody.html('<tr><td colspan="9" class="text-center text-muted">Aucun groupe d\'erreurs.</td></tr>');
-        $('#eg-count').text(egState.total + ' groupe(s) d\'erreur(s).');
+        $tbody.html('<tr><td colspan="9" class="text-center text-muted">No error groups.</td></tr>');
+        $('#eg-count').text(egState.total + ' error group(s).');
         return;
     }
     egState.groups.forEach(function(g) {
@@ -115,7 +115,7 @@ function egRenderTable() {
         tr.append($('<td>').text(egFmtDate(g.last_seen)));
         $tbody.append(tr);
     });
-    $('#eg-count').text(egState.total + ' groupe(s) d\'erreur(s).');
+    $('#eg-count').text(egState.total + ' error group(s).');
 }
 
 function egRenderPagination() {
@@ -126,8 +126,8 @@ function egRenderPagination() {
     let html = '<div class="d-flex justify-content-between align-items-center">';
     html += '<span class="text-muted">' + (egState.offset + 1) + ' – ' + Math.min(egState.offset + egState.limit, egState.total) + ' / ' + egState.total + '</span>';
     html += '<div>';
-    if (prev) html += '<button id="eg-prev" class="btn btn-outline-secondary btn-sm mr-1">Précédent</button>';
-    if (next) html += '<button id="eg-next" class="btn btn-outline-secondary btn-sm">Suivant</button>';
+    if (prev) html += '<button id="eg-prev" class="btn btn-outline-secondary btn-sm mr-1">Previous</button>';
+    if (next) html += '<button id="eg-next" class="btn btn-outline-secondary btn-sm">Next</button>';
     html += '</div></div>';
     $p.html(html);
     $('#eg-prev').on('click', function() { egLoadGroups(Math.max(0, egState.offset - egState.limit)); });
@@ -147,7 +147,7 @@ function egOpenDetail(fingerprint) {
             egRenderDetailModal();
         },
         error: function(xhr) {
-            $('#eg-detail-body').html('<span class="text-danger">Erreur : ' + egEsc(xhr.responseText || xhr.status) + '</span>');
+            $('#eg-detail-body').html('<span class="text-danger">Error: ' + egEsc(xhr.responseText || xhr.status) + '</span>');
         }
     });
     $.ajax({
@@ -166,17 +166,17 @@ function egDetailHeaderHtml() {
     const g = egState.detail;
     const rows = [
         ['Fingerprint', '<code>' + egEsc(g.fingerprint) + '</code>'],
-        ['Statut', egStatusBadge(g.status)],
-        ['Catégorie', egEsc(g.category || '—')],
-        ['Type de ressource', egEsc(g.resource_type || '—')],
-        ['Nœuds affectés', String(g.node_count)],
-        ['Détection', egDetectionBadges(g)],
-        ['1h / 1h précédente', g.node_count_last_hour + ' / ' + g.node_count_prev_hour],
-        ['Première apparition', egFmtDate(g.first_seen)],
-        ['Dernière apparition', egFmtDate(g.last_seen)],
-        ['Première version config', egEsc(g.first_config_version || '—')],
+        ['Status', egStatusBadge(g.status)],
+        ['Category', egEsc(g.category || '—')],
+        ['Resource type', egEsc(g.resource_type || '—')],
+        ['Affected nodes', String(g.node_count)],
+        ['Detection', egDetectionBadges(g)],
+        ['1h / previous 1h', g.node_count_last_hour + ' / ' + g.node_count_prev_hour],
+        ['First seen', egFmtDate(g.first_seen)],
+        ['Last seen', egFmtDate(g.last_seen)],
+        ['First config version', egEsc(g.first_config_version || '—')],
     ];
-    if (g.status_changed_by) rows.push(['Modifié le', egFmtDate(g.status_changed_at) + ' par ' + egEsc(g.status_changed_by)]);
+    if (g.status_changed_by) rows.push(['Modified on', egFmtDate(g.status_changed_at) + ' by ' + egEsc(g.status_changed_by)]);
     let html = '<table class="table table-bordered table-sm mb-3">';
     rows.forEach(function(r) {
         html += '<tr><th style="width:180px;">' + egEsc(r[0]) + '</th><td>' + r[1] + '</td></tr>';
@@ -191,28 +191,28 @@ function egDetailBodyHtml() {
     html += '<h6>Message</h6><pre style="white-space:pre-wrap;background:#f4f4f4;border-radius:4px;padding:10px;max-height:160px;overflow:auto;">' + egEsc(g.sample_message || '') + '</pre>';
     html += '<h6 class="mt-3">Note</h6>';
     if (egIsAdmin()) {
-        html += '<textarea id="eg-note-input" class="form-control form-control-sm" rows="3" placeholder="Note de triage…">' + egEsc(g.note || '') + '</textarea>';
+        html += '<textarea id="eg-note-input" class="form-control form-control-sm" rows="3" placeholder="Triage note…">' + egEsc(g.note || '') + '</textarea>';
     } else {
-        html += '<div>' + (g.note ? egEsc(g.note) : '<em class="text-muted">Aucune note.</em>') + '</div>';
+        html += '<div>' + (g.note ? egEsc(g.note) : '<em class="text-muted">No note.</em>') + '</div>';
     }
-    html += '<h6 class="mt-3">Nœuds concernés</h6><div id="eg-nodes-block"></div>';
+    html += '<h6 class="mt-3">Affected nodes</h6><div id="eg-nodes-block"></div>';
     return html;
 }
 
 function egRenderDetailModal() {
     if (!egState.detail) return;
     const g = egState.detail;
-    $('#eg-detail-title').text('Erreur — ' + (g.category || ''));
+    $('#eg-detail-title').text('Error — ' + (g.category || ''));
     $('#eg-detail-body').html(egDetailBodyHtml());
     // Re-rend les nœuds si leur réponse est arrivée avant le détail (course
     // possible entre les deux appels AJAX de egOpenDetail).
     egRenderDetailNodes();
-    let footer = '<button type="button" class="btn btn-outline-secondary btn-sm" data-dismiss="modal">Fermer</button>';
+    let footer = '<button type="button" class="btn btn-outline-secondary btn-sm" data-dismiss="modal">Close</button>';
     if (egIsAdmin()) {
-        footer += '<button id="eg-status-known" class="btn btn-info btn-sm ml-1">Marquer comme known</button>';
-        footer += '<button id="eg-status-resolved" class="btn btn-success btn-sm ml-1">Résoudre</button>';
-        footer += '<button id="eg-status-open" class="btn btn-warning btn-sm ml-1">Réouvrir</button>';
-        footer += '<button id="eg-save" class="btn btn-primary btn-sm ml-1">Enregistrer</button>';
+        footer += '<button id="eg-status-known" class="btn btn-info btn-sm ml-1">Mark as known</button>';
+        footer += '<button id="eg-status-resolved" class="btn btn-success btn-sm ml-1">Resolve</button>';
+        footer += '<button id="eg-status-open" class="btn btn-warning btn-sm ml-1">Reopen</button>';
+        footer += '<button id="eg-save" class="btn btn-primary btn-sm ml-1">Save</button>';
     }
     $('#eg-detail-footer').html(footer);
     $('#eg-detail-modal').modal('show');
@@ -228,10 +228,10 @@ function egRenderDetailNodes() {
     const $nodes = $('#eg-nodes-block');
     if (!$nodes.length) return;
     if (!egState.nodes.length) {
-        $nodes.html('<em class="text-muted">Aucun nœud enregistré pour ce groupe.</em>');
+        $nodes.html('<em class="text-muted">No nodes registered for this group.</em>');
         return;
     }
-    let html = '<table class="table table-bordered table-sm"><thead><tr><th>Nœud</th><th>Occurrences</th><th>Premier</th><th>Dernier</th></tr></thead><tbody>';
+    let html = '<table class="table table-bordered table-sm"><thead><tr><th>Node</th><th>Occurrences</th><th>First</th><th>Last</th></tr></thead><tbody>';
     egState.nodes.forEach(function(o) {
         html += '<tr><td>' + egEsc(o.NodeID || o.node_id) + '</td><td>' + egEsc(String(o.Count || o.count)) + '</td><td>' + egFmtDate(o.FirstSeen || o.first_seen) + '</td><td>' + egFmtDate(o.LastSeen || o.last_seen) + '</td></tr>';
     });
@@ -254,7 +254,7 @@ function egChangeStatus(status) {
             egOpenDetail(g.fingerprint);
         },
         error: function(xhr) {
-            alert('Erreur : ' + (xhr.responseText || xhr.status));
+            alert('Error: ' + (xhr.responseText || xhr.status));
         }
     });
 }

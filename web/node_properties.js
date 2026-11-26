@@ -59,7 +59,7 @@ $(function() {
         });
     });
     $(document).on('click', '.delete-btn', function() {
-        if(confirm('Supprimer cette association ?')) {
+        if(confirm('Delete this association?')) {
             var propId = $(this).data('id');
             var node = getNodeName();
             $.ajax({

@@ -56,7 +56,7 @@ $(function() {
                 searchable: false,
                 orderable: false,
                 render: function(data, type, row) {
-                    return '<button class="btn btn-info btn-sm btn-detail-config-model" data-id="' + row.name + '">Détail</button> ' +
+                    return '<button class="btn btn-info btn-sm btn-detail-config-model" data-id="' + row.name + '">Details</button> ' +
                         '<button class="btn btn-danger btn-sm delete-config-model" data-id="' + row.id + '">Delete</button>';
                 }
             }

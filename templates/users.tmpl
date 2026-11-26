@@ -107,7 +107,7 @@ $(function() {
                 $('#users-table').DataTable().ajax.reload(null, false);
             },
             error: function(xhr) {
-                let msg = 'Erreur lors de la création.';
+                let msg = 'Error during creation.';
                 if(xhr.responseJSON && xhr.responseJSON.error) msg = xhr.responseJSON.error;
                 $('#createUserError').text(msg).show();
             }

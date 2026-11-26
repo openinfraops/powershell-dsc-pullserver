@@ -98,7 +98,7 @@ $(function() {
             if(isCurrent) html += '</b>';
             html += ' <span style="color:#888">(' + (v.upload_date ? new Date(v.upload_date).toLocaleString() : '') + ')</span>';
             if(!isCurrent && isAdmin) {
-                html += ' <button class="btn btn-outline-warning btn-sm ml-2 revert-version-btn" data-id="' + v.id + '" data-name="' + escapeHtml(v.name) + '" title="Republier cette version comme version active"><i class="fas fa-undo"></i> Revert</button>';
+                html += ' <button class="btn btn-outline-warning btn-sm ml-2 revert-version-btn" data-id="' + v.id + '" data-name="' + escapeHtml(v.name) + '" title="Republish this version as the active version"><i class="fas fa-undo"></i> Revert</button>';
             }
             html += '</div>';
         });
@@ -249,20 +249,20 @@ $(function() {
         var id = $(this).data('id');
         var versionName = $(this).data('name');
         if(!id) return;
-        if(!confirm('Revert to version "' + versionName + '" ? Cette action republie cette version comme version active et forcera la recompilation des nœuds liés.')) return;
+        if(!confirm('Revert to version "' + versionName + '"? This republishes this version as the active version and will force recompilation of linked nodes.')) return;
         $.ajax({
             url: '/api/v1/configuration_models/' + encodeURIComponent(id) + '/revert',
             method: 'POST',
             success: function(res) {
                 if(res && res.status === 'already_active') {
-                    alert('Cette version est déjà la version active.');
+                    alert('This version is already the active version.');
                     return;
                 }
-                alert('Configuration réactivée sur la version "' + (res && res.name ? res.name : versionName) + '".');
+                alert('Configuration reverted to version "' + (res && res.name ? res.name : versionName) + '".');
                 window.location.reload();
             },
             error: function(xhr) {
-                alert('Erreur revert: ' + (xhr.responseText || xhr.status));
+                alert('Revert error: ' + (xhr.responseText || xhr.status));
             }
         });
     });

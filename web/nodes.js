@@ -61,19 +61,19 @@ $(document).ready(function() {
         if (type === 'sort') return data || '';
         var notAfter = row.certificate_notafter || '';
         if (!notAfter) {
-            return '<span class="badge bg-secondary text-light" title="Aucun certificat">N/A</span>';
+            return '<span class="badge bg-secondary text-light" title="No certificate">N/A</span>';
         }
         var days = daysUntil(notAfter);
         if (days === null || isNaN(days)) {
-            return '<span class="badge bg-secondary text-light" title="Date non parseable">' + esc(notAfter) + '</span>';
+            return '<span class="badge bg-secondary text-light" title="Unparseable date">' + esc(notAfter) + '</span>';
         }
         if (days < 0) {
-            return '<span class="badge bg-danger" title="Expiré le ' + esc(notAfter) + '">Expiré</span>';
+            return '<span class="badge bg-danger" title="Expired on ' + esc(notAfter) + '">Expired</span>';
         }
         if (days <= CERT_EXPIRING_DAYS) {
-            return '<span class="badge bg-warning text-dark" title="Expire le ' + esc(notAfter) + '">' + days + ' j</span>';
+            return '<span class="badge bg-warning text-dark" title="Expires on ' + esc(notAfter) + '">' + days + ' d</span>';
         }
-        return '<span class="badge bg-success" title="Expire le ' + esc(notAfter) + '">' + days + ' j</span>';
+        return '<span class="badge bg-success" title="Expires on ' + esc(notAfter) + '">' + days + ' d</span>';
     }
 
     function agentsEndpoint() {
@@ -109,7 +109,7 @@ $(document).ready(function() {
     }
 
     function afterBulk(res) {
-        var msg = 'Traité: ' + res.processed + ' / Échecs: ' + res.failed;
+        var msg = 'Processed: ' + res.processed + ' / Failed: ' + res.failed;
         if(res.errors && res.errors.length) msg += '\n' + res.errors.join('\n');
         alert(msg);
         clearSelection();
@@ -123,7 +123,7 @@ $(document).ready(function() {
             url: url, method: 'POST', contentType: 'application/json',
             data: JSON.stringify({ agent_ids: ids }),
             success: function(res) { afterBulk(res); },
-            error: function(xhr) { alert('Erreur: ' + (xhr.responseText || xhr.status)); }
+            error: function(xhr) { alert('Error: ' + (xhr.responseText || xhr.status)); }
         });
     }
 
@@ -136,7 +136,7 @@ $(document).ready(function() {
             url: url, method: 'PUT', contentType: 'application/json',
             data: JSON.stringify(payload),
             success: function(res) { afterBulk(res); },
-            error: function(xhr) { alert('Erreur: ' + (xhr.responseText || xhr.status)); }
+            error: function(xhr) { alert('Error: ' + (xhr.responseText || xhr.status)); }
         });
     }
 
@@ -144,7 +144,7 @@ $(document).ready(function() {
 
     function statusRender(data, type, row) {
         if (row.deleted_at) {
-            return '<span class="badge bg-dark" style="min-width:60px;">Corbeille</span>';
+            return '<span class="badge bg-dark" style="min-width:60px;">Trash</span>';
         }
         var state = (row.state || '').toLowerCase();
         var badge;
@@ -168,9 +168,9 @@ $(document).ready(function() {
     function detailRender(data, type, row) {
         const isAdmin = window.currentUser && window.currentUser.role === 'admin';
         if (row.deleted_at) {
-            let actions = `<a class='btn btn-outline-secondary btn-sm' href="/web/node/${encodeURIComponent(data)}">Voir</a>`;
+            let actions = `<a class='btn btn-outline-secondary btn-sm' href="/web/node/${encodeURIComponent(data)}">View</a>`;
             if (isAdmin) {
-                actions = `<button class="btn btn-outline-success btn-sm mr-1 restore-agent-btn" data-id="${encodeURIComponent(data)}">Restaurer</button>` + actions;
+                actions = `<button class="btn btn-outline-success btn-sm mr-1 restore-agent-btn" data-id="${encodeURIComponent(data)}">Restore</button>` + actions;
             }
             return actions;
         }
@@ -285,17 +285,17 @@ $(document).ready(function() {
         bulkPost('/api/v1/agents/bulk/recompile');
     });
     $('#bulk-trash-btn').click(function() {
-        if (!confirm('Mettre en corbeille les nœuds sélectionnés ?')) return;
+        if (!confirm('Move the selected nodes to trash?')) return;
         bulkPost('/api/v1/agents/bulk/trash');
     });
     $('#bulk-restore-btn').click(function() {
-        if (!confirm('Restaurer les nœuds sélectionnés depuis la corbeille ?')) return;
+        if (!confirm('Restore the selected nodes from trash?')) return;
         bulkPost('/api/v1/agents/bulk/restore');
     });
     $('#bulk-tag-btn').click(function() {
-        var key = prompt('Clé du tag (ex: environnement)');
+        var key = prompt('Tag key (e.g. environment)');
         if (!key) return;
-        var value = prompt('Valeur du tag (ex: production)');
+        var value = prompt('Tag value (e.g. production)');
         if (!value) return;
         bulkPut('/api/v1/agents/bulk/tags', { key: key, value: value });
     });
@@ -325,7 +325,7 @@ $(document).ready(function() {
     // Options de clés de tag pour le filtre
     $.getJSON('/api/v1/agents/tags/options', function(resp) {
         var keys = (resp && resp.keys) || [];
-        var html = '<option value="">(tous)</option>';
+        var html = '<option value="">(all)</option>';
         keys.forEach(function(k) { html += '<option value="' + esc(k) + '">' + esc(k) + '</option>'; });
         $('#tag-filter-key').html(html);
     });
@@ -334,7 +334,7 @@ $(document).ready(function() {
         tagFilter.key = $('#tag-filter-key').val();
         tagFilter.value = $('#tag-filter-value').val().trim();
         if (!tagFilter.key || !tagFilter.value) {
-            alert('Choisir une clé de tag et saisir une valeur.');
+            alert('Choose a tag key and enter a value.');
             return;
         }
         dataTable.ajax.reload(null, false);
@@ -381,25 +381,25 @@ $(document).ready(function() {
         clearSelection();
         dataTable.ajax.reload(null, false);
         if (viewMode === 'deleted') {
-            $(this).html('<i class="fas fa-server"></i> Voir les nœuds actifs');
+            $(this).html('<i class="fas fa-server"></i> View active nodes');
             $('#purge-trash-btn').show();
         } else {
-            $(this).html('<i class="fas fa-trash"></i> Voir la corbeille');
+            $(this).html('<i class="fas fa-trash"></i> View trash');
             $('#purge-trash-btn').hide();
         }
     });
 
     $('#purge-trash-btn').click(function() {
-        if (!confirm('Purger définitivement tous les nœuds de la corbeille au-delà de la rétention ?')) return;
+        if (!confirm('Permanently purge all trashed nodes beyond the retention period?')) return;
         $.ajax({
             url: '/api/v1/scheduler/agent-purge/run',
             method: 'POST',
             success: function(res) {
-                alert(res && typeof res.purged !== 'undefined' ? ('Purgé ' + res.purged + ' nœud(s).') : 'Corbeille purgée.');
+                alert(res && typeof res.purged !== 'undefined' ? ('Purged ' + res.purged + ' node(s).') : 'Trash purged.');
                 dataTable.ajax.reload(null, false);
             },
             error: function(xhr) {
-                alert('Erreur purge: ' + (xhr.responseText || xhr.status));
+                alert('Purge error: ' + (xhr.responseText || xhr.status));
             }
         });
     });
@@ -408,7 +408,7 @@ $(document).ready(function() {
     $(document).on('click', '.restore-agent-btn', function() {
         const id = $(this).data('id');
         if (!id) return;
-        if (!confirm('Restaurer ce nœud depuis la corbeille ?')) return;
+        if (!confirm('Restore this node from trash?')) return;
         $.ajax({
             url: '/api/v1/agents/' + encodeURIComponent(id) + '/restore',
             method: 'POST',
@@ -416,7 +416,7 @@ $(document).ready(function() {
                 dataTable.ajax.reload(null, false);
             },
             error: function(xhr) {
-                alert('Erreur restauration: ' + (xhr.responseText || xhr.status));
+                alert('Restore error: ' + (xhr.responseText || xhr.status));
             }
         });
     });

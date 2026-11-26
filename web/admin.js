@@ -34,14 +34,14 @@ window.viewAgentDetail = function(agentId) {
     fetch(`/api/v1/agents/${agentId}/reports/latest`).then(r => r.json()).then(report => {
         if(report && report.status) {
             $('#agent-detail-report-status').text(report.status);
-            $('#agent-detail-report-errors').text(report.errors && report.errors.length ? report.errors.join(', ') : 'Aucune erreur');
+            $('#agent-detail-report-errors').text(report.errors && report.errors.length ? report.errors.join(', ') : 'No errors');
         } else {
-            $('#agent-detail-report-status').text('Aucun rapport');
+            $('#agent-detail-report-status').text('No report');
             $('#agent-detail-report-errors').text('');
         }
         $('#agent-detail-report-json').text(JSON.stringify(report, null, 2));
     }).catch(() => {
-        $('#agent-detail-report-status').text('Aucun rapport');
+        $('#agent-detail-report-status').text('No report');
         $('#agent-detail-report-errors').text('');
         $('#agent-detail-report-json').text('');
     });

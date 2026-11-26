@@ -21,7 +21,7 @@ $(document).ready(function() {
             {
                 data: 'agent_id',
                 render: function(data, type, row) {
-                    return `<button onclick="showReports('${data}')">Rapports</button>`;
+                    return `<button onclick="showReports('${data}')">Reports</button>`;
                 }
             }
         ]
@@ -99,7 +99,7 @@ async function loadReports(agentId) {
         const li = document.createElement('li');
         li.textContent = `JobId: ${rep.job_id} | Date: ${rep.created_at}`;
         const viewBtn = document.createElement('button');
-        viewBtn.textContent = 'Voir';
+        viewBtn.textContent = 'View';
         viewBtn.onclick = async function() {
             const r = await fetch(`/api/v1/agents/${agentId}/reports/${rep.job_id}`);
             const json = await r.json();
@@ -114,7 +114,7 @@ async function loadReports(agentId) {
         const latest = await latestRes.json();
         document.getElementById('latest-report-json').textContent = JSON.stringify(latest, null, 2);
     } else {
-        document.getElementById('latest-report-json').textContent = 'Aucun rapport.';
+        document.getElementById('latest-report-json').textContent = 'No reports.';
     }
 }
 

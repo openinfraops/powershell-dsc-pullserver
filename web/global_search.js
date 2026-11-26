@@ -18,13 +18,13 @@ $(document).ready(function() {
             !(data.agents && data.agents.length) &&
             !(data.configurations && data.configurations.length) &&
             !(data.modules && data.modules.length)) {
-            html = '<div class="dropdown-item text-muted">Aucun résultat</div>';
+            html = '<div class="dropdown-item text-muted">No results</div>';
             resultsBox.html(html).show();
             return;
         }
 
         if (data.agents && data.agents.length) {
-            html += '<div class="dropdown-header">Nœuds</div>';
+            html += '<div class="dropdown-header">Nodes</div>';
             data.agents.forEach(function(a) {
                 html += '<a class="dropdown-item" href="/web/node/' + encodeURIComponent(a.agent_id) + '">';
                 html += '<i class="fas fa-server mr-2 text-info"></i>' + esc(a.node_name || a.agent_id);
@@ -42,7 +42,7 @@ $(document).ready(function() {
                 html += '<a class="dropdown-item" href="/web/configuration_model/' + encodeURIComponent(c.name) + '">';
                 html += '<i class="fas fa-file-alt mr-2 text-primary"></i>' + esc(c.name);
                 if (c.uploaded_by) {
-                    html += ' <span class="text-muted small">par ' + esc(c.uploaded_by) + '</span>';
+                    html += ' <span class="text-muted small">by ' + esc(c.uploaded_by) + '</span>';
                 }
                 html += '</a>';
             });
@@ -73,7 +73,7 @@ $(document).ready(function() {
         $.getJSON('/api/v1/search?q=' + encodeURIComponent(q), function(data) {
             renderResults(data);
         }).fail(function() {
-            resultsBox.html('<div class="dropdown-item text-danger">Erreur de recherche</div>').show();
+            resultsBox.html('<div class="dropdown-item text-danger">Search error</div>').show();
         });
     }
 

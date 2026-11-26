@@ -11,7 +11,7 @@ $(function() {
         var pwd = $('#newPassword').val();
         var confirm = $('#confirmPassword').val();
         if (pwd !== confirm) {
-            $('#passwordMsg').text('Les mots de passe ne correspondent pas.').addClass('text-danger').removeClass('text-success');
+            $('#passwordMsg').text('Passwords do not match.').addClass('text-danger').removeClass('text-success');
             return false;
         }
         if (!pwd) return;
@@ -21,12 +21,12 @@ $(function() {
             contentType: 'application/json',
             data: JSON.stringify({ new_password: pwd }),
             success: function() {
-                $('#passwordMsg').text('Mot de passe changé avec succès.').addClass('text-success').removeClass('text-danger');
+                $('#passwordMsg').text('Password changed successfully.').addClass('text-success').removeClass('text-danger');
                 $('#newPassword').val('');
                 $('#confirmPassword').val('');
             },
             error: function() {
-                $('#passwordMsg').text('Erreur lors du changement de mot de passe.').addClass('text-danger').removeClass('text-success');
+                $('#passwordMsg').text('Error changing password.').addClass('text-danger').removeClass('text-success');
             }
         });
     });

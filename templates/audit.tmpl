@@ -1,32 +1,32 @@
 {{define "content"}}
 <div class="container-fluid mt-4 px-3">
     <div class="d-flex justify-content-between align-items-center mb-2">
-        <h2 class="mb-0">Audit utilisateur</h2>
+        <h2 class="mb-0">User audit</h2>
         <button id="audit-export-csv" class="btn btn-outline-primary btn-sm" type="button">Export CSV</button>
     </div>
     <div class="card mb-3">
         <div class="card-body py-3">
             <div class="form-row align-items-start">
                 <div class="form-group col-md-3 mb-2">
-                    <label for="audit-filter-users" class="mb-1">Utilisateurs</label>
+                    <label for="audit-filter-users" class="mb-1">Users</label>
                     <select id="audit-filter-users" class="form-control form-control-sm" multiple size="5"></select>
-                    <small class="form-text text-muted">Selection multiple possible</small>
+                    <small class="form-text text-muted">Multiple selection available</small>
                 </div>
                 <div class="form-group col-md-3 mb-2">
                     <label for="audit-filter-actions" class="mb-1">Actions</label>
                     <select id="audit-filter-actions" class="form-control form-control-sm" multiple size="5"></select>
-                    <small class="form-text text-muted">Selection multiple possible</small>
+                    <small class="form-text text-muted">Multiple selection available</small>
                 </div>
                 <div class="form-group col-md-2 mb-2">
-                    <label for="audit-filter-date-from" class="mb-1">Date debut</label>
+                    <label for="audit-filter-date-from" class="mb-1">Start date</label>
                     <input id="audit-filter-date-from" type="datetime-local" class="form-control form-control-sm" />
                 </div>
                 <div class="form-group col-md-2 mb-2">
-                    <label for="audit-filter-date-to" class="mb-1">Date fin</label>
+                    <label for="audit-filter-date-to" class="mb-1">End date</label>
                     <input id="audit-filter-date-to" type="datetime-local" class="form-control form-control-sm" />
                 </div>
                 <div class="form-group col-md-2 mb-2 d-flex align-items-center">
-                    <button id="audit-filter-reset" class="btn btn-outline-secondary btn-sm w-100" type="button">Reinitialiser</button>
+                    <button id="audit-filter-reset" class="btn btn-outline-secondary btn-sm w-100" type="button">Reset</button>
                 </div>
             </div>
         </div>
@@ -37,8 +37,8 @@
                 <tr>
                     <th>Email</th>
                     <th>Action</th>
-                    <th>Cible</th>
-                    <th>Détails</th>
+                    <th>Target</th>
+                    <th>Details</th>
                     <th>Date</th>
                 </tr>
             </thead>

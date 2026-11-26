@@ -8,7 +8,7 @@ $(function() {
             { data: 'first_name' },
             { data: 'last_name' },
             { data: 'email' },
-            { data: 'is_active', render: function(data) { return `<span class="badge badge-${data ? 'success' : 'danger'}">${data ? 'Oui' : 'Non'}</span>`; } },
+            { data: 'is_active', render: function(data) { return `<span class="badge badge-${data ? 'success' : 'danger'}">${data ? 'Yes' : 'No'}</span>`; } },
             { data: 'created_at', defaultContent: '' },
             { data: 'last_logon_date', defaultContent: '' },
             { data: null, orderable: false, render: function(data, type, row) {

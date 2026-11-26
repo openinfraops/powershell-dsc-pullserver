@@ -7,26 +7,26 @@ function renderNodeActionBlock() {
     if (isDeleted) {
         // Nœud en corbeille : on ne peut que le restaurer (admin).
         if (isAdmin) {
-            html += '<button id="restore-node-btn" class="btn btn-success btn-sm">Restaurer ce nœud</button>';
+            html += '<button id="restore-node-btn" class="btn btn-success btn-sm">Restore this node</button>';
         }
         return html;
     }
     // Recalcul de la configuration : admin uniquement, visible quand la config est obsolète.
     if (isAdmin && state.agent.needs_recompile) {
-        html += '<button id="recompile-node-btn" class="btn btn-warning btn-sm mr-1">Recalculer la configuration</button>';
+        html += '<button id="recompile-node-btn" class="btn btn-warning btn-sm mr-1">Recompute configuration</button>';
     }
     // Renouvellement du certificat : admin uniquement, demande « ASAP » (le nœud
     // est invité à présenter un nouveau certificat dès son prochain cycle).
     if (isAdmin) {
         if (state.agent.force_cert_rotation) {
-            html += '<button id="cancel-rotate-cert-btn" class="btn btn-outline-info btn-sm mr-1">Renouvellement demandé (annuler)</button>';
+            html += '<button id="cancel-rotate-cert-btn" class="btn btn-outline-info btn-sm mr-1">Rotation requested (cancel)</button>';
         } else {
-            html += '<button id="rotate-cert-btn" class="btn btn-info btn-sm mr-1">Renouveler le certificat</button>';
+            html += '<button id="rotate-cert-btn" class="btn btn-info btn-sm mr-1">Renew certificate</button>';
         }
     }
-    // Suppression : admin uniquement.
+    // Deletion: admin only.
     if (isAdmin) {
-        html += '<button id="delete-node-btn" class="btn btn-danger btn-sm">Supprimer ce nœud</button>';
+        html += '<button id="delete-node-btn" class="btn btn-danger btn-sm">Delete this node</button>';
     }
     return html;
 }
@@ -75,12 +75,12 @@ $(document).on('click', '#delete-node-confirm-btn', function() {
         type: 'DELETE',
         success: function() {
             $('#delete-node-modal').modal('hide');
-            showNodeMessage('Noeud déplacé vers la corbeille.', 'success');
+            showNodeMessage('Node moved to trash.', 'success');
             setTimeout(function(){ window.location.href = '/web'; }, 1200);
         },
         error: function(xhr) {
             $('#delete-node-modal').modal('hide');
-            showNodeMessage('Erreur lors de la suppression du noeud: ' + (xhr.responseText || xhr.status), 'error');
+            showNodeMessage('Error deleting node: ' + (xhr.responseText || xhr.status), 'error');
         }
     });
 });
@@ -89,16 +89,16 @@ $(document).on('click', '#delete-node-confirm-btn', function() {
 $(document).on('click', '#restore-node-btn', function() {
     const nodeId = getNodeIdFromUrl();
     if (!nodeId) return;
-    if (!confirm('Restaurer ce nœud depuis la corbeille ?')) return;
+    if (!confirm('Restore this node from trash?')) return;
     $.ajax({
         url: '/api/v1/agents/' + encodeURIComponent(nodeId) + '/restore',
         type: 'POST',
         success: function() {
-            showNodeMessage('Nœud restauré.', 'success');
+            showNodeMessage('Node restored.', 'success');
             setTimeout(function(){ window.location.reload(); }, 1000);
         },
         error: function(xhr) {
-            showNodeMessage('Erreur lors de la restauration: ' + (xhr.responseText || xhr.status), 'error');
+            showNodeMessage('Restore error: ' + (xhr.responseText || xhr.status), 'error');
         }
     });
 });
@@ -106,12 +106,12 @@ $(document).on('click', '#restore-node-btn', function() {
 $(document).on('click', '#recompile-node-btn', function() {
     const nodeId = getNodeIdFromUrl();
     if (!nodeId) return;
-    if (!confirm('Recalculer la configuration de ce nœud à partir des tags actuels ?')) return;
+    if (!confirm('Recompute this node\'s configuration from the current tags?')) return;
     $.ajax({
         url: '/api/v1/agents/' + encodeURIComponent(nodeId) + '/recompile',
         type: 'POST',
         success: function() {
-            showNodeMessage('Recalcul de la configuration lancé.', 'success');
+            showNodeMessage('Configuration recompute started.', 'success');
             let tries = 0;
             const poll = setInterval(function() {
                 tries++;
@@ -124,14 +124,14 @@ $(document).on('click', '#recompile-node-btn', function() {
                         renderAll();
                         if (!state.agent.needs_recompile || tries > 30) {
                             clearInterval(poll);
-                            showNodeMessage(state.agent.needs_recompile ? 'Recalcul toujours en attente…' : 'Configuration recalculée.', state.agent.needs_recompile ? 'info' : 'success');
+                            showNodeMessage(state.agent.needs_recompile ? 'Recompute still pending…' : 'Configuration recomputed.', state.agent.needs_recompile ? 'info' : 'success');
                         }
                     }
                 });
             }, 5000);
         },
         error: function(xhr) {
-            showNodeMessage('Erreur lors du recalcul: ' + (xhr.responseText || xhr.status), 'error');
+            showNodeMessage('Recompute error: ' + (xhr.responseText || xhr.status), 'error');
         }
     });
 });
@@ -140,16 +140,16 @@ $(document).on('click', '#recompile-node-btn', function() {
 $(document).on('click', '#rotate-cert-btn', function() {
     const nodeId = getNodeIdFromUrl();
     if (!nodeId) return;
-    if (!confirm('Demander le renouvellement du certificat de ce nœud dès son prochain cycle ?')) return;
+    if (!confirm('Request certificate renewal for this node at its next cycle?')) return;
     $.ajax({
         url: '/api/v1/agents/' + encodeURIComponent(nodeId) + '/rotate-certificate',
         type: 'POST',
         success: function() {
-            showNodeMessage('Demande de renouvellement de certificat envoyée au nœud.', 'success');
+            showNodeMessage('Certificate renewal request sent to the node.', 'success');
             refreshAgent();
         },
         error: function(xhr) {
-            showNodeMessage('Erreur lors de la demande: ' + (xhr.responseText || xhr.status), 'error');
+            showNodeMessage('Request error: ' + (xhr.responseText || xhr.status), 'error');
         }
     });
 });
@@ -158,16 +158,16 @@ $(document).on('click', '#rotate-cert-btn', function() {
 $(document).on('click', '#cancel-rotate-cert-btn', function() {
     const nodeId = getNodeIdFromUrl();
     if (!nodeId) return;
-    if (!confirm('Annuler la demande de renouvellement de certificat ?')) return;
+    if (!confirm('Cancel the certificate renewal request?')) return;
     $.ajax({
         url: '/api/v1/agents/' + encodeURIComponent(nodeId) + '/rotate-certificate',
         type: 'DELETE',
         success: function() {
-            showNodeMessage('Demande de renouvellement annulée.', 'success');
+            showNodeMessage('Renewal request cancelled.', 'success');
             refreshAgent();
         },
         error: function(xhr) {
-            showNodeMessage('Erreur lors de l\'annulation: ' + (xhr.responseText || xhr.status), 'error');
+            showNodeMessage('Cancellation error: ' + (xhr.responseText || xhr.status), 'error');
         }
     });
 });
@@ -208,7 +208,7 @@ function renderAgentTags() {
     const isAdmin = window.currentUser && window.currentUser.role === 'admin';
     let html = '';
     if (!state.tags || Object.keys(state.tags).length === 0) {
-        html = '<em>Aucun tag</em>';
+        html = '<em>No tags</em>';
     } else {
         html = '<ul class="list-group mb-2" style="max-width:480px;">';
         for (const [k, values] of Object.entries(state.tags)) {
@@ -251,12 +251,12 @@ function renderRebootInfo() {
     const count = (a.reboot_request_count || 0);
     const loop = !!a.reboot_loop;
     let html = '<div class="alert ' + (loop ? 'alert-danger' : 'alert-warning') + ' py-2 px-3" style="max-width:520px;">';
-    html += '<strong>' + (loop ? '⚠️ Redémarrage en boucle' : '🔄 Redémarrage demandé') + '</strong>';
+    html += '<strong>' + (loop ? '⚠️ Reboot loop' : '🔄 Reboot requested') + '</strong>';
     html += '<ul class="mb-0 pl-3 mt-1" style="font-size:0.95em;">';
-    if (since) html += '<li>Demandé depuis : ' + since + '</li>';
-    if (by) html += '<li>Par : ' + by + '</li>';
-    html += '<li>Rapports consécutifs : ' + count + '</li>';
-    if (loop) html += '<li>Le nœud ne semble pas redémarrer malgré des demandes répétées.</li>';
+    if (since) html += '<li>Requested since: ' + since + '</li>';
+    if (by) html += '<li>By: ' + by + '</li>';
+    html += '<li>Consecutive reports: ' + count + '</li>';
+    if (loop) html += '<li>The node does not seem to reboot despite repeated requests.</li>';
     html += '</ul></div>';
     return html;
 }
@@ -305,12 +305,12 @@ function fillAgentInfo() {
     }
     $('#agent-name').text(state.agent.node_name || '');
     if (state.agent.deleted_at) {
-        $('#agent-name').append(' <span class="badge bg-dark">Corbeille</span>');
+        $('#agent-name').append(' <span class="badge bg-dark">Trash</span>');
     }
     $('#agent-thumbprint').text(certExp + daysLeft);
     $('#agent-lastcomm').text(lastComm);
     if (Array.isArray(state.agent.configurations) && state.agent.configurations.length > 0) {
-        let html = `<strong>Configuration${state.agent.configurations.length > 1 ? 's' : ''} associée${state.agent.configurations.length > 1 ? 's' : ''} :</strong> ` +
+        let html = `<strong>Associated configuration${state.agent.configurations.length > 1 ? 's' : ''}:</strong> ` +
             state.agent.configurations.map(c => `<span class="badge badge-info mr-1">${c}</span>`).join(' ');
         $('#agent-config-block').html(html);
     } else {
@@ -443,13 +443,13 @@ function renderSelectedReport() {
         <div><strong>Start Time:</strong> <span id="report-starttime">${startTime}</span></div>
         <div><strong>End Time:</strong> <span id="report-endtime">${endTime}</span></div>
         <div><strong>Operation Type:</strong> <span id="report-operationtype">${operationType}</span></div>
-        <div><strong>Reboot Requested:</strong> <span id="report-rebootreq">${rebootRequested ? 'Oui' : 'Non'}</span></div>
+        <div><strong>Reboot Requested:</strong> <span id="report-rebootreq">${rebootRequested ? 'Yes' : 'No'}</span></div>
         <hr>
         ${renderResourceTable(resourcesInDesired, 'Resources In Desired State')}
         ${renderResourceTable(resourcesNotInDesired, 'Resources Not In Desired State')}
         ${errorsHtml}
         <div style="margin-top:1em;">
-            <button id="toggle-raw-json" class="btn btn-outline-secondary btn-sm" type="button" style="margin-bottom:5px;">Afficher les données brutes</button>
+            <button id="toggle-raw-json" class="btn btn-outline-secondary btn-sm" type="button" style="margin-bottom:5px;">Show raw data</button>
             <div id="raw-json-block" style="display:none; max-width:100%; overflow-x:auto;">
                 <pre id="report-json" style="background:#eee; padding:10px;">${JSON.stringify(report, null, 2)}</pre>
             </div>
@@ -460,10 +460,10 @@ function renderSelectedReport() {
                                         const block = $('#raw-json-block');
                                         if(block.is(':visible')) {
                                                 block.slideUp(150);
-                                                $(this).text('Afficher les données brutes');
+                                                $(this).text('Show raw data');
                                         } else {
                                                 block.slideDown(150);
-                                                $(this).text('Masquer les données brutes');
+                                                $(this).text('Hide raw data');
                                         }
                                 });
                                 // Gestion modale erreur détaillée
@@ -475,7 +475,7 @@ function renderSelectedReport() {
                                                     '<div class="modal-dialog modal-lg" role="document">'+
                                                         '<div class="modal-content">'+
                                                             '<div class="modal-header bg-danger text-white">'+
-                                                                '<h5 class="modal-title" id="errorDetailModalLabel">Erreur complète</h5>'+ 
+                                                                '<h5 class="modal-title" id="errorDetailModalLabel">Full error</h5>'+ 
                                                                 '<button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">'+
                                                                     '<span aria-hidden="true">&times;</span>'+ 
                                                                 '</button>'+ 
@@ -690,7 +690,7 @@ $(document).ready(function() {
             const key = $(this).data('key');
             const value = $(this).data('value');
             if (!key || !value) return;
-            if (!window.confirm(`Supprimer le tag "${key}: ${value}" ?`)) return;
+            if (!window.confirm(`Delete the tag "${key}: ${value}"?`)) return;
             $.ajax({
                 url: `/api/v1/agents/${agentId}/tags?key=` + encodeURIComponent(key) + `&value=` + encodeURIComponent(value),
                 method: 'DELETE',

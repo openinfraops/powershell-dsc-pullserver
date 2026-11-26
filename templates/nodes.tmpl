@@ -21,21 +21,21 @@
                     <i class="fas fa-certificate"></i> At-risk certificates <span id="cert-filter-indicator" class="badge badge-danger ml-1" style="display:none;">ON</span>
                 </button>
                 <div class="form-inline">
-                    <label class="mr-1">Tag :</label>
+                    <label class="mr-1">Tag:</label>
                     <select id="tag-filter-key" class="form-control form-control-sm mr-1" style="width:160px;">
-                        <option value="">(tous)</option>
+                        <option value="">(all)</option>
                     </select>
-                    <input type="text" id="tag-filter-value" class="form-control form-control-sm mr-1" placeholder="valeur" style="width:140px;">
-                    <button id="tag-filter-apply" class="btn btn-outline-secondary btn-sm mr-1" title="Filtrer par tag"><i class="fas fa-filter"></i></button>
-                    <button id="tag-filter-clear" class="btn btn-outline-secondary btn-sm" title="Effacer le filtre tag"><i class="fas fa-times"></i></button>
+                    <input type="text" id="tag-filter-value" class="form-control form-control-sm mr-1" placeholder="value" style="width:140px;">
+                    <button id="tag-filter-apply" class="btn btn-outline-secondary btn-sm mr-1" title="Filter by tag"><i class="fas fa-filter"></i></button>
+                    <button id="tag-filter-clear" class="btn btn-outline-secondary btn-sm" title="Clear tag filter"><i class="fas fa-times"></i></button>
                 </div>
             </div>
             <div class="d-flex justify-content-end">
                 <button id="toggle-trash-btn" class="btn btn-outline-warning mr-2">
-                    <i class="fas fa-trash"></i> Voir la corbeille
+                    <i class="fas fa-trash"></i> View trash
                 </button>
                 <button id="purge-trash-btn" class="btn btn-outline-danger mr-2" style="display:none;">
-                    <i class="fas fa-broom"></i> Purger la corbeille
+                    <i class="fas fa-broom"></i> Empty trash
                 </button>
                 <button id="export-agents-csv-btn" class="btn btn-outline-success mr-2">
                     <i class="fas fa-file-csv"></i> Export CSV
@@ -47,11 +47,11 @@
         </div>
 
         <div id="bulk-toolbar" class="alert alert-secondary p-2 mb-2" style="display:none;">
-            <strong><span id="bulk-selection-count">0</span> sélectionné(s)</strong>
-            <button id="bulk-recompile-btn" class="btn btn-warning btn-sm ml-2"><i class="fas fa-sync-alt"></i> Recompiler</button>
+            <strong><span id="bulk-selection-count">0</span> selected</strong>
+            <button id="bulk-recompile-btn" class="btn btn-warning btn-sm ml-2"><i class="fas fa-sync-alt"></i> Recompile</button>
             <button id="bulk-tag-btn" class="btn btn-info btn-sm ml-1"><i class="fas fa-tag"></i> Set tag</button>
-            <button id="bulk-trash-btn" class="btn btn-danger btn-sm ml-1"><i class="fas fa-trash"></i> Corbeille</button>
-            <button id="bulk-restore-btn" class="btn btn-success btn-sm ml-1" style="display:none;"><i class="fas fa-undo"></i> Restaurer</button>
+            <button id="bulk-trash-btn" class="btn btn-danger btn-sm ml-1"><i class="fas fa-trash"></i> Trash</button>
+            <button id="bulk-restore-btn" class="btn btn-success btn-sm ml-1" style="display:none;"><i class="fas fa-undo"></i> Restore</button>
             <button id="bulk-clear-btn" class="btn btn-secondary btn-sm ml-1 float-right">Clear</button>
         </div>
 
@@ -92,8 +92,8 @@
                 <div id="preenroll-error" class="text-danger"></div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Annuler</button>
-                <button type="button" class="btn btn-primary" id="preenroll-submit">Ajouter</button>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="preenroll-submit">Add</button>
             </div>
         </div>
     </div>
