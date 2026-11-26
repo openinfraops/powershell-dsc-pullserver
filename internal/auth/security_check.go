@@ -51,6 +51,30 @@ func SecurityWarnings(appCfg *schema.AppConfig) []string {
 	return warnings
 }
 
+// FatalSecurityErrors inspects the resolved configuration and returns a list
+// of fatal startup errors that must cause the server to refuse to start
+// (fail-closed). Unlike SecurityWarnings, these are hard failures: emitting a
+// warning and continuing would let an operator believe a protection is active
+// when it is not (fail-open).
+func FatalSecurityErrors(appCfg *schema.AppConfig) []string {
+	if appCfg == nil {
+		return nil
+	}
+
+	var errs []string
+
+	// Fail-closed: if client-certificate validation is enabled but the DSC
+	// endpoint is served over plain HTTP, no client certificate is negotiated
+	// on the pull endpoints, so they are NOT protected by mutual TLS. The
+	// operator would believe mTLS is on when it is not. Refuse to start.
+	if appCfg.DSCPullServer.EnableClientCertValidation && !appCfg.DSCPullServer.EnableHTTPS {
+		errs = append(errs, fmt.Sprintf(
+			"ERROR [SECURITY] enable_client_cert_validation is true but enable_https is false: the DSC pull endpoints would be served over plain HTTP with no client certificate (mTLS) protection. Refusing to start (fail-closed). Set enable_https: true and provide cert_file/key_file, or set enable_client_cert_validation: false."))
+	}
+
+	return errs
+}
+
 // assessSecret returns a startup warning for a weak or placeholder secret, or
 // an empty string when the secret is acceptable. An empty value is reported
 // separately by the caller's existing empty-value checks, so it returns "".

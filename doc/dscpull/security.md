@@ -41,6 +41,8 @@ Controlled in `config.json` under `dsc_pullserver`:
 
 A client certificate requires HTTPS. In pure HTTP mode (`enable_https: false`) no certificate is negotiated, so the pull endpoints are unauthenticated at the transport level — only use HTTP for testing or isolated networks.
 
+> **Fail-closed:** if `enable_client_cert_validation` is `true` **and** `enable_https` is `false`, the server **refuses to start** (logs `ERROR [SECURITY]` and exits non-zero) instead of silently running with no mTLS. See [Fail-closed at startup](#fail-closed-at-startup).
+
 ---
 
 ## Node Certificate Lifecycle & Renewal
@@ -112,12 +114,21 @@ The server validates a few security-sensitive settings at startup and logs a `WA
 | Condition | WARN |
 |---|---|
 | DSC endpoint served over plain HTTP (`enable_https: false`) | `DSC Server is listening in HTTP (no TLS)` |
-| `enable_client_cert_validation: true` **and** DSC served over HTTP | No client certificate is negotiated, so the pull endpoints are **not** protected by mutual TLS. |
 | Web UI / API served over plain HTTP (`web_ui.enable_https: false`) | Credentials and JWT tokens transit unencrypted. |
 | No `shared_secret` (neither `web_ui.shared_secret` nor `dsc_pullserver.shared_secret`) | Web/API authentication will fail until a value is set. |
 | `dsc_pullserver.registrationKey` empty | DSC nodes will not be able to register. |
 
 Treat these warnings as errors in production. The defaults in the shipped `config.json` examples enable HTTPS; if you disable it, make sure you only do so on an isolated network.
+
+### Fail-closed at startup
+
+One combination is **refused at startup** (fail-closed): the server logs an `ERROR [SECURITY]` and **exits with a non-zero code** rather than starting with a protection that is not actually active.
+
+| Condition | Behaviour |
+|---|---|
+| `enable_client_cert_validation: true` **and** `enable_https: false` | **Server refuses to start.** No client certificate is negotiated over plain HTTP, so the pull endpoints would **not** be protected by mutual TLS. The error message names both settings. |
+
+To start the DSC pull endpoints with mutual TLS, set `enable_https: true` and provide `cert_file`/`key_file`, or if you explicitly want no mTLS, set `enable_client_cert_validation: false`.
 
 ---
 

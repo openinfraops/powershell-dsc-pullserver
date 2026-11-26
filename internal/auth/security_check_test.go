@@ -64,3 +64,52 @@ func TestSecurityWarningsLowDiversity(t *testing.T) {
 		t.Fatalf("expected a low-diversity warning, got %v", w)
 	}
 }
+
+func TestFatalSecurityErrorsNilConfig(t *testing.T) {
+	if errs := FatalSecurityErrors(nil); len(errs) != 0 {
+		t.Fatalf("expected no fatal errors for nil config, got %v", errs)
+	}
+}
+
+func TestFatalSecurityErrorsCertValidationOverHTTP(t *testing.T) {
+	// enable_client_cert_validation=true with enable_https=false is a
+	// fail-open configuration: no client certificate is negotiated, so the
+	// pull endpoints are NOT protected by mTLS. The server must refuse to start.
+	cfg := &schema.AppConfig{}
+	cfg.DSCPullServer.EnableClientCertValidation = true
+	cfg.DSCPullServer.EnableHTTPS = false
+
+	errs := FatalSecurityErrors(cfg)
+	if len(errs) != 1 {
+		t.Fatalf("expected exactly one fatal error, got %v", errs)
+	}
+	for _, e := range errs {
+		if !strings.Contains(e, "enable_client_cert_validation") || !strings.Contains(e, "enable_https") {
+			t.Fatalf("error must name both settings, got %q", e)
+		}
+		if !strings.Contains(e, "ERROR [SECURITY]") {
+			t.Fatalf("error must be tagged ERROR [SECURITY], got %q", e)
+		}
+	}
+}
+
+func TestFatalSecurityErrorsCertValidationOverHTTPS(t *testing.T) {
+	// The valid production combination must not be rejected.
+	cfg := &schema.AppConfig{}
+	cfg.DSCPullServer.EnableClientCertValidation = true
+	cfg.DSCPullServer.EnableHTTPS = true
+	if errs := FatalSecurityErrors(cfg); len(errs) != 0 {
+		t.Fatalf("expected no fatal errors for mTLS over HTTPS, got %v", errs)
+	}
+}
+
+func TestFatalSecurityErrorsNoCertValidationOverHTTP(t *testing.T) {
+	// HTTP without client-certificate validation is an explicit opt-out (no
+	// mTLS expected), so it is allowed (only a startup WARN is emitted).
+	cfg := &schema.AppConfig{}
+	cfg.DSCPullServer.EnableClientCertValidation = false
+	cfg.DSCPullServer.EnableHTTPS = false
+	if errs := FatalSecurityErrors(cfg); len(errs) != 0 {
+		t.Fatalf("expected no fatal errors for HTTP without client-cert validation, got %v", errs)
+	}
+}

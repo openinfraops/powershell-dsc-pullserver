@@ -65,6 +65,16 @@ func main() {
 		global.AppConfig = appCfg
 
 		// --- Vérifications de sécurité au démarrage (S4) ---
+		// Fail-closed : certaines combinaisons de configuration sont refusées
+		// au démarrage (exit non-zéro) plutôt que de démarrer avec une
+		// protection qui n'est en réalité pas active. On les traite avant les
+		// simples avertissements.
+		if fatal := auth.FatalSecurityErrors(global.AppConfig); len(fatal) > 0 {
+			for _, f := range fatal {
+				logs.WriteLogFile(f)
+			}
+			os.Exit(1)
+		}
 		// Un secret JWT absent rendrait l'authentification web/API inopérante
 		// (erreur 500 à la volée). On prévient dès le boot.
 		if auth.ResolveJWTSecret(global.AppConfig) == "" {
@@ -481,9 +491,6 @@ func main() {
 			}()
 		} else {
 			logs.WriteLogFile(fmt.Sprintf("WARN [DSC Core Server] DSC Server is listening in HTTP (no TLS) on :%d ...", global.AppConfig.DSCPullServer.Port))
-			if global.AppConfig.DSCPullServer.EnableClientCertValidation {
-				logs.WriteLogFile(fmt.Sprintf("WARN [SECURITY] enable_client_cert_validation is true but the DSC endpoint is served over plain HTTP. No client certificate is exchanged, so the pull endpoints are NOT protected by mutual TLS."))
-			}
 			go func() {
 				if err := dscServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 					logs.WriteLogFile(fmt.Sprintf("ERROR [DSC WebUi] Error starting HTTP server: %v", err))
