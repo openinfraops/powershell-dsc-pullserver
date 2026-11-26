@@ -19,6 +19,7 @@ The documentation is organized into three layers:
 - [Configuration reference](Configuration.md) — exhaustive per-key reference of every section (`database`, `dsc_pullserver`, `web_ui`, `saml`) with example files.
 - [Database schema](DatabaseSchema.md) — supported databases, schema files, every table, relationships, schema evolution.
 - [API v1 reference](APIv1.md) — the REST endpoints under `/api/v1/` (auth, users, agents, DSC settings, audit, modules, properties, configurations, SAML).
+- [Integrations](Integrations.md) — Terraform provider, API compatibility matrix, API versioning & breaking-changes policy, and minimal API-token role.
 - [SAML integration](SAML.md) — SAML single-sign-on configuration.
 
 ## Protocol reference (spec)
@@ -39,6 +40,8 @@ Dates per the Microsoft lifecycle pages for [Windows Server 2019](https://learn.
 > **Lifecycle projection.** Because the solution is exercised against these two platforms, its longest supported horizon is bounded by the most restrictive of them — **Windows Server 2019, until January 9, 2029**. Plan the migration of the pull server and the LCM nodes to Windows Server 2022 (supported until **October 14, 2031**) within that window, then re-validate against a later LTSC release.
 
 ## Release notes
+
+> New release notes must follow the [release-notes template](release-notes-template.md), which includes a mandatory **`API changes`** section.
 
 - [v1.7.2](release_v1.7.2.md)
 - [v1.7.0](release_v1.7.0.md)

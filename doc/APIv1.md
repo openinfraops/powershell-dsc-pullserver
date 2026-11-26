@@ -299,4 +299,5 @@ Groups DSC report errors by a normalized fingerprint so repeated occurrences of 
 ## Notes
 - All endpoints (except login) require a valid JWT in `Authorization: Bearer <token>`.
 - Admin endpoints require admin role.
+- See [Integrations](Integrations.md) for the API compatibility matrix, the API versioning & breaking-changes policy, and the **minimal role an API token must hold** for the Terraform provider.
 - For more details, see the code in `internal/routes/web_routes.go` and related handlers.

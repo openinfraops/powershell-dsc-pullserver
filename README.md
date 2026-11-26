@@ -18,6 +18,15 @@ Detailed documentation is organized into two main sections:
 
 The full [documentation index](doc/README.md) lists every reference page, section index and release note.
 
+## Integrations
+
+The REST API under `/api/v1/` is consumed by third-party tools for automation and monitoring. See [Integrations](doc/Integrations.md) for the **API compatibility matrix**, the **API versioning & breaking-changes policy**, and the **minimal role a Terraform API token must hold**.
+
+- [Terraform / OpenTofu provider `dscpull`](https://github.com/openinfraops/terraform-provider-dscpull) — declarative provisioning of DSC Pull Server nodes.
+- [Zabbix template](doc/Integrations.md#zabbix-template) — planned.
+
+> **API stability.** The API is versioned by its URL prefix (`/api/v1/`). Breaking changes must be recorded in the release note's `API changes` section — see the [release-notes template](doc/release-notes-template.md) — and coordinated with the Terraform provider.
+
 ## Quick Navigation
 
 - [Installation](doc/installation.md)

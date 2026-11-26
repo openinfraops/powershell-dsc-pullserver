@@ -4,6 +4,14 @@ Date: 2026-11-24
 
 Follow-up release fixing the certificate-rotation flow (validated end-to-end against a real Windows LCM) and the CI release workflow, and removing an unnecessary per-node scan in the configuration-repository worker every cycle. Supersedes the never-shipped v1.7.1.
 
+## API changes
+
+- *Additive:* `GET /api/v1/dsc/settings` — read the current DSC certificate-rotation settings.
+- *Additive:* `PUT /api/v1/dsc/settings` — update the DSC certificate-rotation settings.
+- *Additive:* `GET /api/v1/agents/{id}` now returns `certificate_public_key` and `certificate_key_algorithm`.
+
+**No breaking changes.** These changes are backward-compatible: existing fields and endpoints are unchanged, and the agent detail response only gains optional fields.
+
 ## Changes
 
 ### Certificate rotation works end-to-end
