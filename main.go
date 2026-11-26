@@ -18,9 +18,11 @@ import (
 	"go-dsc-pull/utils"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -545,9 +547,13 @@ func main() {
 			os.Exit(1)
 		}
 	} else {
-		// Le contexte n'est jamais annulé en mode hors-service : le processus
-		// tourne jusqu'à son arrêt (kill). La closure runApp bloque sur
-		// ctx.Done() comme le faisait auparavant le ListenAndServe du serveur.
-		runApp(context.Background())
+		// Arrêt gracieux sur SIGINT/SIGTERM (Docker, systemd, Ctrl-C) : le
+		// contexte est annulé à la réception du signal, ce qui déclenche le
+		// chemin de shutdown propre (http.Server.Shutdown + arrêt des workers
+		// planifiés). Sans cela, le processus est tué sans fermer proprement
+		// les serveurs HTTP ni laisser les requêtes en vol se terminer.
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		runApp(ctx)
 	}
 }
