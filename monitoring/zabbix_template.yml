@@ -1,0 +1,411 @@
+﻿zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: 68eee0da6b534924b6eada4a0923c446
+      name: Microsoft/DSC
+  templates:
+    - uuid: deaef3e6dfcb489dbfedf34ed732461c
+      template: 'Template - DSC Console'
+      name: 'Template - DSC Console'
+      groups:
+        - name: Microsoft/DSC
+      items:
+        - uuid: 11b1e072329b40b19762af4a5445755b
+          name: 'DSC Console API - Managed nodes'
+          type: HTTP_AGENT
+          key: dsc.console.managedagents
+          delay: 2h
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          url: '{$HOST_URL}/api/v1/agents'
+          headers:
+            - name: Authorization
+              value: 'Token {$TOKEN_API}'
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: 45f50b5a5ecf4567b640b627bdbf31e4
+          name: 'DSC Console API - Stats'
+          type: HTTP_AGENT
+          key: dsc.console.statistics
+          delay: 2h
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          url: '{$HOST_URL}/api/v1/agents?stats'
+          headers:
+            - name: Authorization
+              value: 'Token {$TOKEN_API}'
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: e5b5cab1275d43a5823557684b2ae6cf
+          name: 'DSC - Compliant node number'
+          type: DEPENDENT
+          key: dsc.console.statistics.compliant
+          delay: '0'
+          value_type: UNSIGNED
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.compliant
+          master_item:
+            key: dsc.console.statistics
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: 4bb96f0716ff4ffb8a424f1e99ac43fd
+          name: 'DSC - Failed node number'
+          type: DEPENDENT
+          key: dsc.console.statistics.failed
+          delay: '0'
+          value_type: UNSIGNED
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.failed
+          master_item:
+            key: dsc.console.statistics
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: cfe498edf41c4971aee6dc013fd6c6c9
+          name: 'DSC - Pending apply node number'
+          type: DEPENDENT
+          key: dsc.console.statistics.pending_apply
+          delay: '0'
+          value_type: UNSIGNED
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.pending_apply
+          master_item:
+            key: dsc.console.statistics
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: 066408f1de14443886579c7eb089932c
+          name: 'DSC - Pending enroll node number'
+          type: DEPENDENT
+          key: dsc.console.statistics.pending_enroll
+          delay: '0'
+          value_type: UNSIGNED
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.pending_enroll
+          master_item:
+            key: dsc.console.statistics
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: e0f010112a3b4c4d9e5f0a0a0a0a0a01
+          name: 'DSC - Nodes in reboot loop'
+          type: DEPENDENT
+          key: dsc.console.statistics.reboot_loop
+          delay: '0'
+          value_type: FLOAT
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.reboot_loop
+          master_item:
+            key: dsc.console.statistics
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: e1f1212b3b4c4d5eaf600b0b0b0b0b02
+          name: 'DSC - Node certificates expired'
+          type: DEPENDENT
+          key: dsc.console.statistics.certs_expired
+          delay: '0'
+          value_type: FLOAT
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.certs_expired
+          master_item:
+            key: dsc.console.statistics
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: e2f2323c4c5d4e6fbf710c0c0c0c0c03
+          name: 'DSC - Node certificates expiring'
+          type: DEPENDENT
+          key: dsc.console.statistics.certs_expiring
+          delay: '0'
+          value_type: FLOAT
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.certs_expiring
+          master_item:
+            key: dsc.console.statistics
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: f019fd34717c4e0d9f123d6dc3a88a05
+          name: 'DSC - Console version'
+          type: DEPENDENT
+          key: dsc.pullserver.version.build_version
+          delay: '0'
+          value_type: TEXT
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.build_version
+          master_item:
+            key: dsc.pullserver.version.check
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: fa1183071de24ced82f56127ad838c63
+          name: 'DSC Console API - Check version'
+          type: HTTP_AGENT
+          key: dsc.pullserver.version.check
+          delay: 1d
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          url: '{$HOST_URL}/api/v1/about'
+          headers:
+            - name: Authorization
+              value: 'Token {$TOKEN_API}'
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: be33f92f48bd41de8349ace16177e71f
+          name: 'DSC - DB version'
+          type: DEPENDENT
+          key: dsc.pullserver.version.db_version
+          delay: '0'
+          value_type: TEXT
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.db_version
+          master_item:
+            key: dsc.pullserver.version.check
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: bc927edb8fc545c2a0df9d04cb614b70
+          name: 'DSC - Release check'
+          type: DEPENDENT
+          key: dsc.pullserver.version.release_check_ok
+          delay: '0'
+          value_type: TEXT
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.release_check_ok
+          master_item:
+            key: dsc.pullserver.version.check
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: 2da0091f45e548dd8ef5e0772a81e54c
+          name: 'DSC - Update available'
+          type: DEPENDENT
+          key: dsc.pullserver.version.update_available
+          delay: '0'
+          value_type: TEXT
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.update_available
+          master_item:
+            key: dsc.pullserver.version.check
+          tags:
+            - tag: Application
+              value: DSC
+        # --- Santé : GET /health (non authentifié) ---
+        - uuid: a1f1d0e23b4c4d5e8f60111111111111
+          name: 'DSC Console - Health'
+          type: HTTP_AGENT
+          key: dsc.console.health
+          delay: 1m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          url: '{$HOST_URL}/health'
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: b2f2e1f34c5d4e6f9a71222222222222
+          name: 'DSC - Health status'
+          type: DEPENDENT
+          key: dsc.console.health.status
+          delay: '0'
+          value_type: TEXT
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.status
+          master_item:
+            key: dsc.console.health
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: d4f4a3b56e7f4a8bbc93444444444444
+          name: 'DSC - Health running tasks'
+          type: DEPENDENT
+          key: dsc.console.health.running_tasks
+          delay: '0'
+          value_type: UNSIGNED
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.workers.running_tasks
+          master_item:
+            key: dsc.console.health
+          tags:
+            - tag: Application
+              value: DSC
+        # --- Métriques Prometheus : GET /metrics (token API utilisateur) ---
+        - uuid: f6f6c5d78a9b4cad9eb5666666666666
+          name: 'DSC Console API - Metrics'
+          type: HTTP_AGENT
+          key: dsc.metrics
+          delay: 5m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          url: '{$HOST_URL}/metrics'
+          headers:
+            - name: Authorization
+              value: 'Token {$TOKEN_API}'
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: c9d9f8aabcde4fd081e8999999999999
+          name: 'DSC - Web TLS cert expiry (s)'
+          type: DEPENDENT
+          key: dsc.metrics.tls_expiry
+          delay: '0'
+          value_type: FLOAT
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'dsc_tls_cert_expiry_seconds'
+                - value
+          master_item:
+            key: dsc.metrics
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: daeaa9bbcdef4ae192f9aaaaaaaaaaaa
+          name: 'DSC - Last report age (s)'
+          type: DEPENDENT
+          key: dsc.metrics.last_report_age
+          delay: '0'
+          value_type: FLOAT
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'dsc_last_report_age_seconds'
+                - value
+          master_item:
+            key: dsc.metrics
+          tags:
+            - tag: Application
+              value: DSC
+      discovery_rules:
+        - uuid: b3c603ee88fb44478805227243d2852b
+          name: 'DSC Agent Discovery'
+          type: DEPENDENT
+          key: dsc.discovery.managed.agents
+          delay: '0'
+          item_prototypes:
+            - uuid: 967c795aca314fec99fbb2b28bfff70f
+              name: 'Node {#NODE_NAME} - DSC Configuration Status'
+              type: DEPENDENT
+              key: 'dsc.agentstate[{#AGENT_ID}]'
+              delay: '0'
+              value_type: TEXT
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.agent_id=="{#AGENT_ID}")].state.first()'
+              master_item:
+                key: dsc.console.managedagents
+              tags:
+                - tag: Application
+                  value: DSC
+              trigger_prototypes:
+                - uuid: dddea8487ed542448b40e9f3fafdf536
+                  expression: 'last(/Template - DSC Console/dsc.agentstate[{#AGENT_ID}])<>"pending_apply" and last(/Template - DSC Console/dsc.agentstate[{#AGENT_ID}])<>"Success" and last(/Template - DSC Console/dsc.agentstate[{#AGENT_ID}])<>"OK" and last(/Template - DSC Console/dsc.agentstate[{#AGENT_ID}])<>"waiting_for_registration"'
+                  name: 'WARNING - {#NODE_NAME} - Configuration error'
+                  priority: AVERAGE
+                  manual_close: 'YES'
+                  tags:
+                    - tag: Confluence
+                      value: MODSC002
+          master_item:
+            key: dsc.console.managedagents
+          lld_macro_paths:
+            - lld_macro: '{#AGENT_ID}'
+              path: $.agent_id
+            - lld_macro: '{#NODE_NAME}'
+              path: $.node_name
+      tags:
+        - tag: Application
+          value: DSC
+      macros:
+        - macro: '{$HOST_URL}'
+          value: ''
+          description: 'DSC Admin console base URL (sans slash final)'
+        - macro: '{$TOKEN_API}'
+          value: ''
+          description: 'API Token to monitor data from DSC'
+  triggers:
+    - uuid: abcd000111114a2b8c3d000000000001
+      expression: 'last(/Template - DSC Console/dsc.console.health.status)<>"ok"'
+      name: 'HIGH - DSC Console health degraded/unavailable'
+      priority: HIGH
+      tags:
+        - tag: Application
+          value: DSC
+    - uuid: abcd000333334c4dae5f000000000003
+      expression: 'last(/Template - DSC Console/dsc.console.statistics.reboot_loop)>0'
+      name: 'WARNING - DSC nodes stuck in reboot loop'
+      priority: AVERAGE
+      manual_close: 'YES'
+      tags:
+        - tag: Application
+          value: DSC
+    - uuid: abcd000666664a7a8082000000000006
+      expression: 'last(/Template - DSC Console/dsc.console.statistics.certs_expired)>0'
+      name: 'HIGH - DSC node certificates expired'
+      priority: HIGH
+      tags:
+        - tag: Application
+          value: DSC
+    - uuid: abcd000777774b8b9193000000000007
+      expression: 'last(/Template - DSC Console/dsc.console.statistics.certs_expiring)>0'
+      name: 'WARNING - DSC node certificates expiring'
+      priority: WARNING
+      tags:
+        - tag: Application
+          value: DSC
+    - uuid: abcd000444444d5ebf60000000000004
+      expression: 'last(/Template - DSC Console/dsc.metrics.tls_expiry)<604800'
+      name: 'WARNING - DSC web TLS certificate expiring'
+      priority: WARNING
+      tags:
+        - tag: Application
+          value: DSC
+    - uuid: abcd000555554e6f8071000000000005
+      expression: 'last(/Template - DSC Console/dsc.metrics.last_report_age)>86400'
+      name: 'WARNING - DSC node reports stale'
+      priority: WARNING
+      tags:
+        - tag: Application
+          value: DSC

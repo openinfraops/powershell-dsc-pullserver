@@ -77,7 +77,34 @@ When a breaking change is unavoidable, it must:
 
 ## Zabbix template
 
-A Zabbix template for monitoring the pull server (via the unauthenticated [`/health`](dscpull/configuration.md#monitoring-endpoints) and gated `/metrics` endpoints) is planned. It will be linked here when published.
+A [Zabbix 7.0 template](../monitoring/zabbix_template.yml) for monitoring the pull server is bundled in this repository. It consumes the unauthenticated [`/health`](dscpull/configuration.md#monitoring-endpoints) endpoint, the gated `/metrics` endpoint, and the authenticated `/api/v1` endpoints.
+
+### Data source and items
+
+| Item (Zabbix key) | Source endpoint | Auth |
+| --- | --- | --- |
+| `dsc.console.managedagents` | `GET /api/v1/agents` | Token `{$TOKEN_API}` |
+| `dsc.console.statistics` | `GET /api/v1/agents?stats` | Token `{$TOKEN_API}` |
+| `dsc.pullserver.version.check` | `GET /api/v1/about` | Token `{$TOKEN_API}` |
+| `dsc.console.health` | `GET /health` | unauthenticated |
+| `dsc.metrics` | `GET /metrics` | Token `{$TOKEN_API}` |
+
+The template exposes derived metric items (compliant/failed/pending node counts, certificate and TLS expiry, report staleness) plus a Discovery rule (`DSC Agent Discovery`) that creates one item per managed node with its DSC configuration state.
+
+### Host macros
+
+The template declares two empty host macros that **must** be set on the host (or host group) where the template is linked:
+
+| Macro | Description |
+| --- | --- |
+| `{$HOST_URL}` | Base URL of the DSC admin console, **without a trailing slash** (e.g. `https://dsc.example.com`) |
+| `{$TOKEN_API}` | API token carrying read access to the `/api/v1/*` and `/metrics` endpoints (`Authorization: Token <token>`) |
+
+> The `/metrics` endpoint requires the same user API token (it does not have its own token). Ensure the token belongs to a user with at least read access to the monitoring data.
+
+### Triggers
+
+The template ships triggers for console health, nodes stuck in a reboot loop, expired/expiring node certificates, web TLS certificate expiry, and stale node reports.
 
 ---
 
