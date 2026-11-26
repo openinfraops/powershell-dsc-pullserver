@@ -1,7 +1,6 @@
 package db
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -92,41 +91,4 @@ func collectDeletedAgentIDs(database *sql.DB, query string, arg interface{}) ([]
 		}
 	}
 	return ids, rows.Err()
-}
-
-// StartAgentPurgeWorker lance la purge immédiatement puis à intervalle fixe.
-func StartAgentPurgeWorker(ctx context.Context, database *sql.DB, driver string, retentionDays int, interval time.Duration, onRunStart func(startedAt time.Time, nextRunAt *time.Time), onResult func(startedAt time.Time, purged int64, err error)) {
-	run := func() {
-		startedAt := time.Now().UTC()
-		var nextRunAt *time.Time
-		if interval > 0 {
-			n := startedAt.Add(interval)
-			nextRunAt = &n
-		}
-		if onRunStart != nil {
-			onRunStart(startedAt, nextRunAt)
-		}
-		purged, err := PurgeDeletedAgents(database, driver, retentionDays)
-		if onResult != nil {
-			onResult(startedAt, purged, err)
-		}
-	}
-
-	run()
-	if interval <= 0 {
-		return
-	}
-
-	ticker := time.NewTicker(interval)
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				ticker.Stop()
-				return
-			case <-ticker.C:
-				run()
-			}
-		}
-	}()
 }

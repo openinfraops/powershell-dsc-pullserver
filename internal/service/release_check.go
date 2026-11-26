@@ -1,7 +1,6 @@
 package service
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -67,40 +66,4 @@ func CheckLatestRelease(currentVersion string) (ReleaseCheckResult, error) {
 		UpdateAvailable:  rel.TagName != "" && !versionsEqualIgnoringVPrefix(rel.TagName, currentVersion),
 	}
 	return result, nil
-}
-
-func StartReleaseCheckWorker(ctx context.Context, currentVersion string, interval time.Duration, onRunStart func(startedAt time.Time, nextRunAt *time.Time), onResult func(startedAt time.Time, result ReleaseCheckResult, err error)) {
-	run := func() {
-		startedAt := time.Now().UTC()
-		var nextRunAt *time.Time
-		if interval > 0 {
-			n := startedAt.Add(interval)
-			nextRunAt = &n
-		}
-		if onRunStart != nil {
-			onRunStart(startedAt, nextRunAt)
-		}
-		result, err := CheckLatestRelease(currentVersion)
-		if onResult != nil {
-			onResult(startedAt, result, err)
-		}
-	}
-
-	run()
-	if interval <= 0 {
-		return
-	}
-
-	ticker := time.NewTicker(interval)
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				ticker.Stop()
-				return
-			case <-ticker.C:
-				run()
-			}
-		}
-	}()
 }

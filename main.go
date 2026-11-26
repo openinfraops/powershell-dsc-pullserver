@@ -29,8 +29,8 @@ import (
 
 func main() {
 
-	// Mode CLI : création du compte administrateur initial en local, avec un
-	// mot de passe aléatoire. Intercepté avant le démarrage du serveur / service.
+	// Mode CLI : crÃ©ation du compte administrateur initial en local, avec un
+	// mot de passe alÃ©atoire. InterceptÃ© avant le dÃ©marrage du serveur / service.
 	if len(os.Args) > 1 {
 		switch strings.TrimLeft(os.Args[1], "-") {
 		case "init-bootstrap-admin":
@@ -40,7 +40,7 @@ func main() {
 
 	runApp := func(ctx context.Context) {
 		logs.WriteLogFile(fmt.Sprintf("INFO [BUILD] %s", buildinfo.Short()))
-		// Résout dynamiquement les chemins de cert/key si nécessaire
+		// RÃ©sout dynamiquement les chemins de cert/key si nÃ©cessaire
 		resolveCertKeyPath := func(certFile, keyFile string) (string, string) {
 			if filepath.IsAbs(certFile) && filepath.IsAbs(keyFile) {
 				return certFile, keyFile
@@ -67,10 +67,10 @@ func main() {
 		}
 		global.AppConfig = appCfg
 
-		// --- Vérifications de sécurité au démarrage (S4) ---
-		// Fail-closed : certaines combinaisons de configuration sont refusées
-		// au démarrage (exit non-zéro) plutôt que de démarrer avec une
-		// protection qui n'est en réalité pas active. On les traite avant les
+		// --- VÃ©rifications de sÃ©curitÃ© au dÃ©marrage (S4) ---
+		// Fail-closed : certaines combinaisons de configuration sont refusÃ©es
+		// au dÃ©marrage (exit non-zÃ©ro) plutÃ´t que de dÃ©marrer avec une
+		// protection qui n'est en rÃ©alitÃ© pas active. On les traite avant les
 		// simples avertissements.
 		if fatal := auth.FatalSecurityErrors(global.AppConfig); len(fatal) > 0 {
 			for _, f := range fatal {
@@ -78,22 +78,22 @@ func main() {
 			}
 			os.Exit(1)
 		}
-		// Un secret JWT absent rendrait l'authentification web/API inopérante
-		// (erreur 500 à la volée). On prévient dès le boot.
+		// Un secret JWT absent rendrait l'authentification web/API inopÃ©rante
+		// (erreur 500 Ã  la volÃ©e). On prÃ©vient dÃ¨s le boot.
 		if auth.ResolveJWTSecret(global.AppConfig) == "" {
 			logs.WriteLogFile("WARN [SECURITY] shared_secret is not set (neither web_ui.shared_secret nor dsc_pullserver.shared_secret). Web/API authentication will fail until a value is configured.")
 		}
-		// Une clé d'enregistrement vide empêche tout enrôlement de nœud DSC.
+		// Une clÃ© d'enregistrement vide empÃªche tout enrÃ´lement de nÅ“ud DSC.
 		if strings.TrimSpace(global.AppConfig.DSCPullServer.RegistrationKey) == "" {
 			logs.WriteLogFile("WARN [SECURITY] dsc_pullserver.registrationKey is empty. DSC nodes will not be able to register.")
 		}
-		// Secrets présents mais trop faibles (placeholders, trop courts, faible
-		// diversité de caractères) : on prévient dès le boot.
+		// Secrets prÃ©sents mais trop faibles (placeholders, trop courts, faible
+		// diversitÃ© de caractÃ¨res) : on prÃ©vient dÃ¨s le boot.
 		for _, w := range auth.SecurityWarnings(global.AppConfig) {
 			logs.WriteLogFile(w)
 		}
 
-		// Initialisation SAML Service Provider si activé
+		// Initialisation SAML Service Provider si activÃ©
 		samlMiddleware, err := auth.InitSamlMiddleware(global.AppConfig)
 		if err != nil {
 			logs.WriteLogFile(fmt.Sprintf("ERROR [SAML] %v", err))
@@ -157,307 +157,9 @@ func main() {
 			repoSettings = db.ConfigurationRepoSettings{Branch: "main", Directory: "data/configuration-repository", CompilerScript: "scripts/Compile-Configurations.ps1", PowerShellExecutable: "pwsh", SyncIntervalMins: 60}
 		}
 
-		const (
-			taskReportCleanup               = "report_cleanup"
-			taskReleaseCheck                = "release_check"
-			taskLogCleanup                  = "log_cleanup"
-			taskConfigurationRepoSync       = "configuration_repo_sync"
-			taskAgentPurge                  = "agent_purge"
-			taskConfigurationVersionCleanup = "configuration_version_cleanup"
-			taskErrorDetection              = "error_detection"
-		)
-
-		const logMaintenanceInterval = time.Hour
-
-		// Déclaration des tâches planifiées. La planification (première exécution,
-		// enregistrement dans scheduler_tasks) et l'enregistrement des runs
-		// (begin/complete) sont factorisés dans taskMeta.
-		reportCleanup := taskMeta{
-			key:      taskReportCleanup,
-			display:  "Report cleanup",
-			enabled:  global.AppConfig.DSCPullServer.EnableReportAutoCleanup,
-			interval: intervalFromMins(global.AppConfig.DSCPullServer.ReportCleanupIntervalMins, 1440),
-		}
-		reportCleanup.register(dbConn, global.AppConfig.Database.Driver)
-
-		releaseCheck := taskMeta{
-			key:      taskReleaseCheck,
-			display:  "Release check",
-			enabled:  global.AppConfig.DSCPullServer.EnableReleaseCheck,
-			interval: intervalFromMins(global.AppConfig.DSCPullServer.ReleaseCheckIntervalMins, 1440),
-		}
-		releaseCheck.register(dbConn, global.AppConfig.Database.Driver)
-
-		logCleanup := taskMeta{
-			key:      taskLogCleanup,
-			display:  "Log rotate",
-			enabled:  global.AppConfig.DSCPullServer.EnableLogRotation,
-			interval: logMaintenanceInterval,
-		}
-		logCleanup.register(dbConn, global.AppConfig.Database.Driver)
-
-		agentPurge := taskMeta{
-			key:      taskAgentPurge,
-			display:  "Agent trash purge",
-			enabled:  global.AppConfig.DSCPullServer.EnableAgentPurge,
-			interval: intervalFromMins(global.AppConfig.DSCPullServer.AgentPurgeIntervalMins, 1440),
-		}
-		agentPurge.register(dbConn, global.AppConfig.Database.Driver)
-
-		configVersionCleanup := taskMeta{
-			key:      taskConfigurationVersionCleanup,
-			display:  "Configuration version retention",
-			enabled:  global.AppConfig.DSCPullServer.EnableConfigurationVersionCleanup,
-			interval: intervalFromMins(global.AppConfig.DSCPullServer.ConfigurationVersionCleanupIntervalMins, 1440),
-		}
-		configVersionCleanup.register(dbConn, global.AppConfig.Database.Driver)
-
-		errorDetection := taskMeta{
-			key:      taskErrorDetection,
-			display:  "Error detection",
-			enabled:  global.AppConfig.DSCPullServer.EnableErrorDetection,
-			interval: intervalFromMins(global.AppConfig.DSCPullServer.ErrorDetectionIntervalMins, 5),
-		}
-		errorDetection.register(dbConn, global.AppConfig.Database.Driver)
-
-		repoCfg := service.ConfigurationRepoConfig{URL: repoSettings.URL, Branch: repoSettings.Branch, Directory: repoSettings.Directory, CompilerScript: repoSettings.CompilerScript, PowerShellExecutable: repoSettings.PowerShellExecutable, RepositoryUsername: repoSettings.RepositoryUsername, RepositoryPassword: repoSettings.RepositoryPassword}
-		repoSync := taskMeta{
-			key:      taskConfigurationRepoSync,
-			display:  "Configuration repository sync",
-			enabled:  repoSettings.Enabled,
-			interval: intervalFromMins(repoSettings.SyncIntervalMins, 60),
-		}
-		repoSync.register(dbConn, global.AppConfig.Database.Driver)
-
-		if global.AppConfig.DSCPullServer.EnableReportAutoCleanup {
-			retentionDays := global.AppConfig.DSCPullServer.ReportRetentionDays
-			if retentionDays <= 0 {
-				logs.WriteLogFile("WARN [REPORT CLEANUP] Disabled: report_retention_days must be > 0")
-			} else {
-				logs.WriteLogFile(fmt.Sprintf("INFO [REPORT CLEANUP] Enabled: retention=%d day(s), interval=%d minute(s)", retentionDays, reportCleanup.interval/time.Minute))
-				db.StartReportCleanupWorker(
-					ctx,
-					dbConn,
-					global.AppConfig.Database.Driver,
-					retentionDays,
-					reportCleanup.interval,
-					reportCleanup.beginRecord(dbConn, global.AppConfig.Database.Driver),
-					func(startedAt time.Time, deleted int64, cleanupErr error) {
-						if cleanupErr != nil {
-							logs.WriteLogFile(fmt.Sprintf("ERROR [REPORT CLEANUP] %v", cleanupErr))
-							reportCleanup.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, cleanupErr.Error(), cleanupErr)
-							return
-						}
-						// Purge les occurrences d'erreur avec la même rétention que les
-						// rapports, pour borner la croissance de error_occurrences.
-						occPurged, occErr := db.PurgeErrorOccurrences(dbConn, global.AppConfig.Database.Driver, retentionDays)
-						if occErr != nil {
-							logs.WriteLogFile(fmt.Sprintf("WARN [REPORT CLEANUP] Error purging error occurrences: %v", occErr))
-						}
-						msg := fmt.Sprintf("Deleted %d old report(s), %d stale error occurrence(s)", deleted, occPurged)
-						logs.WriteLogFile(fmt.Sprintf("INFO [REPORT CLEANUP] %s", msg))
-						reportCleanup.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, msg, nil)
-					},
-				)
-			}
-		}
-
-		if global.AppConfig.DSCPullServer.EnableAgentPurge {
-			retentionDays := global.AppConfig.DSCPullServer.AgentPurgeRetentionDays
-			if retentionDays <= 0 {
-				logs.WriteLogFile("WARN [AGENT PURGE] Disabled: agent_purge_retention_days must be > 0")
-			} else {
-				logs.WriteLogFile(fmt.Sprintf("INFO [AGENT PURGE] Enabled: retention=%d day(s), interval=%d minute(s)", retentionDays, agentPurge.interval/time.Minute))
-				db.StartAgentPurgeWorker(
-					ctx,
-					dbConn,
-					global.AppConfig.Database.Driver,
-					retentionDays,
-					agentPurge.interval,
-					agentPurge.beginRecord(dbConn, global.AppConfig.Database.Driver),
-					func(startedAt time.Time, purged int64, cleanupErr error) {
-						if cleanupErr != nil {
-							logs.WriteLogFile(fmt.Sprintf("ERROR [AGENT PURGE] %v", cleanupErr))
-							agentPurge.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, cleanupErr.Error(), cleanupErr)
-							return
-						}
-						// Purge les occurrences d'erreur des nœuds éphémères (supprimés)
-						// pour ne pas laisser de nœuds fantômes dans les groupes.
-						occPurged, occErr := db.PurgeEphemeralErrorOccurrences(dbConn)
-						if occErr != nil {
-							logs.WriteLogFile(fmt.Sprintf("WARN [AGENT PURGE] Error purging ephemeral error occurrences: %v", occErr))
-						}
-						msg := fmt.Sprintf("Purged %d trashed agent(s), %d ephemeral error occurrence(s)", purged, occPurged)
-						logs.WriteLogFile(fmt.Sprintf("INFO [AGENT PURGE] %s", msg))
-						agentPurge.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, msg, nil)
-					},
-				)
-			}
-		}
-
-		if global.AppConfig.DSCPullServer.EnableConfigurationVersionCleanup {
-			maxKeep := global.AppConfig.DSCPullServer.ConfigurationVersionMaxKeep
-			if maxKeep < 1 {
-				logs.WriteLogFile("WARN [CONFIG VERSION CLEANUP] Disabled: configuration_version_max_keep must be >= 1")
-			} else {
-				logs.WriteLogFile(fmt.Sprintf("INFO [CONFIG VERSION CLEANUP] Enabled: max_keep=%d version(s), interval=%d minute(s)", maxKeep, configVersionCleanup.interval/time.Minute))
-				db.StartConfigurationVersionCleanupWorker(
-					ctx,
-					dbConn,
-					maxKeep,
-					configVersionCleanup.interval,
-					configVersionCleanup.beginRecord(dbConn, global.AppConfig.Database.Driver),
-					func(startedAt time.Time, pruned int64, cleanupErr error) {
-						if cleanupErr != nil {
-							logs.WriteLogFile(fmt.Sprintf("ERROR [CONFIG VERSION CLEANUP] %v", cleanupErr))
-							configVersionCleanup.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, cleanupErr.Error(), cleanupErr)
-							return
-						}
-						logs.WriteLogFile(fmt.Sprintf("INFO [CONFIG VERSION CLEANUP] Pruned %d old configuration version(s)", pruned))
-						configVersionCleanup.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, fmt.Sprintf("Pruned %d old configuration version(s)", pruned), nil)
-					},
-				)
-			}
-		}
-
-		if global.AppConfig.DSCPullServer.EnableErrorDetection {
-			ecfg := global.AppConfig.DSCPullServer
-			detParams := db.ErrorDetectionParams{
-				Now:              time.Now().UTC(),
-				SpikeMinNodes:    5,
-				SpikePercent:     10,
-				NewWindow:        24 * time.Hour,
-				DeploymentWindow: 60 * time.Minute,
-				GracePeriod:      5 * time.Minute,
-			}
-			if ecfg.ErrorSpikeMinNodes > 0 {
-				detParams.SpikeMinNodes = ecfg.ErrorSpikeMinNodes
-			}
-			if ecfg.ErrorSpikePercent > 0 {
-				detParams.SpikePercent = float64(ecfg.ErrorSpikePercent)
-			}
-			if ecfg.ErrorNewWindowHours > 0 {
-				detParams.NewWindow = time.Duration(ecfg.ErrorNewWindowHours) * time.Hour
-			}
-			if ecfg.ErrorDeploymentWindowMins > 0 {
-				detParams.DeploymentWindow = time.Duration(ecfg.ErrorDeploymentWindowMins) * time.Minute
-			}
-			if ecfg.ErrorDetectionRepeatMinutes > 0 {
-				detParams.RepeatDelay = time.Duration(ecfg.ErrorDetectionRepeatMinutes) * time.Minute
-			}
-			if ecfg.ErrorDetectionGraceMinutes > 0 {
-				detParams.GracePeriod = time.Duration(ecfg.ErrorDetectionGraceMinutes) * time.Minute
-			}
-			logs.WriteLogFile(fmt.Sprintf("INFO [ERROR DETECTION] Enabled: interval=%d minute(s), spike=%d node(s)/%d%%, new=%dh, deploy=%dm", errorDetection.interval/time.Minute, detParams.SpikeMinNodes, int(detParams.SpikePercent), ecfg.ErrorNewWindowHours, ecfg.ErrorDeploymentWindowMins))
-			db.StartErrorDetectionWorker(
-				ctx,
-				dbConn,
-				detParams,
-				errorDetection.interval,
-				errorDetection.beginRecord(dbConn, global.AppConfig.Database.Driver),
-				func(startedAt time.Time, alerted int, detErr error) {
-					if detErr != nil {
-						logs.WriteLogFile(fmt.Sprintf("ERROR [ERROR DETECTION] %v", detErr))
-						errorDetection.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, detErr.Error(), detErr)
-						return
-					}
-					msg := fmt.Sprintf("Evaluated error groups: %d alert(s)", alerted)
-					logs.WriteLogFile(fmt.Sprintf("INFO [ERROR DETECTION] %s", msg))
-					errorDetection.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, msg, nil)
-				},
-			)
-		}
-
-		if global.AppConfig.DSCPullServer.EnableReleaseCheck {
-			logs.WriteLogFile(fmt.Sprintf("INFO [RELEASE CHECK] Enabled: interval=%d minute(s)", releaseCheck.interval/time.Minute))
-			service.StartReleaseCheckWorker(
-				ctx,
-				buildinfo.Version,
-				releaseCheck.interval,
-				releaseCheck.beginRecord(dbConn, global.AppConfig.Database.Driver),
-				func(startedAt time.Time, result service.ReleaseCheckResult, checkErr error) {
-					if checkErr != nil {
-						logs.WriteLogFile(fmt.Sprintf("WARN [RELEASE CHECK] %v", checkErr))
-						if err := db.PersistReleaseCheckFailure(dbConn, global.AppConfig.Database.Driver); err != nil {
-							logs.WriteLogFile(fmt.Sprintf("WARN [RELEASE CHECK] Failed to persist failure: %v", err))
-						}
-						releaseCheck.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, checkErr.Error(), checkErr)
-						return
-					}
-					if err := db.PersistReleaseCheckSuccess(dbConn, global.AppConfig.Database.Driver, result.LatestRelease, result.LatestReleaseURL, result.UpdateAvailable); err != nil {
-						logs.WriteLogFile(fmt.Sprintf("WARN [RELEASE CHECK] Failed to persist result: %v", err))
-					}
-					if result.UpdateAvailable {
-						logs.WriteLogFile(fmt.Sprintf("INFO [RELEASE CHECK] Update available: current=%s latest=%s", result.CurrentVersion, result.LatestRelease))
-						releaseCheck.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, fmt.Sprintf("Update available: %s", result.LatestRelease), nil)
-					} else {
-						logs.WriteLogFile(fmt.Sprintf("INFO [RELEASE CHECK] Up to date: current=%s", result.CurrentVersion))
-						releaseCheck.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, "Already up to date", nil)
-					}
-				},
-			)
-		}
-
-		if global.AppConfig.DSCPullServer.EnableLogRotation {
-			logs.WriteLogFile(fmt.Sprintf("INFO [LOG ROTATION] Enabled: maintenance interval=%s", logCleanup.interval))
-			logs.StartLogMaintenanceWorker(
-				ctx,
-				logCleanup.interval,
-				logCleanup.beginRecord(dbConn, global.AppConfig.Database.Driver),
-				func(startedAt time.Time, deleted int, runErr error) {
-					if runErr != nil {
-						logs.WriteLogFile(fmt.Sprintf("ERROR [LOG ROTATION] %v", runErr))
-						logCleanup.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, runErr.Error(), runErr)
-						return
-					}
-					msg := fmt.Sprintf("Deleted %d backup(s)", deleted)
-					logCleanup.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, msg, nil)
-				},
-			)
-		}
-
-		if repoSync.enabled {
-			logs.WriteLogFile(fmt.Sprintf("INFO [CONFIGURATION REPO] Enabled: interval=%d minute(s)", repoSync.interval/time.Minute))
-			service.StartConfigurationRepoWorkerWithConfig(
-				ctx,
-				func() (service.ConfigurationRepoConfig, error) {
-					runConfig := repoCfg
-					// La résolution des contextes de compilation est paresseuse :
-					// le dépôt est synchronisé en premier, et on ne résout les
-					// propriétés des nœuds que si le dépôt a changé (compilation
-					// réelle). Dans le cas fréquent « dépôt à jour », aucune
-					// résolution n'est donc effectuée.
-					runConfig.ResolveNodeContexts = func() ([]service.NodeCompilationContext, error) {
-						contexts, _, contextErr := db.ListNodeCompilationContextsWithAgentIDs(dbConn)
-						return contexts, contextErr
-					}
-					return runConfig, nil
-				},
-				repoSync.interval,
-				func(compiled []service.CompiledConfiguration) (int, error) {
-					if len(compiled) == 0 {
-						return 0, nil
-					}
-					_, nodeAgentIDs, contextErr := db.ListNodeCompilationContextsWithAgentIDs(dbConn)
-					if contextErr != nil {
-						return 0, contextErr
-					}
-					return db.ImportCompiledConfigurationsAndAssign(dbConn, compiled, nodeAgentIDs)
-				},
-				repoSync.beginRecord(dbConn, global.AppConfig.Database.Driver),
-				func(startedAt time.Time, changed int, syncErr error) {
-					if syncErr != nil {
-						logs.WriteLogFile(fmt.Sprintf("ERROR [CONFIGURATION REPO] %v", syncErr))
-						repoSync.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, syncErr.Error(), syncErr)
-						return
-					}
-					message := fmt.Sprintf("Updated configurations: %d", changed)
-					repoSync.completeRecord(dbConn, global.AppConfig.Database.Driver)(startedAt, message, nil)
-				},
-			)
-		} else {
-			logs.WriteLogFile("INFO [CONFIGURATION REPO] Synchronization disabled")
-		}
+		// Enregistre puis démarre les tâches planifiées via le registre.
+		driver := global.AppConfig.Database.Driver
+		service.StartScheduledTasks(ctx, dbConn, driver, schedulerRecorder{dbConn: dbConn, driver: driver}, buildScheduledTasks(dbConn, repoSettings))
 
 		if global.AppConfig.SAML.Enabled {
 			logs.WriteLogFile(fmt.Sprintf("INFO [SAML] SAML Authentication activated (EntityID: %s)", global.AppConfig.SAML.EntityID))
@@ -465,9 +167,9 @@ func main() {
 			logs.WriteLogFile("INFO [SAML] SAML Authentication deactivated (local auth)")
 		}
 
-		// Vérifie si la table users est vide et guide l'opérateur. Le compte
-		// administrateur initial n'est plus créé avec un mot de passe par défaut
-		// (vulnérabilité C1) : il doit être généré via "init-bootstrap-admin".
+		// VÃ©rifie si la table users est vide et guide l'opÃ©rateur. Le compte
+		// administrateur initial n'est plus crÃ©Ã© avec un mot de passe par dÃ©faut
+		// (vulnÃ©rabilitÃ© C1) : il doit Ãªtre gÃ©nÃ©rÃ© via "init-bootstrap-admin".
 		{
 			var count int
 			err := dbConn.QueryRow("SELECT COUNT(*) FROM users").Scan(&count)
@@ -492,17 +194,17 @@ func main() {
 					h.Write(clientCert.Raw)
 					sha1sum := hex.EncodeToString(h.Sum(nil))
 					sha1sumLower := strings.ToLower(sha1sum)
-					// Neutralise les caractères de contrôle (retours à la ligne,
-					// tabulations…) du Subject du certificat client avant de
-					// l'écrire dans le log, pour empêcher toute injection de ligne.
+					// Neutralise les caractÃ¨res de contrÃ´le (retours Ã  la ligne,
+					// tabulationsâ€¦) du Subject du certificat client avant de
+					// l'Ã©crire dans le log, pour empÃªcher toute injection de ligne.
 					subject := logs.SanitizeLogMessage(clientCert.Subject.String())
 					logs.WriteLogFile(fmt.Sprintf("[DSC][TLS] Client certificate received: Subject=%s, Thumbprint=%s", subject, sha1sumLower))
-					// Vérification de l'empreinte si la validation du certificat client est activée
-					// On ne fait PAS ce contrôle pour la route de registration DSC (PUT /PSDSCPullServer.svc/{node})
+					// VÃ©rification de l'empreinte si la validation du certificat client est activÃ©e
+					// On ne fait PAS ce contrÃ´le pour la route de registration DSC (PUT /PSDSCPullServer.svc/{node})
 					isRegister := r.Method == "PUT" && strings.HasPrefix(r.URL.Path, "/PSDSCPullServer.svc/") && len(strings.Split(r.URL.Path, "/")) == 3
 					if global.AppConfig.DSCPullServer.EnableClientCertValidation && !isRegister {
-						// Vérifie la présence de l'empreinte en base (les empreintes
-						// sont stockées en minuscules, la comparaison reste index-friendly).
+						// VÃ©rifie la prÃ©sence de l'empreinte en base (les empreintes
+						// sont stockÃ©es en minuscules, la comparaison reste index-friendly).
 						registered, err := db.IsCertificateThumbprintRegistered(dbConn, sha1sumLower)
 						if err != nil {
 							logs.WriteLogFile(fmt.Sprintf("[DSC][TLS] Error verifying thumbprint: %v", err))
@@ -527,11 +229,11 @@ func main() {
 		dscHandler := logs.LoggingMiddleware(monitor.StatusCodeMiddleware(dscCertLogMiddleware(dscMux)))
 		webHandler := logs.LoggingMiddleware(monitor.StatusCodeMiddleware(webMux))
 
-		// --- Serveurs HTTP avec arrêt propre (drivé par ctx.Done()) ---
-		// Chaque serveur est démarré dans une goroutine. À la réception d'un
+		// --- Serveurs HTTP avec arrÃªt propre (drivÃ© par ctx.Done()) ---
+		// Chaque serveur est dÃ©marrÃ© dans une goroutine. Ã€ la rÃ©ception d'un
 		// Stop/Shutdown du service Windows (annulation du contexte), runApp
-		// déclenche un Shutdown gracieux des deux serveurs puis retourne, ce qui
-		// permet à la couche service de finaliser l'arrêt sans tuer les requêtes.
+		// dÃ©clenche un Shutdown gracieux des deux serveurs puis retourne, ce qui
+		// permet Ã  la couche service de finaliser l'arrÃªt sans tuer les requÃªtes.
 
 		// Serveur DSC (endpoints MS-DSCPM)
 		dscServer := &http.Server{
@@ -544,24 +246,24 @@ func main() {
 		}
 		if global.AppConfig.DSCPullServer.EnableHTTPS {
 			certFile, keyFile := resolveCertKeyPath(global.AppConfig.DSCPullServer.CertFile, global.AppConfig.DSCPullServer.KeyFile)
-			// Bypass CA verification: accepter tout certificat client présenté
+			// Bypass CA verification: accepter tout certificat client prÃ©sentÃ©
 			tlsConfig := &tls.Config{
 				MinVersion: tls.VersionTLS12,
 			}
-			// Vérifie si la validation du certificat client est activée.
+			// VÃ©rifie si la validation du certificat client est activÃ©e.
 			if global.AppConfig.DSCPullServer.EnableClientCertValidation {
 				// Toujours exiger un certificat client : le middleware d'empreinte
-				// (enrôlement du nœud) ne s'exécute que si un certificat est présenté.
-				// bypass_ca_validation ne conditionne que la validation de la chaîne CA,
+				// (enrÃ´lement du nÅ“ud) ne s'exÃ©cute que si un certificat est prÃ©sentÃ©.
+				// bypass_ca_validation ne conditionne que la validation de la chaÃ®ne CA,
 				// pas l'exigence d'un certificat.
 				if global.AppConfig.DSCPullServer.BypassCAValidation {
 					// Aucune validation de la signature/CA : seuls l'empreinte du
-					// certificat (enrôlement du nœud) compte. Modèle DSC avec des
-					// certificats potentiellement auto-signés.
+					// certificat (enrÃ´lement du nÅ“ud) compte. ModÃ¨le DSC avec des
+					// certificats potentiellement auto-signÃ©s.
 					tlsConfig.ClientAuth = tls.RequireAnyClientCert
 				} else {
-					// Validation de la chaîne/signature contre le magasin d'autorités
-					// du système, en plus du contrôle d'empreinte (enrôlement).
+					// Validation de la chaÃ®ne/signature contre le magasin d'autoritÃ©s
+					// du systÃ¨me, en plus du contrÃ´le d'empreinte (enrÃ´lement).
 					tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 				}
 			} else {
@@ -614,10 +316,10 @@ func main() {
 			}()
 		}
 
-		// Bloque jusqu'à l'arrêt, puis ferme gracieusement les deux serveurs.
+		// Bloque jusqu'Ã  l'arrÃªt, puis ferme gracieusement les deux serveurs.
 		<-ctx.Done()
-		// Signale aux consommateurs (GET /health) que le processus s'arrête :
-		// pendant la fenêtre de shutdown gracieux, workers.alive passe à false.
+		// Signale aux consommateurs (GET /health) que le processus s'arrÃªte :
+		// pendant la fenÃªtre de shutdown gracieux, workers.alive passe Ã  false.
 		monitor.SetShutdown()
 		logs.WriteLogFile("INFO [SHUTDOWN] Shutdown requested, closing HTTP servers ...")
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -634,11 +336,11 @@ func main() {
 			os.Exit(1)
 		}
 	} else {
-		// Arrêt gracieux sur SIGINT/SIGTERM (Docker, systemd, Ctrl-C) : le
-		// contexte est annulé à la réception du signal, ce qui déclenche le
-		// chemin de shutdown propre (http.Server.Shutdown + arrêt des workers
-		// planifiés). Sans cela, le processus est tué sans fermer proprement
-		// les serveurs HTTP ni laisser les requêtes en vol se terminer.
+		// ArrÃªt gracieux sur SIGINT/SIGTERM (Docker, systemd, Ctrl-C) : le
+		// contexte est annulÃ© Ã  la rÃ©ception du signal, ce qui dÃ©clenche le
+		// chemin de shutdown propre (http.Server.Shutdown + arrÃªt des workers
+		// planifiÃ©s). Sans cela, le processus est tuÃ© sans fermer proprement
+		// les serveurs HTTP ni laisser les requÃªtes en vol se terminer.
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		runApp(ctx)
