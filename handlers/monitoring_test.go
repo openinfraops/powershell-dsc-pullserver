@@ -64,6 +64,33 @@ func setupMonitoringDB(t *testing.T) *sql.DB {
 	if _, err := database.Exec(`INSERT INTO dsc_infra_info (id, latest_release, update_available, release_check_ok) VALUES (1, '1.8.0', 1, 1)`); err != nil {
 		t.Fatalf("seed dsc_infra_info: %v", err)
 	}
+	if _, err := database.Exec(`CREATE TABLE error_groups (
+		fingerprint TEXT PRIMARY KEY,
+		category TEXT,
+		resource_type TEXT,
+		sample_message TEXT,
+		first_seen TIMESTAMP,
+		last_seen TIMESTAMP,
+		first_config_version TEXT,
+		status TEXT DEFAULT 'open',
+		status_changed_by TEXT,
+		status_changed_at TIMESTAMP,
+		note TEXT,
+		last_alerted_at TIMESTAMP
+	)`); err != nil {
+		t.Fatalf("create error_groups: %v", err)
+	}
+	if _, err := database.Exec(`CREATE TABLE error_occurrences (
+		fingerprint TEXT,
+		node_id TEXT,
+		first_seen TIMESTAMP,
+		last_seen TIMESTAMP,
+		count INTEGER DEFAULT 1,
+		last_report_id INTEGER,
+		PRIMARY KEY (fingerprint, node_id)
+	)`); err != nil {
+		t.Fatalf("create error_occurrences: %v", err)
+	}
 	return database
 }
 
@@ -221,6 +248,11 @@ func TestMetricsHandler_Renders(t *testing.T) {
 	mustExec(t, database, `INSERT INTO agents (agent_id, node_name, state, last_communication, deleted_at) VALUES ('a2', 'node-b', 'Success', '2026-01-02 00:00:00', '2026-01-03 00:00:00')`)
 	mustExec(t, database, `INSERT INTO scheduler_tasks (task_name, display_name, last_status, next_run_at, last_run_at) VALUES ('report_cleanup', 'Report cleanup', 'idle', '2026-01-01 00:00:05', '2026-01-01 00:00:00')`)
 	mustExec(t, database, `INSERT INTO scheduler_tasks (task_name, display_name, last_status) VALUES ('release_check', 'Release check', 'success')`)
+	// Error groups: two open (one per category), one known, one resolved.
+	mustExec(t, database, `INSERT INTO error_groups (fingerprint, category, resource_type, sample_message, first_seen, last_seen, status) VALUES ('eg-open-1', 'access_denied', 'MSFT_x', 'Access denied', '2026-01-01 00:00:00', '2026-01-01 00:00:00', 'open')`)
+	mustExec(t, database, `INSERT INTO error_groups (fingerprint, category, resource_type, sample_message, first_seen, last_seen, status) VALUES ('eg-open-2', 'timeout_network', 'MSFT_y', 'timed out', '2026-01-01 00:00:00', '2026-01-01 00:00:00', 'open')`)
+	mustExec(t, database, `INSERT INTO error_groups (fingerprint, category, resource_type, sample_message, first_seen, last_seen, status) VALUES ('eg-known', 'access_denied', 'MSFT_x', 'denied', '2026-01-01 00:00:00', '2026-01-01 00:00:00', 'known')`)
+	mustExec(t, database, `INSERT INTO error_groups (fingerprint, category, resource_type, sample_message, first_seen, last_seen, status) VALUES ('eg-resolved', 'other', 'MSFT_z', 'other', '2026-01-01 00:00:00', '2026-01-01 00:00:00', 'resolved')`)
 
 	setMetricsToken(t, "super-secret")
 
@@ -252,6 +284,13 @@ func TestMetricsHandler_Renders(t *testing.T) {
 		`dsc_http_responses_total{code="403"} `,
 		`dsc_update_available 1`,
 		`dsc_release_check_ok 1`,
+		`dsc_error_groups{status="open"} 2`,
+		`dsc_error_groups{status="known"} 1`,
+		`dsc_error_groups{status="resolved"} 1`,
+		`dsc_error_groups_new_24h{status="open"} 0`, // fixed 2026-01-01 timestamps, not within 24h
+		`dsc_error_groups_by_category{category="access_denied"} 1`,
+		`dsc_error_groups_by_category{category="timeout_network"} 1`,
+		`dsc_error_groups_by_category{category="unknown"} 0`, // seeded, no open unknown group
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("body missing %q\n---\n%s", want, body)

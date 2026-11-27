@@ -316,6 +316,70 @@
           tags:
             - tag: Application
               value: DSC
+        - uuid: 1234a5678b9c0d1e2f3a4b5c6d7e8f01
+          name: 'DSC - Open error groups'
+          type: DEPENDENT
+          key: dsc.metrics.error_groups_open
+          delay: '0'
+          value_type: UNSIGNED
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'dsc_error_groups{status="open"}'
+                - value
+          master_item:
+            key: dsc.metrics
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: 2345b6789c0d1e2f3a4b5c6d7e8f9a02
+          name: 'DSC - Known error groups'
+          type: DEPENDENT
+          key: dsc.metrics.error_groups_known
+          delay: '0'
+          value_type: UNSIGNED
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'dsc_error_groups{status="known"}'
+                - value
+          master_item:
+            key: dsc.metrics
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: 3456c7890d1e2f3a4b5c6d7e8f9a0b03
+          name: 'DSC - New error groups (24h)'
+          type: DEPENDENT
+          key: dsc.metrics.error_groups_new_24h
+          delay: '0'
+          value_type: UNSIGNED
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'dsc_error_groups_new_24h{status="open"}'
+                - value
+          master_item:
+            key: dsc.metrics
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: 4567d8901e2f3a4b5c6d7e8f9a0b1c04
+          name: 'DSC - Open error groups (unknown/noise)'
+          type: DEPENDENT
+          key: dsc.metrics.error_groups_by_category_unknown
+          delay: '0'
+          value_type: UNSIGNED
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'dsc_error_groups_by_category{category="unknown"}'
+                - value
+          master_item:
+            key: dsc.metrics
+          tags:
+            - tag: Application
+              value: DSC
       discovery_rules:
         - uuid: b3c603ee88fb44478805227243d2852b
           name: 'DSC Agent Discovery'
@@ -406,6 +470,22 @@
       expression: 'last(/Template - DSC Console/dsc.metrics.last_report_age)>86400'
       name: 'WARNING - DSC node reports stale'
       priority: WARNING
+      tags:
+        - tag: Application
+          value: DSC
+    - uuid: abcd000aa7774e8fae7000000000000a
+      expression: 'last(/Template - DSC Console/dsc.metrics.error_groups_new_24h)>0'
+      name: 'HIGH - New DSC error group detected'
+      priority: HIGH
+      manual_close: 'YES'
+      tags:
+        - tag: Application
+          value: DSC
+    - uuid: abcd000bb8884f9fbf8100000000000b
+      expression: 'last(/Template - DSC Console/dsc.metrics.error_groups_open)-last(/Template - DSC Console/dsc.metrics.error_groups_by_category_unknown)>0'
+      name: 'WARNING - DSC error groups open (excluding noise)'
+      priority: WARNING
+      manual_close: 'YES'
       tags:
         - tag: Application
           value: DSC

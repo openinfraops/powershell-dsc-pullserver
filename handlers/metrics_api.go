@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -135,6 +136,46 @@ func renderMetrics(w http.ResponseWriter, dbConn *sql.DB) {
 		dbUp = false
 	}
 
+	// Error group metrics (derived from error_groups / error_occurrences).
+	// Gathered here, before any emission, so a DB failure is reflected in
+	// dsc_db_up and no partial metric family is written.
+	errorGroupsByStatus := map[string]int{}
+	errorGroupsNewByStatus := map[string]int{}
+	// Always seed the "unknown" category so its sample (the generic / report
+	// noise) is present even when no open group currently belongs to it; this
+	// lets a Zabbix trigger subtract the noise without hitting an unsupported
+	// item. The label value "unknown" mirrors DefaultErrorCategory.
+	openGroupsByCategory := map[string]int{"unknown": 0}
+	{
+		statuses := []string{internaldb.ErrorGroupStatusOpen, internaldb.ErrorGroupStatusKnown, internaldb.ErrorGroupStatusResolved}
+		for _, st := range statuses {
+			if n, err := internaldb.CountErrorGroups(dbConn, internaldb.ErrorGroupFilter{Status: st}); err == nil {
+				errorGroupsByStatus[st] = n
+			} else {
+				dbUp = false
+			}
+		}
+		since := time.Now().UTC().Add(-24 * time.Hour)
+		for _, st := range statuses {
+			if n, err := internaldb.CountErrorGroups(dbConn, internaldb.ErrorGroupFilter{Status: st, Since: since}); err == nil {
+				errorGroupsNewByStatus[st] = n
+			} else {
+				dbUp = false
+			}
+		}
+		if groups, err := internaldb.ListErrorGroups(dbConn, internaldb.ErrorGroupFilter{Status: internaldb.ErrorGroupStatusOpen}); err == nil {
+			for _, g := range groups {
+				cat := strings.TrimSpace(g.Category)
+				if cat == "" {
+					cat = "unknown"
+				}
+				openGroupsByCategory[cat]++
+			}
+		} else {
+			dbUp = false
+		}
+	}
+
 	// Build info.
 	writeMetricHeader(&b, "dsc_build_info", "DSC Pull Server build information.", "gauge")
 	writeSample(&b, "dsc_build_info", "version="+promEscape(buildinfo.Version), 1)
@@ -191,6 +232,27 @@ func renderMetrics(w http.ResponseWriter, dbConn *sql.DB) {
 		writeSample(&b, "dsc_update_available", "", float64(updateAvailable))
 		writeMetricHeader(&b, "dsc_release_check_ok", "Whether the last release check succeeded (1=yes).", "gauge")
 		writeSample(&b, "dsc_release_check_ok", "", float64(releaseOK))
+
+		// Error group metrics.
+		writeMetricHeader(&b, "dsc_error_groups", "Number of distinct error groups by status.", "gauge")
+		for _, st := range []string{internaldb.ErrorGroupStatusOpen, internaldb.ErrorGroupStatusKnown, internaldb.ErrorGroupStatusResolved} {
+			writeSample(&b, "dsc_error_groups", "status="+promEscape(st), float64(errorGroupsByStatus[st]))
+		}
+
+		writeMetricHeader(&b, "dsc_error_groups_new_24h", "Number of error groups first seen in the last 24 hours, by status.", "gauge")
+		for _, st := range []string{internaldb.ErrorGroupStatusOpen, internaldb.ErrorGroupStatusKnown, internaldb.ErrorGroupStatusResolved} {
+			writeSample(&b, "dsc_error_groups_new_24h", "status="+promEscape(st), float64(errorGroupsNewByStatus[st]))
+		}
+
+		writeMetricHeader(&b, "dsc_error_groups_by_category", "Number of open error groups by category.", "gauge")
+		cats := make([]string, 0, len(openGroupsByCategory))
+		for cat := range openGroupsByCategory {
+			cats = append(cats, cat)
+		}
+		sort.Strings(cats)
+		for _, cat := range cats {
+			writeSample(&b, "dsc_error_groups_by_category", "category="+promEscape(cat), float64(openGroupsByCategory[cat]))
+		}
 	} else {
 		// Database is unreachable: report it and skip the DB-derived gauges.
 		writeMetricHeader(&b, "dsc_db_up", "Whether the database is reachable (1=reachable, 0=not).", "gauge")
