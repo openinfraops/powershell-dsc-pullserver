@@ -120,7 +120,7 @@ func RegisterWebRoutes(mux *http.ServeMux, dbConn *sql.DB, jwtAuthMiddleware fun
 	mux.Handle("POST /api/v1/agents/bulk/trash", jwtAuthMiddleware(adminOnly(http.HandlerFunc(handlers.BulkAgentsTrashHandler))))
 	mux.Handle("POST /api/v1/agents/bulk/restore", jwtAuthMiddleware(adminOnly(http.HandlerFunc(handlers.BulkAgentsRestoreHandler))))
 	mux.Handle("PUT /api/v1/agents/bulk/tags", jwtAuthMiddleware(adminOnly(http.HandlerFunc(handlers.BulkAgentsTagsHandler))))
-	mux.Handle("POST /api/v1/agents/preenroll", jwtAuthMiddleware(http.HandlerFunc(handlers.PreEnrollAgentHandler)))
+	mux.Handle("POST /api/v1/agents/preenroll", jwtAuthMiddleware(adminOnly(http.HandlerFunc(handlers.PreEnrollAgentHandler))))
 	mux.Handle("GET /api/v1/agents/{id}/configs", jwtAuthMiddleware(http.HandlerFunc(handlers.AgentConfigsAPIHandler)))
 	mux.Handle("POST /api/v1/agents/{id}/configs", jwtAuthMiddleware(http.HandlerFunc(handlers.AgentConfigsAPIHandlerPostDelete)))
 	mux.Handle("DELETE /api/v1/agents/{id}/configs", jwtAuthMiddleware(http.HandlerFunc(handlers.AgentConfigsAPIHandlerPostDelete)))

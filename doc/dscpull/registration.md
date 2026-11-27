@@ -7,7 +7,9 @@ This page explains how to register nodes (agents) with the DSC Pull Server.
 1. **Obtain the registration key:**
    - The registration key is defined in the `config.json` file under the `dsc_pullserver` section (option: `registrationKey`).
 
-   > You can pre-register an agent using the web interface or API before configuring the LCM on the agent side. This allows you to add tags, link a configuration in advance, or set other metadata for the agent.
+   > You can pre-register an agent using the web interface or API before configuring the LCM on the agent side. This allows you to add tags, link a configuration in advance, or set other metadata for the agent. **Pre-enrollment is an admin-only operation** (`POST /api/v1/agents/preenroll`): a plain `user`-role account gets `403`. The tags supplied during pre-enrollment are audited (actor, source IP, applied tags).
+
+   > **Nodes cannot tag themselves.** The DSC registration/re-registration endpoint (`PUT`/`POST /PSDSCPullServer.svc/{node}`) never parses or stores tag fields from the node payload. Tags can only be set by an admin, via pre-enrollment, or by token/policy rules — never by a node during registration. A node therefore cannot assign itself e.g. `environment=prod`.
 
 2. **Agent configuration:**
    - Configure your DSC agent to use the server URL and provide the registration key during registration.

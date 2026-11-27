@@ -20,18 +20,18 @@ The provider's resource lifecycle maps to the following [`/api/v1`](APIv1.md) en
 
 | Lifecycle | Endpoint | Auth |
 | --- | --- | --- |
-| Create | `POST /api/v1/agents/preenroll` | any authenticated user |
+| Create | `POST /api/v1/agents/preenroll` | **admin only** |
 | Create / Update | `POST /api/v1/agents/{id}/configs` | any authenticated user |
 | Read | `GET /api/v1/agents` , `GET /api/v1/agents/{id}` | any authenticated user |
 | Read (detail) | `GET /api/v1/agents/{id}/configs` , `GET /api/v1/agents/{id}/tags` | any authenticated user |
-| Update (tags) | `PUT /api/v1/agents/{id}/tags` , `DELETE /api/v1/agents/{id}/tags` | **admin only** |
+| Update (tags) | `PUT /api/v1/agents/{id}/tags` , `DELETE /api/v1/agents/{id}/tags` , `PUT /api/v1/agents/bulk/tags` | **admin only** |
 | Delete | `DELETE /api/v1/agents/{id}` | **admin only** |
 
-> [Roles & Access](webui/permissions.md) defines two roles: `admin` and `user`. The write operations on tags and the node deletion are restricted to `admin`.
+> [Roles & Access](webui/permissions.md) defines two roles: `admin` and `user`. The write operations on tags, the pre-enrollment of agents, and the node deletion are restricted to `admin`.
 
 ### Minimal role for the Terraform API token
 
-Because tag synchronization and node deletion are **admin-only**, the API token used by Terraform must belong to a user with the **`admin`** role to drive the full resource lifecycle. A plain `user`-role token can pre-enroll and assign configs, but it **cannot** set tags or delete a node, so Terraform would fail with `401 Unauthorized`/`403 Forbidden` on those operations.
+Because tag synchronization, pre-enrollment and node deletion are **admin-only**, the API token used by Terraform must belong to a user with the **`admin`** role to drive the full resource lifecycle. A plain `user`-role token can read agents, configs and tags, but it **cannot** set tags, pre-enroll a node, or delete a node, so Terraform would fail with `401 Unauthorized`/`403 Forbidden` on those operations.
 
 > **Recommendation.** Create a dedicated, non-interactive admin account for Terraform and use only its API token in the provider configuration (`base_url`/`token`). Do not reuse a personal admin's token, and rotate it via the [user tokens endpoints](APIv1.md#users) (`POST /api/v1/users/{id}/tokens`, `POST /api/v1/users/{id}/tokens/{tokenid}/revoke`). Because the server exposes only the `admin` and `user` roles, `admin` is both the **minimum** role that drives the full node lifecycle and the only option — there is no finer-grained read/write role for these specific operations.
 

@@ -105,7 +105,10 @@ Both JWT and API tokens grant access to the API according to the user's permissi
 - The `stats` response additionally includes `reboot_pending` (nodes currently pending a reboot) and `reboot_loop` (nodes flagged in a reboot loop) counters.
 
 ### POST `/api/v1/agents/preenroll`
-- Pre-enroll an agent.
+- **Admin only.** Pre-enroll an agent before its first registration, giving it a temporary `TEMP-*` id and optionally applying initial tags (e.g. `environment`) that the first configuration compile needs.
+- Request body: `{ "node_name": "...", "tags": [ { "key": "...", "value": "..." } ] }`.
+- The tags supplied here are audited (actor, source IP, applied tags) with the `preenroll` action.
+- **Nodes cannot self-tag:** the DSC registration endpoint (`RegisterHandler`, `PUT`/`POST /PSDSCPullServer.svc/{node}`) never parses or stores tags. Only admins, pre-enrollment, and token/policy rules can set tags.
 
 ### GET `/api/v1/agents/{id}`
 - Get agent details.
@@ -145,10 +148,17 @@ Both JWT and API tokens grant access to the API according to the user's permissi
 - List agent's tags.
 
 ### PUT `/api/v1/agents/{id}/tags`
-- Set agent's tags.
+- **Admin only.** Add a value to a tag key for an agent (multiple values are allowed for the same key).
+- Request body: `{ "key": "...", "value": "..." }`.
+- Audited (actor, source IP, previous vs. new value) with the `tag.set` action.
 
 ### DELETE `/api/v1/agents/{id}/tags`
-- Remove all agent's tags.
+- **Admin only.** Remove a specific tag value (via `?key=&value=` or a JSON body `{ "key": ..., "value": ... }`), or remove all tags when neither is provided.
+- Audited (actor, source IP, removed/previous value) with the `tag.delete` action.
+
+### PUT `/api/v1/agents/bulk/tags`
+- **Admin only.** Apply a tag key/value to a list of agents (`{ "agent_ids": [...], "key": "...", "value": "..." }`).
+- Audited (actor, source IP, before/after per agent) with the `tag.set` action.
 
 ---
 

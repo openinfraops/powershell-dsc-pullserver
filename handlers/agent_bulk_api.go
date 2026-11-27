@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -208,7 +209,9 @@ func BulkAgentsTagsHandler(w http.ResponseWriter, r *http.Request) {
 	driver := global.AppConfig.Database.Driver
 	processed, failed := 0, 0
 	errs := []string{}
+	changes := []string{}
 	for _, id := range req.AgentIDs {
+		prev := tagValuesForAudit(database, id, req.Key)
 		if err := db.SetAgentTag(database, driver, id, req.Key, req.Value); err != nil {
 			failed++
 			errs = append(errs, id+": "+err.Error())
@@ -216,7 +219,14 @@ func BulkAgentsTagsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		// Un changement de tag rend la configuration obsolète.
 		_, _ = database.Exec(`UPDATE agents SET needs_recompile = 1 WHERE agent_id = ?`, id)
+		changes = append(changes, id+"{"+prev+"->"+req.Value+"}")
 		processed++
+	}
+	if processed > 0 {
+		_ = db.InsertAudit(database, driver, currentUserEmail(r, database),
+			"tag.set", "agent",
+			fmt.Sprintf("Bulk set tag %s=%s on %d agent(s): %s", req.Key, req.Value, processed, strings.Join(changes, ", ")),
+			auth.ClientIP(r, global.AppConfig.WebUI.TrustedProxies))
 	}
 	writeBulkResult(w, processed, failed, errs)
 }

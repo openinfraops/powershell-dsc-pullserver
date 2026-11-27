@@ -28,8 +28,11 @@ output is enabled (`MSGID = AUDIT`, structured data `audit@48577`).
 
 > **Before/after value.** The trail captures a free-text `details` message, not
 > structured before/after columns. It therefore does **not** systematically
-> record the old and new value of a changed field (e.g. the previous vs. new
-> role of a user). Only the resulting state is described in prose.
+> record the old and new value of a changed field. The main exception is **tag
+> changes** (`tag.set` / `tag.delete`): their `details` message records both the
+> previous value(s) and the new value (for the tag key, e.g. `environment`),
+> along with the actor and source IP. Other changes only describe the resulting
+> state in prose.
 
 ---
 
@@ -44,7 +47,9 @@ output is enabled (`MSGID = AUDIT`, structured data `audit@48577`).
 | Module deletion                                    | `delete`                               | `module`             |
 | User create / update / delete                      | `create` / `update` / `delete`         | `user`               |
 | User password change                               | `update`                               | `user`               |
-| Agent pre-enrollment (admin)                       | `preenroll`                            | `agent`              |
+| Agent pre-enrollment (admin, with tags)             | `preenroll`                            | `agent`              |
+| Agent tag set (single or bulk)                      | `tag.set`                              | `agent`              |
+| Agent tag delete (single value or all)              | `tag.delete`                           | `agent`              |
 | Agent trash / restore                              | `trash` / `restore`                    | `agent`              |
 | Bulk agent trash / restore                         | `trash` / `restore`                    | `agent`              |
 | SAML configuration update                          | `update`                               | `saml_config`        |
