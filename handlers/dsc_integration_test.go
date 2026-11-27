@@ -477,3 +477,76 @@ func TestModuleDownload_400_MissingFields(t *testing.T) {
 		t.Fatalf("expected 400, got %d (body: %s)", rec.Code, rec.Body.String())
 	}
 }
+
+// TestRegisterHandler_NoConfigLink_WhenAgentNotCreated vérifie qu'en cas d'échec
+// de création de l'agent (upsert en erreur), le handler NE crée PAS de liaison de
+// configuration (agent_configurations). Sans ce garde, l'INSERT référençait un
+// agent_id inexistant et violait la FOREIGN KEY en production MSSQL
+// ("Failed to assign node configuration", FK__agent_con__agent__0B91BA14).
+func TestRegisterHandler_NoConfigLink_WhenAgentNotCreated(t *testing.T) {
+	database := setupAgentsDB(t)
+	// Re-crée la table agents avec une colonne NOT NULL sans défaut que
+	// upsertAgent ne fournit pas : l'INSERT de l'agent échoue, simulant un échec
+	// de création de l'agent (comme constaté en production). On ré-attache aussi
+	// agent_configurations (sans FK, pour observer le comportement du garde
+	// indépendamment de la contrainte).
+	mustExec(t, database, `DROP TABLE agents`)
+	mustExec(t, database, `CREATE TABLE agents (
+		agent_id TEXT PRIMARY KEY,
+		node_name TEXT,
+		lcm_version TEXT,
+		registration_type TEXT,
+		certificate_thumbprint TEXT,
+		certificate_subject TEXT,
+		certificate_issuer TEXT,
+		certificate_notbefore TEXT,
+		certificate_notafter TEXT,
+		certificate_public_key TEXT,
+		certificate_key_algorithm TEXT,
+		registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		last_communication TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		has_error_last_report BOOLEAN DEFAULT 0,
+		needs_recompile INTEGER DEFAULT 0,
+		force_cert_rotation INTEGER DEFAULT 0,
+		deleted_at TIMESTAMP NULL,
+		deleted_by TEXT NULL,
+		state TEXT,
+		reboot_pending INTEGER DEFAULT 0,
+		reboot_pending_since TIMESTAMP NULL,
+		reboot_requested_by TEXT NULL,
+		reboot_loop INTEGER DEFAULT 0,
+		reboot_request_count INTEGER DEFAULT 0,
+		persistent INTEGER DEFAULT 0,
+		reregistration_window_until TIMESTAMP NULL,
+		must_fail TEXT NOT NULL
+	)`)
+	mustExec(t, database, `CREATE TABLE agent_configurations (
+		agent_id TEXT,
+		configuration_name TEXT,
+		PRIMARY KEY (agent_id, configuration_name)
+	)`)
+	injectDSCShared(t, database, "sqlite", dscRegKey, true)
+
+	cert := genDSCClientCert(t)
+	thumb := thumbprintOf(t, cert)
+	// Aucun ConfigurationNames : le chemin « nouveau nœud sans config » qui
+	// tentait d'assigner la config par défaut (node_name).
+	body := []byte(fmt.Sprintf(`{"AgentInformation":{"NodeName":%q,"LCMVersion":"1.0"},"RegistrationInformation":{"RegistrationMessageType":"Initial","CertificateInformation":{"Thumbprint":%q}}}`,
+		dscRegNodeName, thumb))
+
+	rec := httptest.NewRecorder()
+	RegisterHandler(rec, dscRegisterRequest(t, body, dscRegAgentID, cert))
+
+	// Le handler répond 200 même si l'upsert échoue (l'erreur est seulement tracée).
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (body: %s)", rec.Code, rec.Body.String())
+	}
+
+	var cfgCount int
+	if err := database.QueryRow(`SELECT COUNT(*) FROM agent_configurations WHERE agent_id = ?`, dscRegAgentID).Scan(&cfgCount); err != nil {
+		t.Fatalf("query agent_configurations: %v", err)
+	}
+	if cfgCount != 0 {
+		t.Fatalf("expected 0 linked configurations for an uncreated agent, got %d", cfgCount)
+	}
+}
