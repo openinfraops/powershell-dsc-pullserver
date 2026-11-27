@@ -139,6 +139,15 @@ func main() {
 		}
 		global.AppConfig = appCfg
 
+		// Sortie syslog optionnelle (RFC 5424). Config invalide -> démarrage
+		// refusé ; désactivée par défaut. L'arrêt (normal ou via erreur de
+		// listener) vide la file au plus tard via CloseSyslog.
+		if err := logs.InitSyslog(global.AppConfig.Syslog); err != nil {
+			logs.WriteLogFile(fmt.Sprintf("ERROR [SYSLOG] %v", err))
+			os.Exit(1)
+		}
+		defer logs.CloseSyslog()
+
 		// --- VÃ©rifications de sÃ©curitÃ© au dÃ©marrage (S4) ---
 		// Fail-closed : certaines combinaisons de configuration sont refusÃ©es
 		// au dÃ©marrage (exit non-zÃ©ro) plutÃ´t que de dÃ©marrer avec une

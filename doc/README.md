@@ -16,7 +16,8 @@ The documentation is organized into three layers:
 ## Reference pages
 
 - [Installation guide](installation.md) — prerequisites, step-by-step install (Windows service), troubleshooting, upgrade.
-- [Configuration reference](Configuration.md) — exhaustive per-key reference of every section (`database`, `dsc_pullserver`, `web_ui`, `saml`) with example files.
+- [Configuration reference](Configuration.md) — exhaustive per-key reference of every section (`database`, `dsc_pullserver`, `web_ui`, `saml`, `syslog`) with example files.
+- [Forwarding logs to a syslog server](syslog.md) — optional RFC 5424 syslog output (UDP/TCP/TCP+TLS) with rsyslog and Zabbix examples.
 - [Database schema](DatabaseSchema.md) — supported databases, schema files, every table, relationships, schema evolution.
 - [API v1 reference](APIv1.md) — the REST endpoints under `/api/v1/` (auth, users, agents, DSC settings, audit, modules, properties, configurations, SAML).
 - [Integrations](Integrations.md) — Terraform provider, API compatibility matrix, API versioning & breaking-changes policy, and minimal API-token role.

@@ -31,6 +31,7 @@ The REST API under `/api/v1/` is consumed by third-party tools for automation an
 
 - [Installation](doc/installation.md)
 - [Configuration reference](doc/Configuration.md) (exhaustive, all sections)
+- [Forwarding logs to a syslog server](doc/syslog.md) — optional RFC 5424 syslog output (UDP/TCP/TCP+TLS)
 - [Database schema](doc/DatabaseSchema.md)
 - [DSC Pull Server configuration guide](doc/dscpull/configuration.md) (focused, mutual-TLS)
 - [Configuration repository (Git) & Scheduler](doc/dscpull/configuration-repo.md)
@@ -65,6 +66,7 @@ Then:
 
 - Edit `config.json` (database, SAML, web UI, DSC settings) — use [`config_example.json`](config_example.json) as a starting point.
   - `config.json` is resolved **next to the executable**, so it is found regardless of the working directory (important for a Windows service, which the SCM starts in `System32`). Override the location with the `--config <path>` flag (`DSC-Admin-Console.exe --config C:\shared\config.json`) or the `DSC_CONFIG` environment variable; a relative `--config` path is resolved next to the executable too, and an absolute path is used as-is.
+  - Optionally enable the [syslog output](doc/syslog.md) to forward application logs and audit events to a centralised server (SIEM, rsyslog, Graylog, Zabbix) in addition to the local file.
 - Bootstrap the initial admin account: `DSC-Admin-Console.exe init-bootstrap-admin`.
 - See the full [installation guide](doc/installation.md) and [configuration reference](doc/Configuration.md).
 

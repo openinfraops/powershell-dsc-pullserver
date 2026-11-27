@@ -99,15 +99,50 @@ type HTTPConfig struct {
 }
 
 type AppConfig struct {
-	Driver        string     `json:"driver"`
-	Server        string     `json:"server"`
-	Port          int        `json:"port"`
-	User          string     `json:"user"`
-	Password      string     `json:"password"`
-	Database      DBConfig   `json:"database"`
-	DSCPullServer HTTPConfig `json:"dsc_pullserver"`
-	WebUI         HTTPConfig `json:"web_ui"`
-	SAML          SAMLConfig `json:"saml"`
+	Driver        string       `json:"driver"`
+	Server        string       `json:"server"`
+	Port          int          `json:"port"`
+	User          string       `json:"user"`
+	Password      string       `json:"password"`
+	Database      DBConfig     `json:"database"`
+	DSCPullServer HTTPConfig   `json:"dsc_pullserver"`
+	WebUI         HTTPConfig   `json:"web_ui"`
+	SAML          SAMLConfig   `json:"saml"`
+	Syslog        SyslogConfig `json:"syslog"`
+}
+
+// SyslogConfig configure l'envoi optionnel des logs applicatifs et des
+// événements d'audit vers un serveur syslog (RFC 5424), en plus du fichier
+// local. Désactivé par défaut pour ne pas affecter les installations
+// existantes. L'émission est non bloquante : un serveur syslog lent ou
+// injoignable n'impacte jamais les requêtes ni le cycle de pull DSC.
+type SyslogConfig struct {
+	// Enabled active l'envoi vers syslog (défaut: false).
+	Enabled bool `json:"enabled"`
+	// Network est le transport: "udp", "tcp" ou "tcp+tls" (RFC 5425, recommandé).
+	Network string `json:"network"`
+	// Address est l'adresse hôte:port du serveur syslog (ex: "syslog.local:6514").
+	Address string `json:"address"`
+	// Facility est la facility syslog (ex: "local0", "local7", "auth", "daemon").
+	// Vide -> local0.
+	Facility string `json:"facility"`
+	// AppName est le champ APP-NAME RFC 5424 (max 48 caractères). Vide ->
+	// "dsc-pull-server".
+	AppName string `json:"app_name"`
+	// MinLevel est le niveau minimal transmis: debug|info|warning|error|critical.
+	// Vide -> info.
+	MinLevel string `json:"min_level"`
+	// CAFile est un chemin vers un bundle PEM d'autorités pour valider le
+	// serveur syslog en tcp+tls. Vide -> magasin d'autorités système.
+	CAFile string `json:"ca_file"`
+	// ClientCertFile / ClientKeyFile : paire de certificat client optionnelle
+	// pour le mTLS en tcp+tls. Doivent être renseignés ensemble.
+	ClientCertFile string `json:"client_cert_file"`
+	ClientKeyFile  string `json:"client_key_file"`
+	// InsecureSkipVerify désactive la vérification du certificat du serveur
+	// syslog (tcp+tls). À n'utiliser qu'en dernier recours ; déclenche un WARN
+	// au démarrage.
+	InsecureSkipVerify bool `json:"insecure_skip_verify"`
 }
 
 type DBConfig struct {

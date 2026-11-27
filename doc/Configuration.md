@@ -2,7 +2,7 @@
 
 This page describes all configuration options available in `config.json` for the DSC Admin Console.
 
-> **This page is the exhaustive reference for every `config.json` section** (`database`, `dsc_pullserver`, `web_ui`, `saml`). For a **focused guide to the `dsc_pullserver` block** — mutual-TLS deep dive, secure secret generation and the startup security warnings — see [DSC Pull Server configuration](dscpull/configuration.md).
+> **This page is the exhaustive reference for every `config.json` section** (`database`, `dsc_pullserver`, `web_ui`, `saml`, `syslog`). For a **focused guide to the `dsc_pullserver` block** — mutual-TLS deep dive, secure secret generation and the startup security warnings — see [DSC Pull Server configuration](dscpull/configuration.md). For the syslog output, see [Forwarding logs to a syslog server](syslog.md).
 
 ---
 
@@ -13,7 +13,8 @@ This page describes all configuration options available in `config.json` for the
   "database": { ... },
   "dsc_pullserver": { ... },
   "web_ui": { ... },
-  "saml": { ... }
+  "saml": { ... },
+  "syslog": { ... }
 }
 ```
 
@@ -190,6 +191,18 @@ The Git-backed **configuration repository** settings are **stored in the databas
     "shared_secret": "pQw8vZ3rT6sJkL2xQ9eBfG7hN1uVtX4yC5zR8aW0sD3mPqE6bH0jKfL9nS2tU7vY1",
     "metrics_token": "",
     "port": 443
+  },
+  "syslog": {
+    "enabled": false,
+    "network": "tcp+tls",
+    "address": "syslog.example.local:6514",
+    "facility": "local0",
+    "app_name": "dsc-pull-server",
+    "min_level": "info",
+    "ca_file": "",
+    "client_cert_file": "",
+    "client_key_file": "",
+    "insecure_skip_verify": false
   }
 }
 ```
@@ -200,6 +213,7 @@ The Git-backed **configuration repository** settings are **stored in the databas
 
 ## Related pages
 
+- [Forwarding logs to a syslog server](syslog.md) — optional syslog output (RFC 5424) forwarded to a SIEM/rsyslog/Zabbix.
 - [DSC Pull Server configuration](dscpull/configuration.md) — focused guide to the `dsc_pullserver` block: mutual TLS, secure secret generation, startup warnings.
 - [DSC Pull Server documentation](dscpull/README.md)
 - [WEB UI documentation](webui/README.md)

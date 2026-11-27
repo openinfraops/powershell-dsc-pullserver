@@ -29,8 +29,20 @@ func currentLogPath() (string, error) {
     return filepath.Join(filepath.Dir(exePath), "dsc-pull-server.log"), nil
 }
 
-// WriteLogFile écrit un message dans un fichier de log à côté du binaire
+// WriteLogFile écrit un message dans le fichier de log local (à côté du binaire)
+// puis le transmet à syslog (si activé). L'envoi syslog est non bloquant : un
+// serveur syslog lent ou injoignable n'affecte jamais l'écriture locale ni les
+// requêtes.
 func WriteLogFile(message string) error {
+	err := writeFileLine(message)
+	enqueueSyslogFromMessage(message)
+	return err
+}
+
+// writeFileLine écrit une ligne dans le fichier de log local sans renvoyer vers
+// syslog. Utilisé par WriteLogFile et par les avertissements internes syslog
+// (pour éviter toute boucle de ré-injection).
+func writeFileLine(message string) error {
 	logMu.Lock()
 	defer logMu.Unlock()
 

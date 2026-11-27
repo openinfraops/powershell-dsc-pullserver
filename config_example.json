@@ -51,5 +51,17 @@
     "read_timeout_seconds": 120,
     "write_timeout_seconds": 180,
     "idle_timeout_seconds": 120
+  },
+  "syslog": {
+    "enabled": false,
+    "network": "tcp+tls",
+    "address": "syslog.example.local:6514",
+    "facility": "local0",
+    "app_name": "dsc-pull-server",
+    "min_level": "info",
+    "ca_file": "",
+    "client_cert_file": "",
+    "client_key_file": "",
+    "insecure_skip_verify": false
   }
 }

@@ -11,19 +11,24 @@ import (
 	"go-dsc-pull/utils"
 	"go-dsc-pull/internal/schema"
 	"go-dsc-pull/internal"
+	"go-dsc-pull/internal/logs"
 	 _ "modernc.org/sqlite"
 	 _ "github.com/denisenkom/go-mssqldb"
 )
 
 // Insert an audit entry (generic)
 func InsertAudit(db *sql.DB, driverName string, userEmail, action, target, details, ip string) error {
+	var err error
 	if driverName == "mssql" || driverName == "sqlserver" {
-		_, err := db.Exec("INSERT INTO audit (user_email, action, target, details, ip_address, created_at) VALUES (?, ?, ?, ?, ?, "+NowExpr(driverName)+")",
+		_, err = db.Exec("INSERT INTO audit (user_email, action, target, details, ip_address, created_at) VALUES (?, ?, ?, ?, ?, "+NowExpr(driverName)+")",
 			userEmail, action, target, details, ip)
-		return err
+	} else {
+		_, err = db.Exec("INSERT INTO audit (user_email, action, target, details, ip_address, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+			userEmail, action, target, details, ip, time.Now().Format("2006-01-02 15:04:05"))
 	}
-	_, err := db.Exec("INSERT INTO audit (user_email, action, target, details, ip_address, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-		userEmail, action, target, details, ip, time.Now().Format("2006-01-02 15:04:05"))
+	// Fait suivre l'événement d'audit vers syslog (si activé) comme flux
+	// distinct, indépendamment du résultat de l'écriture en base.
+	logs.WriteAudit(userEmail, action, target, details, ip)
 	return err
 }
 
