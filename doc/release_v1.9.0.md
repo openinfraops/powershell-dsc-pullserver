@@ -2,7 +2,7 @@
 
 Date: 2026-11-27
 
-Minor release. This release adds a re-registration policy for persistent
+This release adds a re-registration policy for persistent
 nodes, enforces admin-only pre-enrollment and tag operations with full audit,
 forwards application logs and audit events to a syslog server, ships an
 opt-in scheduled index-maintenance task, and significantly extends the
@@ -10,6 +10,75 @@ Prometheus/Zabbix monitoring (database connection-pool gauges and per-scheduled
 task discovery + status alerting). It also fixes the configuration-version
 pruning foreign-key failure on MSSQL and a nil-database panic in the async
 node recompile path, and translates the console UI to English.
+
+## What's new
+
+### Node re-registration (persistence policy) — #87
+
+Nodes can be marked **persistent**. A global `dsc_settings.reregistration_mode`
+governs what happens when a persistent node re-registers with a different
+identity (new certificate, machine re-image):
+
+- `deny` (default) — rejected.
+- `approval` — held for an admin to approve.
+- `window` — accepted only while an admin-opened window is still open.
+- `proof` — accepted only if the incoming certificate thumbprint matches the
+  previously enrolled one.
+- `allow` — always accepted.
+
+New admin endpoints: `PUT /api/v1/agents/{id}/persistent`,
+`POST /api/v1/agents/{id}/approve-reregistration`,
+`POST /api/v1/agents/{id}/reregistration-window`.
+
+### Security hardening + audit
+
+- `POST /api/v1/agents/preenroll` is now **admin-only** (server-enforced). Auth
+  tightening — a client using a `user`-role token must switch to an admin token.
+- Every tag change and every pre-enrollment is now **audited** (before/after
+  value, actor, source IP).
+- **Registration identity audit**: `agent.overwrite` (same `agent_id`, different
+  thumbprint) and `agent.collision` (same `node_name`, second active identity).
+- New **node modification history** panel on the node detail page
+  (`GET /api/v1/agents/{id}/audit`).
+
+### Logging
+
+- Optional **syslog forwarding** (RFC 5424, UDP/TCP/TLS) for application logs and
+  audit events, disabled by default so existing installs are unaffected.
+
+### Database maintenance
+
+- **Scheduled index-maintenance task** (1×/day, opt-in): SQLite
+  `PRAGMA optimize` + `REINDEX` (+ optional `VACUUM`), MSSQL online
+  `REORGANIZE` (never `REBUILD`).
+- **`idx_agents_certificate_thumbprint` index** — much faster
+  certificate-thumbprint lookup in the DSC middleware (#73).
+
+### Monitoring
+
+- `/metrics` exposes the **DB connection pool** (`dsc_db_pool_*`) and
+  **error groups** (`dsc_error_groups*`).
+- The **Zabbix 7.0 template** now supervises **scheduled tasks** (per-task
+  discovery + alert on an `error` status) and the **DB pool** (triggers for
+  exhausted / waiting / saturated). Bundled in the release zip.
+
+### Configuration & reliability
+
+- `config.json` is resolved **next to the executable** (works as a Windows
+  service launched from `System32`) with an `--config` / `DSC_CONFIG` override.
+- **Configurable HTTP server timeouts** per server block.
+- **Clean shutdown** instead of `os.Exit(1)` on listener errors (fixes the
+  port-in-use case).
+- Fix: the configuration-version prune no longer violates the `previous_id`
+  foreign key on MSSQL.
+
+### UI
+
+- **Console translated to English** (no more FR/EN mix).
+
+### CI
+
+- Workflows now run with **read-only permissions** (#15).
 
 ## API changes
 
