@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"go-dsc-pull/internal/auth"
 	"go-dsc-pull/internal/db"
 	"go-dsc-pull/internal/global"
 	"go-dsc-pull/internal/logs"
@@ -84,6 +85,13 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	// Vérifie si NodeName existe avec un AgentId TEMP
 	var tempAgentId string
 	err = database.QueryRow(`SELECT agent_id FROM agents WHERE node_name = ? AND agent_id LIKE 'TEMP-%' AND deleted_at IS NULL`, nodeName).Scan(&tempAgentId)
+	// Avant d'écraser l'identité (upsert / migration TEMP), on trace les
+	// écrasements d'identité et les collisions de nom : ancienne/nouvelle
+	// empreinte, IP, politique d'enregistrement, acteur. L'ancienne empreinte est
+	// lue dans l'état pré-modification.
+	ip := auth.ClientIP(r, global.AppConfig.WebUI.TrustedProxies)
+	detectAndAuditIdentityChange(database, driver, agentId, nodeName, thumbprint, registrationType, ip, isNewNode, tempAgentId)
+
 	if err == nil && tempAgentId != "" {
 		// Migration TEMP → réel.
 		// SQL Server interdit de modifier la PK agents.agent_id lorsqu'une table

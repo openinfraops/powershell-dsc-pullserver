@@ -33,6 +33,15 @@ output is enabled (`MSGID = AUDIT`, structured data `audit@48577`).
 > previous value(s) and the new value (for the tag key, e.g. `environment`),
 > along with the actor and source IP. Other changes only describe the resulting
 > state in prose.
+>
+> **Identity overwrites.** At node registration, if an existing `agent_id`
+> re-registers with a **different certificate thumbprint** — a renewal, a bad
+> clone or a takeover — an `agent.overwrite` entry records the old and new
+> thumbprint, the node name, the registration type (policy used) and the source
+> IP. If a `node_name` is claimed by a **second live identity** (different
+> `agent_id`, different thumbprint, still active within a 5-minute window) an
+> `agent.collision` entry is recorded instead of silently accepting the
+> overwrite. Both entries use the node itself as the actor (`node:<agent_id>`).
 
 ---
 
@@ -50,6 +59,8 @@ output is enabled (`MSGID = AUDIT`, structured data `audit@48577`).
 | Agent pre-enrollment (admin, with tags)             | `preenroll`                            | `agent`              |
 | Agent tag set (single or bulk)                      | `tag.set`                              | `agent`              |
 | Agent tag delete (single value or all)              | `tag.delete`                           | `agent`              |
+| Agent identity overwrite at registration            | `agent.overwrite`                      | `agent`              |
+| Agent node-name collision at registration           | `agent.collision`                      | `agent`              |
 | Agent trash / restore                              | `trash` / `restore`                    | `agent`              |
 | Bulk agent trash / restore                         | `trash` / `restore`                    | `agent`              |
 | SAML configuration update                          | `update`                               | `saml_config`        |
