@@ -5,17 +5,16 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strconv"
 	"time"
 
+	"go-dsc-pull/internal"
 	"go-dsc-pull/internal/buildinfo"
 	"go-dsc-pull/internal/db"
 	"go-dsc-pull/internal/global"
 	"go-dsc-pull/internal/logs"
 	"go-dsc-pull/internal/schema"
 	"go-dsc-pull/internal/service"
-	"go-dsc-pull/utils"
 )
 
 const (
@@ -141,11 +140,7 @@ type SchedulerConfigDTO struct {
 }
 
 func resolveConfigPath() (string, error) {
-	exeDir, err := utils.ExePath()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(filepath.Dir(exeDir), "config.json"), nil
+	return internal.ConfigFilePath("config.json")
 }
 
 func schedulerActorEmail(r *http.Request) string {

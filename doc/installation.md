@@ -65,6 +65,15 @@ The server is a single self-contained **Go** executable (no Go runtime required 
    - The command reads `config.json`, initializes the database schema if needed (requires the `db/` directory next to the executable), creates the `admin@localhost` account (role `admin`) **only if no user exists**, and prints a **single-use 30-character random password** on the console.
    - Store this password securely and change it after the first login. Re-running the command **refuses to overwrite** an existing account.
 
+> **Configuration file location.** `config.json` is resolved **next to the executable**, so it is found regardless of the process working directory (the Windows SCM starts the service in `System32`). Override the location with the `--config <path>` flag or the `DSC_CONFIG` environment variable:
+>
+> ```sh
+> ./DSC-Admin-Console.exe --config C:\shared\dsc\config.json
+> ./DSC-Admin-Console.exe --config C:\shared\dsc\config.json init-bootstrap-admin
+> ```
+>
+> An absolute `--config` path is used as-is; a relative one is resolved next to the executable.
+
 5. **Deploy the server (install as a Windows service):**
    - The recommended deployment is as a **Windows service** so it starts automatically and runs in the background. The provided script installs the files, the registry, the service and the "Add/Remove Programs" entries:
      ```sh

@@ -64,6 +64,7 @@ To install or update on Windows, use the provided scripts (run as Administrator)
 Then:
 
 - Edit `config.json` (database, SAML, web UI, DSC settings) — use [`config_example.json`](config_example.json) as a starting point.
+  - `config.json` is resolved **next to the executable**, so it is found regardless of the working directory (important for a Windows service, which the SCM starts in `System32`). Override the location with the `--config <path>` flag (`DSC-Admin-Console.exe --config C:\shared\config.json`) or the `DSC_CONFIG` environment variable; a relative `--config` path is resolved next to the executable too, and an absolute path is used as-is.
 - Bootstrap the initial admin account: `DSC-Admin-Console.exe init-bootstrap-admin`.
 - See the full [installation guide](doc/installation.md) and [configuration reference](doc/Configuration.md).
 

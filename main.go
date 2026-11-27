@@ -52,15 +52,62 @@ func httpServerTimeouts(cfg schema.HTTPConfig) (readHeader, read, write, idle ti
 	return readHeader, read, write, idle
 }
 
+// configPathFromArgs extrait la valeur du flag --config/-config de la ligne
+// de commande (formes "--config <path>" et "--config=<path>"). S'il est
+// absent, retourne "".
+func configPathFromArgs(args []string) string {
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--config" || a == "-config":
+			if i+1 < len(args) {
+				return args[i+1]
+			}
+		case strings.HasPrefix(a, "--config="):
+			return strings.TrimPrefix(a, "--config=")
+		case strings.HasPrefix(a, "-config="):
+			return strings.TrimPrefix(a, "-config=")
+		}
+	}
+	return ""
+}
+
+// hasSubcommand indique si la ligne de commande contient la sous-commande
+// donnée. Les tirets de tête sont ignorés (--init-bootstrap-admin et
+// init-bootstrap-admin sont équivalents) et la valeur d'un flag --config est
+// ignorée pour ne pas la confondre avec une sous-commande.
+func hasSubcommand(args []string, cmd string) bool {
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if a == "--config" || a == "-config" {
+			i++ // saute la valeur du flag
+			continue
+		}
+		if strings.HasPrefix(a, "--config=") || strings.HasPrefix(a, "-config=") {
+			continue
+		}
+		if strings.TrimLeft(a, "-") == cmd {
+			return true
+		}
+	}
+	return false
+}
+
 func main() {
+
+	// L'emplacement du fichier de configuration peut être surchargé par
+	// --config/-config (chemin absolu ou relatif) ou par la variable
+	// d'environnement DSC_CONFIG. Sans surcharge, config.json est résolu à
+	// côté de l'exécutable, indépendamment du répertoire de travail (ce qui
+	// importe pour un service Windows démarré depuis System32).
+	if cfgPath := configPathFromArgs(os.Args); cfgPath != "" {
+		internal.SetConfigFile(cfgPath)
+	}
 
 	// Mode CLI : crÃ©ation du compte administrateur initial en local, avec un
 	// mot de passe alÃ©atoire. InterceptÃ© avant le dÃ©marrage du serveur / service.
-	if len(os.Args) > 1 {
-		switch strings.TrimLeft(os.Args[1], "-") {
-		case "init-bootstrap-admin":
-			os.Exit(runInitBootstrapAdmin())
-		}
+	if hasSubcommand(os.Args, "init-bootstrap-admin") {
+		os.Exit(runInitBootstrapAdmin())
 	}
 
 	runApp := func(ctx context.Context) error {
