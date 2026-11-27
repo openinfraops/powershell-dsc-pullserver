@@ -193,5 +193,5 @@ stream (`[audit@48577 …]`) into a security analytics platform.
 
 ## See also
 
-- [Configuration reference](../Configuration.md) for the full `config.json` guide.
+- [Configuration reference](Configuration.md) for the full `config.json` guide.
 - [DSC Pull Server configuration](dscpull/configuration.md).
