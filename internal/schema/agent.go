@@ -37,4 +37,11 @@ type Agent struct {
 	RebootRequestCount int     `json:"reboot_request_count"`
 	DeletedAt          *string `json:"deleted_at,omitempty"`
 	DeletedBy          *string `json:"deleted_by,omitempty"`
+	// Persistent indique un nœud persistant soumis à la politique de
+	// ré-enregistrement (#87). Un tel nœud ne peut pas être ré-enregistré
+	// sans respecter le mode configuré (deny/approval/proof/window/allow).
+	Persistent bool `json:"persistent"`
+	// ReregistrationWindowUntil est la borne limite (UTC) d'une fenêtre de
+	// ré-enregistrement ouverte par un admin (mode window de #87).
+	ReregistrationWindowUntil *string `json:"reregistration_window_until,omitempty"`
 }

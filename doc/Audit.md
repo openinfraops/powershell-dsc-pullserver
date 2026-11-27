@@ -42,6 +42,15 @@ output is enabled (`MSGID = AUDIT`, structured data `audit@48577`).
 > `agent_id`, different thumbprint, still active within a 5-minute window) an
 > `agent.collision` entry is recorded instead of silently accepting the
 > overwrite. Both entries use the node itself as the actor (`node:<agent_id>`).
+>
+> **Re-registration policy (#87).** Every re-registration attempt of a
+> **persistent** node that is subject to the policy is recorded as an
+> `agent.reregistration` entry (actor `node:<agent_id>`) with the old and new
+> certificate thumbprint, the source IP, the mode and the outcome
+> (`allowed` / `denied` / `pending` / `proof_ok` / `proof_failed` /
+> `window_open` / `window_closed`). The admin actions that configure the policy
+> are audited with the admin as actor (`agent.persistent`,
+> `agent.approve_reregistration`, `agent.reregistration_window`).
 
 ---
 
@@ -61,6 +70,10 @@ output is enabled (`MSGID = AUDIT`, structured data `audit@48577`).
 | Agent tag delete (single value or all)              | `tag.delete`                           | `agent`              |
 | Agent identity overwrite at registration            | `agent.overwrite`                      | `agent`              |
 | Agent node-name collision at registration           | `agent.collision`                      | `agent`              |
+| Agent re-registration attempt (persistent node, #87) | `agent.reregistration`                | `agent`              |
+| Agent set persistent flag (admin)                   | `agent.persistent`                     | `agent`              |
+| Agent approve re-registration (admin)               | `agent.approve_reregistration`         | `agent`              |
+| Agent open re-registration window (admin)           | `agent.reregistration_window`          | `agent`              |
 | Agent trash / restore                              | `trash` / `restore`                    | `agent`              |
 | Bulk agent trash / restore                         | `trash` / `restore`                    | `agent`              |
 | SAML configuration update                          | `update`                               | `saml_config`        |

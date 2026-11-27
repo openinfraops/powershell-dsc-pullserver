@@ -124,6 +124,7 @@ CREATE TABLE IF NOT EXISTS dsc_settings (
     certificate_rotation_enabled INTEGER NOT NULL DEFAULT 0,
     certificate_renewal_days INTEGER NOT NULL DEFAULT 30,
     legacy_imported INTEGER NOT NULL DEFAULT 0,
+    reregistration_mode TEXT NOT NULL DEFAULT 'deny',
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 INSERT OR IGNORE INTO dsc_settings (id, certificate_rotation_enabled, certificate_renewal_days, legacy_imported) VALUES (1, 0, 30, 1);
@@ -166,7 +167,9 @@ CREATE TABLE IF NOT EXISTS agents (
     reboot_pending_since TIMESTAMP NULL,
     reboot_requested_by TEXT NULL,
     reboot_loop INTEGER DEFAULT 0,
-    reboot_request_count INTEGER DEFAULT 0
+    reboot_request_count INTEGER DEFAULT 0,
+    persistent INTEGER DEFAULT 0,
+    reregistration_window_until TIMESTAMP NULL
 );
 -- Migration : ajout de la colonne has_error_last_report si besoin
 -- N'exécuter que si la version de la db est antérieure à 0.0.3

@@ -93,6 +93,7 @@ Both JWT and API tokens grant access to the API according to the user's permissi
 	- `has_error_last_report=true|false`: filter by last report error status.
 	- `reboot_pending=true|false`: filter by whether the node currently has a reboot pending.
 	- `reboot_loop=true`: filter by whether the node is flagged in a reboot loop.
+	- `persistent=true|false`: filter by whether the node is marked persistent (re-registration policy, #87).
 	- `tag=key:value`: filter by tag.
 	- Repeat `tag` multiple times to require all tags with `AND` semantics, for example: `/api/v1/agents?tag=env:prod&tag=role:web`.
 - Response objects may include `tags`, returned as a map of tag keys to arrays of values.
@@ -115,12 +116,32 @@ Both JWT and API tokens grant access to the API according to the user's permissi
 - Response may include `tags`, returned as a map of tag keys to arrays of values.
 - Response also includes `force_cert_rotation` (boolean) — set when an admin has requested an ASAP certificate renewal.
 - Response includes the derived reboot state of the node (`reboot_pending`, `reboot_pending_since`, `reboot_requested_by`, `reboot_loop`, `reboot_request_count`) — see the same fields under `GET /api/v1/agents`.
+- Response includes the re-registration policy fields (#87):
+	- `persistent` (boolean): whether the node is pinned and subject to the re-registration policy.
+	- `reregistration_window_until` (string, optional): the limit (UTC, RFC3339) of an admin-opened re-registration window (`window` mode).
 
 ### POST `/api/v1/agents/{id}/rotate-certificate`
 - **Admin only.** Ask the node to rotate its client certificate on its **next** cycle (sets `agents.force_cert_rotation` to `1`). The server then emits `DSC-certificateRotation: True` on the node's next pull, even outside the renewal window and even if the global certificate-rotation setting is off.
 
 ### DELETE `/api/v1/agents/{id}/rotate-certificate`
 - **Admin only.** Cancel a pending ASAP certificate-renewal request (clears `agents.force_cert_rotation`).
+
+### PUT `/api/v1/agents/{id}/persistent`
+- **Admin only.** Mark / unmark a node as **persistent** (sets `agents.persistent`), which subjects it to the re-registration policy (#87).
+- Request body: `{ "persistent": true|false }`.
+- Unmarking (`false`) also clears any open re-registration window on the node.
+- Audited (actor, source IP) with the `agent.persistent` action.
+
+### POST `/api/v1/agents/{id}/approve-reregistration`
+- **Admin only.** Approve a persistent node's pending re-registration (#87). Lifts the `pending_reregistration` state (back to `pending_apply`), marks the node `needs_recompile`, triggers an asynchronous recompile and re-serves its configuration.
+- Returns `404` when the node is not currently in `pending_reregistration`.
+- Audited (actor, source IP) with the `agent.approve_reregistration` action.
+
+### POST `/api/v1/agents/{id}/reregistration-window`
+- **Admin only.** Open a temporary re-registration window for a persistent node (`window` mode, #87), used to allow a one-off re-registration without permanently switching the policy to `allow`.
+- Body: `{ "hours": N }` (from now) **or** `{ "until": "RFC3339" }` (absolute limit). Exactly one is required.
+- Sets `agents.reregistration_window_until`; a re-registration is accepted while `now <=` that limit.
+- Audited (actor, source IP) with the `agent.reregistration_window` action.
 
 ### GET `/api/v1/agents/{id}/configs`
 - List configs assigned to the agent.
@@ -171,15 +192,16 @@ Both JWT and API tokens grant access to the API according to the user's permissi
 
 ### GET `/api/v1/dsc/settings`
 - **Admin only.** Read the current DSC settings stored in the `dsc_settings` table (single row `id=1`).
-- Response: `{ "certificate_rotation_enabled": boolean, "certificate_renewal_days": int }`.
+- Response: `{ "certificate_rotation_enabled": boolean, "certificate_renewal_days": int, "reregistration_mode": string }`.
 
 ### PUT `/api/v1/dsc/settings`
 - **Admin only.** Update the DSC settings.
-- Body: `{ "certificate_rotation_enabled": boolean, "certificate_renewal_days": int }`.
+- Body: `{ "certificate_rotation_enabled": boolean, "certificate_renewal_days": int, "reregistration_mode": string }`.
 - `certificate_renewal_days` must be `> 0` (otherwise `400`).
+- `reregistration_mode` must be one of `deny`, `approval`, `proof`, `window`, `allow` (otherwise `400`).
 - Stored in the database — **no service restart required**.
 
-> **Scope:** these two settings control server-initiated certificate rotation. `certificate_rotation_enabled` (default `false`) turns on the `DSC-certificateRotation: True` response header for nodes whose certificate is inside the renewal window; `certificate_renewal_days` (default `30`) is that window in days before `certificate_notafter`. See [DSC Security](dscpull/security.md) and [Configuration](dscpull/configuration.md).
+> **Scope:** these settings control server-initiated certificate rotation and the re-registration policy. `certificate_rotation_enabled` (default `false`) turns on the `DSC-certificateRotation: True` response header for nodes whose certificate is inside the renewal window; `certificate_renewal_days` (default `30`) is that window in days before `certificate_notafter`. `reregistration_mode` (default `deny`) gates re-registration of **persistent** nodes (#87) — see [Re-registration policy for persistent nodes](dscpull/security.md#re-registration-policy-for-persistent-nodes) and [Configuration](dscpull/configuration.md).
 
 ---
 

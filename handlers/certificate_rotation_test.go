@@ -83,6 +83,7 @@ func setupDscSettingsDB(database *sql.DB, enabled bool) error {
 		certificate_rotation_enabled INTEGER NOT NULL DEFAULT 0,
 		certificate_renewal_days INTEGER NOT NULL DEFAULT 30,
 		legacy_imported INTEGER NOT NULL DEFAULT 0,
+		reregistration_mode TEXT NOT NULL DEFAULT 'deny',
 		updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)`); err != nil {
 		return err
 	}

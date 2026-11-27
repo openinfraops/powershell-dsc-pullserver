@@ -42,7 +42,9 @@ func setupAgentsDB(t *testing.T) *sql.DB {
 		reboot_pending_since TIMESTAMP NULL,
 		reboot_requested_by TEXT NULL,
 		reboot_loop INTEGER DEFAULT 0,
-		reboot_request_count INTEGER DEFAULT 0
+		reboot_request_count INTEGER DEFAULT 0,
+		persistent INTEGER DEFAULT 0,
+		reregistration_window_until TIMESTAMP NULL
 	)`)
 	if err != nil {
 		t.Fatalf("create agents table: %v", err)

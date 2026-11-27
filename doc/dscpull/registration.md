@@ -106,6 +106,8 @@ The node's certificate information (thumbprint, subject, issuer, `notBefore`/`no
 > - A **new** agent (first enrollment) is **inserted** with `state = pending_apply`.
 > - An **already-registered** agent (e.g. certificate renewal) is **updated in place**: `node_name`, `lcm_version`, `registration_type` and the certificate fields (`certificate_thumbprint`, `certificate_subject`, `certificate_issuer`, `certificate_notbefore`, `certificate_notafter`) are refreshed, while `state`, `last_communication`, `has_error_last_report`, `needs_recompile` and `registered_at` are preserved.
 
+> **Persistent nodes are gated.** A node marked **persistent** (`agents.persistent = 1`, set via the admin API `PUT /api/v1/agents/{id}/persistent`) is subject to the re-registration policy (`dsc_settings.reregistration_mode`, default `deny`) on re-registration: depending on the mode the re-registration is **rejected** (`deny`), **held for admin approval** (`approval`, node config not served until approved), **accepted only with the same certificate** (`proof`), **accepted only within an admin-opened window** (`window`), or **unconditionally accepted** (`allow`). New enrollments, non-persistent nodes and `TEMP-*` migrations are not gated. See [Security](security.md#re-registration-policy-for-persistent-nodes).
+
 4. **Successful registration:**
 - Upon successful registration, the agent will appear in the web interface and can receive configurations.
 

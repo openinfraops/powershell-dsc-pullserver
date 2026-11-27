@@ -151,8 +151,11 @@ Some DSC behaviour is **not** configured in `config.json` but in the **`dsc_sett
 |---|---|---|
 | `certificate_rotation_enabled` | `0` (`false`) | Enables server-initiated certificate rotation (`DSC-certificateRotation: True` header). **Opt-in.** |
 | `certificate_renewal_days` | `30` | Renewal window in days before certificate expiration at which the server solicits rotation. |
+| `reregistration_mode` | `deny` | Re-registration policy for **persistent** nodes (`#87`): `deny`, `approval`, `proof`, `window`, `allow`. |
 
 In addition, a **per-node** override exists regardless of these settings: an admin can request an ASAP renewal for a specific node from the node page (or `POST` / `DELETE /api/v1/agents/{id}/rotate-certificate`), which sets `agents.force_cert_rotation`. See [Security](security.md).
+
+> **Persistent nodes.** A node is marked **persistent** via the admin API `PUT /api/v1/agents/{id}/persistent` (sets `agents.persistent`). Only persistent nodes are subject to the `reregistration_mode` policy at re-registration; new enrollments, non-persistent nodes and `TEMP-*` migrations bypass it. See [Re-registration policy for persistent nodes](security.md#re-registration-policy-for-persistent-nodes).
 
 ### Reading / setting the renewal window
 
@@ -161,16 +164,16 @@ In addition, a **per-node** override exists regardless of these settings: an adm
 ```bash
 # Read current settings
 curl -k -H "Authorization: Bearer <jwt>" https://dsc-console:443/api/v1/dsc/settings
-# {"certificate_rotation_enabled":true,"certificate_renewal_days":30}
+# {"certificate_rotation_enabled":true,"certificate_renewal_days":30,"reregistration_mode":"deny"}
 
-# Enable rotation and widen the window to 45 days
+# Enable rotation, widen the window to 45 days and switch the re-registration policy to "proof"
 curl -k -X PUT -H "Authorization: Bearer <jwt>" \
   -H "Content-Type: application/json" \
-  -d '{"certificate_rotation_enabled":true,"certificate_renewal_days":45}' \
+  -d '{"certificate_rotation_enabled":true,"certificate_renewal_days":45,"reregistration_mode":"proof"}' \
   https://dsc-console:443/api/v1/dsc/settings
 ```
 
-> There is **no admin UI page** for these two settings yet; they are configured through the admin API `GET`/`PUT /api/v1/dsc/settings` (admin-only, `jwtAuthMiddleware + adminOnly`). The per-node "renew now" button (which sets `force_cert_rotation`) is on the node detail page.
+> There is **no admin UI page** for these settings yet; they are configured through the admin API `GET`/`PUT /api/v1/dsc/settings` (admin-only, `jwtAuthMiddleware + adminOnly`). The per-node "renew now" button (which sets `force_cert_rotation`) is on the node detail page.
 
 See [Security](security.md) for the certificate-renewal "when", and [MS-DSCPM protocol implementation state](protocol-implementation.md) for the `CertificateRotation` / `GetReports` endpoints.
 

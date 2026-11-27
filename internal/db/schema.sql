@@ -72,7 +72,9 @@ CREATE TABLE IF NOT EXISTS agents (
     needs_recompile INTEGER DEFAULT 0,
     deleted_at TIMESTAMP NULL,
     deleted_by TEXT NULL,
-    state TEXT
+    state TEXT,
+    persistent INTEGER DEFAULT 0,
+    reregistration_window_until TIMESTAMP NULL
 );
 -- Migration : ajout de la colonne has_error_last_report si besoin
 -- N'exécuter que si la version de la db est antérieure à 0.0.3

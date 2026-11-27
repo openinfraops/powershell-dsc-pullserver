@@ -171,6 +171,7 @@ CREATE TABLE dsc_settings (
     certificate_rotation_enabled BIT NOT NULL DEFAULT 0,
     certificate_renewal_days INT NOT NULL DEFAULT 30,
     legacy_imported BIT NOT NULL DEFAULT 0,
+    reregistration_mode NVARCHAR(20) NOT NULL DEFAULT 'deny',
     updated_at DATETIME NOT NULL DEFAULT GETUTCDATE()
 );
 IF NOT EXISTS (SELECT 1 FROM dsc_settings WHERE id = 1)
@@ -219,7 +220,9 @@ CREATE TABLE agents (
     reboot_pending_since DATETIME NULL,
     reboot_requested_by NVARCHAR(200) NULL,
     reboot_loop BIT NOT NULL DEFAULT 0,
-    reboot_request_count INT NOT NULL DEFAULT 0
+    reboot_request_count INT NOT NULL DEFAULT 0,
+    persistent BIT NOT NULL DEFAULT 0,
+    reregistration_window_until DATETIME NULL
 );
 
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='agent_configurations' AND xtype='U')

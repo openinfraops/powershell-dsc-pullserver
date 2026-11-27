@@ -95,12 +95,19 @@ func GetAgentsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Filtrage dynamique
-	q := `SELECT agent_id, node_name, lcm_version, registration_type, certificate_thumbprint, certificate_subject, certificate_issuer, certificate_notbefore, certificate_notafter, registered_at, last_communication, has_error_last_report, needs_recompile, state, reboot_pending, reboot_pending_since, reboot_requested_by, reboot_loop, reboot_request_count, deleted_at, deleted_by FROM agents WHERE 1=1`
+	q := `SELECT agent_id, node_name, lcm_version, registration_type, certificate_thumbprint, certificate_subject, certificate_issuer, certificate_notbefore, certificate_notafter, registered_at, last_communication, has_error_last_report, needs_recompile, state, reboot_pending, reboot_pending_since, reboot_requested_by, reboot_loop, reboot_request_count, deleted_at, deleted_by, persistent FROM agents WHERE 1=1`
 	args := []interface{}{}
 	nodeName := r.URL.Query().Get("node_name")
 	if nodeName != "" {
 		q += " AND node_name = ?"
 		args = append(args, nodeName)
+	}
+	// Filtre nœuds persistants : ?persistent=true|false.
+	switch r.URL.Query().Get("persistent") {
+	case "true":
+		q += " AND persistent = 1"
+	case "false":
+		q += " AND persistent = 0"
 	}
 	// Filtre corbeille : ?deleted=true liste les nœuds supprimés, sinon nœuds actifs.
 	if r.URL.Query().Get("deleted") == "true" {
@@ -146,10 +153,10 @@ func GetAgentsHandler(w http.ResponseWriter, r *http.Request) {
 		var lcmVersion, registrationType, certificateThumbprint, certificateSubject, certificateIssuer, certificateNotBefore, certificateNotAfter, registeredAt, lastCommunication, state, deletedAt, deletedBy *string
 		var hasErrorBool bool
 		var needsRecompileBool bool
-		var rebootPendingBool, rebootLoopBool bool
+		var rebootPendingBool, rebootLoopBool, persistentBool bool
 		var rebootPendingSince, rebootRequestedBy *string
 		var rebootRequestCount int
-		if err := rows.Scan(&a.AgentId, &a.NodeName, &lcmVersion, &registrationType, &certificateThumbprint, &certificateSubject, &certificateIssuer, &certificateNotBefore, &certificateNotAfter, &registeredAt, &lastCommunication, &hasErrorBool, &needsRecompileBool, &state, &rebootPendingBool, &rebootPendingSince, &rebootRequestedBy, &rebootLoopBool, &rebootRequestCount, &deletedAt, &deletedBy); err == nil {
+		if err := rows.Scan(&a.AgentId, &a.NodeName, &lcmVersion, &registrationType, &certificateThumbprint, &certificateSubject, &certificateIssuer, &certificateNotBefore, &certificateNotAfter, &registeredAt, &lastCommunication, &hasErrorBool, &needsRecompileBool, &state, &rebootPendingBool, &rebootPendingSince, &rebootRequestedBy, &rebootLoopBool, &rebootRequestCount, &deletedAt, &deletedBy, &persistentBool); err == nil {
 			// Pour DataTables, renvoyer les champs attendus même vides
 			empty := ""
 			a.LCMVersion = lcmVersion
@@ -197,6 +204,7 @@ func GetAgentsHandler(w http.ResponseWriter, r *http.Request) {
 			a.RebootRequestedBy = rebootRequestedBy
 			a.RebootLoop = rebootLoopBool
 			a.RebootRequestCount = rebootRequestCount
+			a.Persistent = persistentBool
 			a.DeletedAt = deletedAt
 			a.DeletedBy = deletedBy
 			tags, tagErr := db.GetAgentTags(database, a.AgentId)

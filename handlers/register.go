@@ -92,6 +92,18 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	ip := auth.ClientIP(r, global.AppConfig.WebUI.TrustedProxies)
 	detectAndAuditIdentityChange(database, driver, agentId, nodeName, thumbprint, registrationType, ip, isNewNode, tempAgentId)
 
+	// Politique de ré-enregistrement des nœuds persistants (#87) : le verdict est
+	// calculé AVANT l'upsert pour lire l'ancienne empreinte dans son état
+	// pré-modification. Un rejet stoppe l'enregistrement ; un passage en
+	// 'pending_reregistration' bloque le service de la configuration tant qu'un
+	// admin n'a pas approuvé.
+	dec := applyReregistrationPolicy(database, driver, agentId, nodeName, thumbprint, ip, isNewNode, tempAgentId)
+	if dec.action == reregReject {
+		logs.WriteLogFile(fmt.Sprintf("[REREGISTRATION] Rejected re-registration of persistent node agent_id=%s node_name=%s (mode=%s)", agentId, nodeName, dec.mode))
+		http.Error(w, "Forbidden: re-registration of this persistent node is rejected by policy", http.StatusForbidden)
+		return
+	}
+
 	if err == nil && tempAgentId != "" {
 		// Migration TEMP → réel.
 		// SQL Server interdit de modifier la PK agents.agent_id lorsqu'une table
@@ -109,6 +121,15 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		err = upsertAgent(database, driver, agentId, nodeName, lcmVersion, registrationType, thumbprint, subject, issuer, notbefore, notafter, pubKey, keyAlgo, isNewNode)
 		if err != nil {
 			logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][DB] Error upserting agent: %v", err))
+		} else if dec.action == reregPending {
+			// Mode approval (#87) : le nœud persistant ré-enregistré passe en
+			// attente d'approbation. La configuration n'est plus servie tant
+			// qu'un admin n'a pas validé le ré-enregistrement.
+			if stateErr := db.SetAgentState(database, driver, agentId, "pending_reregistration"); stateErr != nil {
+				logs.WriteLogFile(fmt.Sprintf("[ERROR][REGISTER][DB] Error setting pending_reregistration state: %v", stateErr))
+			} else {
+				logs.WriteLogFile(fmt.Sprintf("[REREGISTRATION] Persistent node agent_id=%s set to pending_reregistration (mode=approval)", agentId))
+			}
 		}
 	}
 

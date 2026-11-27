@@ -29,6 +29,7 @@ type agentDTRow struct {
 	RebootRequestedBy     *string `json:"reboot_requested_by,omitempty"`
 	RebootLoop            bool    `json:"reboot_loop"`
 	RebootRequestCount    int     `json:"reboot_request_count"`
+	Persistent            bool    `json:"persistent"`
 	DeletedAt             *string `json:"deleted_at,omitempty"`
 	DeletedBy             *string `json:"deleted_by,omitempty"`
 }
@@ -155,6 +156,14 @@ func ListAgentsDataTableHandler(w http.ResponseWriter, r *http.Request) {
 		where += " AND reboot_loop = 1"
 	}
 
+	// Filtre nœuds persistants : ?persistent=true|false.
+	switch r.URL.Query().Get("persistent") {
+	case "true":
+		where += " AND persistent = 1"
+	case "false":
+		where += " AND persistent = 0"
+	}
+
 	for _, rawTag := range r.URL.Query()["tag"] {
 		tagKey, tagValue, found := strings.Cut(rawTag, ":")
 		if !found || tagKey == "" || tagValue == "" {
@@ -215,7 +224,7 @@ func ListAgentsDataTableHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	query := "SELECT agent_id, node_name, lcm_version, registration_type, state, certificate_thumbprint, certificate_notafter, last_communication, has_error_last_report, needs_recompile, reboot_pending, reboot_pending_since, reboot_requested_by, reboot_loop, reboot_request_count, deleted_at, deleted_by FROM agents" + where
+	query := "SELECT agent_id, node_name, lcm_version, registration_type, state, certificate_thumbprint, certificate_notafter, last_communication, has_error_last_report, needs_recompile, reboot_pending, reboot_pending_since, reboot_requested_by, reboot_loop, reboot_request_count, persistent, deleted_at, deleted_by FROM agents" + where
 	query += " ORDER BY " + orderCol + " " + orderDir
 
 	if isMSSQL {
@@ -240,9 +249,9 @@ func ListAgentsDataTableHandler(w http.ResponseWriter, r *http.Request) {
 		var row agentDTRow
 		var lcmVersion, registrationType, state, certThumb, certNotAfter, deletedAt, deletedBy *string
 		var rebootPendingSince, rebootRequestedBy *string
-		var hasErr, needsRecompile, rebootPending, rebootLoop bool
+		var hasErr, needsRecompile, rebootPending, rebootLoop, persistent bool
 		var rebootRequestCount int
-		if err := rows.Scan(&row.AgentID, &row.NodeName, &lcmVersion, &registrationType, &state, &certThumb, &certNotAfter, &row.LastCommunication, &hasErr, &needsRecompile, &rebootPending, &rebootPendingSince, &rebootRequestedBy, &rebootLoop, &rebootRequestCount, &deletedAt, &deletedBy); err != nil {
+		if err := rows.Scan(&row.AgentID, &row.NodeName, &lcmVersion, &registrationType, &state, &certThumb, &certNotAfter, &row.LastCommunication, &hasErr, &needsRecompile, &rebootPending, &rebootPendingSince, &rebootRequestedBy, &rebootLoop, &rebootRequestCount, &persistent, &deletedAt, &deletedBy); err != nil {
 			http.Error(w, "DB scan error", http.StatusInternalServerError)
 			return
 		}
@@ -258,6 +267,7 @@ func ListAgentsDataTableHandler(w http.ResponseWriter, r *http.Request) {
 		row.RebootRequestedBy = rebootRequestedBy
 		row.RebootLoop = rebootLoop
 		row.RebootRequestCount = rebootRequestCount
+		row.Persistent = persistent
 		row.DeletedAt = deletedAt
 		row.DeletedBy = deletedBy
 		data = append(data, row)

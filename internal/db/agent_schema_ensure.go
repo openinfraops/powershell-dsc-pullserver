@@ -23,6 +23,8 @@ func EnsureAgentSchema(database *sql.DB, driver string) error {
 			`IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'agents' AND COLUMN_NAME = 'reboot_requested_by') ALTER TABLE agents ADD reboot_requested_by NVARCHAR(200) NULL`,
 			`IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'agents' AND COLUMN_NAME = 'reboot_loop') ALTER TABLE agents ADD reboot_loop BIT NOT NULL DEFAULT 0`,
 			`IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'agents' AND COLUMN_NAME = 'reboot_request_count') ALTER TABLE agents ADD reboot_request_count INT NOT NULL DEFAULT 0`,
+			`IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'agents' AND COLUMN_NAME = 'persistent') ALTER TABLE agents ADD persistent BIT NOT NULL DEFAULT 0`,
+			`IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'agents' AND COLUMN_NAME = 'reregistration_window_until') ALTER TABLE agents ADD reregistration_window_until DATETIME NULL`,
 		} {
 			if _, err := database.Exec(stmt); err != nil {
 				return err
@@ -43,6 +45,8 @@ func EnsureAgentSchema(database *sql.DB, driver string) error {
 		`ALTER TABLE agents ADD COLUMN reboot_requested_by TEXT NULL`,
 		`ALTER TABLE agents ADD COLUMN reboot_loop INTEGER DEFAULT 0`,
 		`ALTER TABLE agents ADD COLUMN reboot_request_count INTEGER DEFAULT 0`,
+		`ALTER TABLE agents ADD COLUMN persistent INTEGER DEFAULT 0`,
+		`ALTER TABLE agents ADD COLUMN reregistration_window_until TIMESTAMP NULL`,
 	}
 	for _, stmt := range statements {
 		if _, err := database.Exec(stmt); err != nil {

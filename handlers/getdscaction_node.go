@@ -44,6 +44,19 @@ func GetDscActionNodeHandlerWithId(w http.ResponseWriter, r *http.Request, agent
 		}
 	}
 
+	// Un nœud persistant ré-enregistré en mode approval (#87) attend une
+	// approbation admin : on ne sert pas sa configuration (ni donc un secret
+	// par nœud) tant que l'état est 'pending_reregistration'.
+	var pendingRereg int
+	if database != nil {
+		_ = database.QueryRow(`SELECT COUNT(*) FROM agents WHERE agent_id = ? AND deleted_at IS NULL AND LOWER(COALESCE(state, '')) = 'pending_reregistration'`, agentId).Scan(&pendingRereg)
+		if pendingRereg > 0 {
+			log.Printf("[GETDSCACTION-NODE] agentId=%q is pending re-registration approval, configuration not served", agentId)
+			http.Error(w, "Configuration pending approval", http.StatusNotFound)
+			return
+		}
+	}
+
 	// Si une compilation est en cours pour ce nœud (enregistrement ou recompilation),
 	// on attend qu'elle se termine : la configuration doit être prête avant le pull.
 	var waitingNode string

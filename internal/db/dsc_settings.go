@@ -1,6 +1,10 @@
 package db
 
-import "database/sql"
+import (
+	"database/sql"
+
+	"go-dsc-pull/internal/logs"
+)
 
 // DscSettings regroupe les réglages du serveur DSC stockés en base (table
 // dsc_settings, mono-ligne id=1). Contrairement à la configuration du fichier
@@ -12,9 +16,12 @@ import "database/sql"
 //     certificat est dans la fenêtre de renouvellement. Opt-in (défaut 0).
 //   - CertificateRenewalDays: fenêtre de renouvellement, en jours avant
 //     l'expiration du certificat. Par défaut 30 jours.
+//   - ReregistrationMode: politique de ré-enregistrement des nœuds persistants
+//     (#87). Valeurs : deny (défaut), approval, proof, window, allow.
 type DscSettings struct {
 	CertificateRotationEnabled bool   `json:"certificate_rotation_enabled"`
 	CertificateRenewalDays     int    `json:"certificate_renewal_days"`
+	ReregistrationMode         string `json:"reregistration_mode"`
 	LegacyImported             bool   `json:"-"`
 	UpdatedAt                  string `json:"-"`
 }
@@ -22,9 +29,10 @@ type DscSettings struct {
 // GetDscSettings lit la rangée unique (id=1) de la table dsc_settings.
 func GetDscSettings(database *sql.DB) (DscSettings, error) {
 	var settings DscSettings
-	err := database.QueryRow(`SELECT certificate_rotation_enabled, certificate_renewal_days, legacy_imported FROM dsc_settings WHERE id = 1`).Scan(
+	err := database.QueryRow(`SELECT certificate_rotation_enabled, certificate_renewal_days, reregistration_mode, legacy_imported FROM dsc_settings WHERE id = 1`).Scan(
 		&settings.CertificateRotationEnabled,
 		&settings.CertificateRenewalDays,
+		&settings.ReregistrationMode,
 		&settings.LegacyImported,
 	)
 	return settings, err
@@ -37,20 +45,34 @@ func SaveDscSettings(database *sql.DB, driver string, settings DscSettings) erro
 	nowExpr := NowExpr(driver)
 	if driver == "mssql" || driver == "sqlserver" {
 		_, err := database.Exec(`IF EXISTS (SELECT 1 FROM dsc_settings WHERE id = 1)
-UPDATE dsc_settings SET certificate_rotation_enabled = ?, certificate_renewal_days = ?, legacy_imported = ?, updated_at = `+nowExpr+` WHERE id = 1
+UPDATE dsc_settings SET certificate_rotation_enabled = ?, certificate_renewal_days = ?, reregistration_mode = ?, legacy_imported = ?, updated_at = `+nowExpr+` WHERE id = 1
 ELSE
-INSERT INTO dsc_settings (id, certificate_rotation_enabled, certificate_renewal_days, legacy_imported) VALUES (1, ?, ?, ?)`,
-			settings.CertificateRotationEnabled, settings.CertificateRenewalDays, settings.LegacyImported,
-			settings.CertificateRotationEnabled, settings.CertificateRenewalDays, settings.LegacyImported,
+INSERT INTO dsc_settings (id, certificate_rotation_enabled, certificate_renewal_days, reregistration_mode, legacy_imported) VALUES (1, ?, ?, ?, ?)`,
+			settings.CertificateRotationEnabled, settings.CertificateRenewalDays, settings.ReregistrationMode, settings.LegacyImported,
+			settings.CertificateRotationEnabled, settings.CertificateRenewalDays, settings.ReregistrationMode, settings.LegacyImported,
 		)
 		return err
 	}
-	_, err := database.Exec(`INSERT INTO dsc_settings (id, certificate_rotation_enabled, certificate_renewal_days, legacy_imported, updated_at)
-VALUES (1, ?, ?, ?, `+nowExpr+`)
-ON CONFLICT(id) DO UPDATE SET certificate_rotation_enabled = excluded.certificate_rotation_enabled, certificate_renewal_days = excluded.certificate_renewal_days, legacy_imported = excluded.legacy_imported, updated_at = `+nowExpr+``,
-		settings.CertificateRotationEnabled, settings.CertificateRenewalDays, settings.LegacyImported,
+	_, err := database.Exec(`INSERT INTO dsc_settings (id, certificate_rotation_enabled, certificate_renewal_days, reregistration_mode, legacy_imported, updated_at)
+VALUES (1, ?, ?, ?, ?, `+nowExpr+`)
+ON CONFLICT(id) DO UPDATE SET certificate_rotation_enabled = excluded.certificate_rotation_enabled, certificate_renewal_days = excluded.certificate_renewal_days, reregistration_mode = excluded.reregistration_mode, legacy_imported = excluded.legacy_imported, updated_at = `+nowExpr+``,
+		settings.CertificateRotationEnabled, settings.CertificateRenewalDays, settings.ReregistrationMode, settings.LegacyImported,
 	)
 	return err
+}
+
+// defaultReregistrationMode est le mode appliqué quand dsc_settings n'en porte
+// pas (rangée existante antérieure à #87) ou qu'une valeur inconnue est stockée.
+const defaultReregistrationMode = "deny"
+
+// validReregistrationModeDB restreint les valeurs acceptées pour la politique de
+// ré-enregistrement des nœuds persistants (#87).
+func validReregistrationModeDB(mode string) bool {
+	switch mode {
+	case "deny", "approval", "proof", "window", "allow":
+		return true
+	}
+	return false
 }
 
 // InitializeDscSettings garantit que la rangée (id=1) existe et que les valeurs
@@ -60,17 +82,29 @@ func InitializeDscSettings(database *sql.DB, driver string) (DscSettings, error)
 	if err != nil {
 		return DscSettings{}, err
 	}
+	changed := false
 	if settings.CertificateRenewalDays <= 0 {
 		settings.CertificateRenewalDays = 30
+		changed = true
+	}
+	if !validReregistrationModeDB(settings.ReregistrationMode) {
+		// Rangée antérieure à #87 : on applique le défaut (deny), le plus sûr.
+		settings.ReregistrationMode = defaultReregistrationMode
+		changed = true
 	}
 	if !settings.LegacyImported {
 		settings.LegacyImported = true
+		changed = true
+	}
+	if changed {
 		if err := SaveDscSettings(database, driver, settings); err != nil {
 			return DscSettings{}, err
 		}
 	}
-	if settings.CertificateRenewalDays <= 0 {
-		settings.CertificateRenewalDays = 30
+	// Le mode "allow" autorise tout ré-enregistrement d'un nœud persistant :
+	// c'est le mode le plus permissif, on le signale clairement au démarrage.
+	if settings.ReregistrationMode == "allow" {
+		_ = logs.WriteLogFile("WARNING [INITDB] dsc_settings.reregistration_mode=allow: re-registration of persistent nodes is permitted (no proof, no approval). This weakens the identity guarantee.")
 	}
 	return settings, nil
 }

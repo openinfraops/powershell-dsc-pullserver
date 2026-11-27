@@ -88,6 +88,57 @@ The rotation endpoint authenticates with the node's **current (old) certificate*
 
 ---
 
+## Re-registration Policy for Persistent Nodes
+
+By default the server accepts a re-registration from an **already-registered** `agent_id` at the DSC registration endpoint (`PUT`/`POST /PSDSCPullServer.svc/{node}`) with the registration key, and simply refreshes the stored certificate thumbprint. This is how a node legitimately rolls its certificate — but it is also exactly how a leaked registration key lets an attacker **take over** an existing node's identity by presenting a different thumbprint (the enrolled thumbprint is the only identity anchor on the pull endpoints).
+
+The re-registration policy (#87) lets an operator **pin** a node so that this silent overwrite no longer happens. A node is marked **persistent** (`agents.persistent = 1`) via the admin API `PUT /api/v1/agents/{id}/persistent` (admin-only). From then on, every re-registration attempt of that node is gated by the `dsc_settings.reregistration_mode` policy.
+
+### Where the policy applies
+
+The gate runs in `RegisterHandler`, **before** the upsert, and reads the node's `persistent` flag and old thumbprint in its pre-modification state. It applies **only** to:
+
+- an **existing** `agent_id` (found in `agents`), **and**
+- marked **persistent** (`agents.persistent = 1`).
+
+The following are **never** gated (they pass through and behave as before):
+
+- a **new** enrollment (first registration of an unknown `agent_id`);
+- a **non-persistent** node;
+- a **`TEMP-*` migration** (the `tempAgentId` code path).
+
+### Modes
+
+| Mode | Default | Behaviour at re-registration of a persistent node |
+|---|---|---|
+| `deny` | ✅ | **Reject** with HTTP `403`. No overwrite. |
+| `approval` | | **Accept** the re-registration but set the node to `pending_reregistration`. Its configuration is **not served** (the pull returns `404`) until an admin approves. |
+| `proof` | | **Accept** only if the incoming certificate **thumbprint equals the stored one** (i.e. the node proves it still holds the same key). Any other thumbprint is rejected (`403`). |
+| `window` | | **Accept** only if the admin has opened a re-registration window for the node (`agents.reregistration_window_until`, set via the admin API) and it has **not yet elapsed**. Otherwise reject (`403`). |
+| `allow` | | **Accept** (audited). This is the most permissive mode; the server logs a `WARNING` at startup. |
+
+> An **unknown or empty** `reregistration_mode` is treated as `deny` (fail-closed), so a database created before #87 keeps the safest behaviour.
+
+### `approval` mode: suspend configuration until approved
+
+A persistent node re-registered in `approval` mode is accepted (so its certificate thumbprint is refreshed and the node is not left half-registered) but its `state` is set to `pending_reregistration`. While in that state, `GetDscActionNodeHandlerWithId` returns **HTTP 404** for the node — the LCM therefore stops pulling the configuration (and no per-node secret is served). This keeps a possibly-stolen identity from receiving configuration resources until a human approves the change.
+
+Approval is a **admin-only** action: `POST /api/v1/agents/{id}/approve-reregistration`. It clears the state (back to `pending_apply`), marks the node `needs_recompile`, triggers an asynchronous recompile, and re-serves the configuration.
+
+### Administration
+
+| Action | Endpoint | Purpose |
+|---|---|---|
+| Mark / unmark a node persistent | `PUT /api/v1/agents/{id}/persistent` (admin) | Sets `agents.persistent`. Unmarking also clears any open re-registration window. |
+| Approve a pending re-registration | `POST /api/v1/agents/{id}/approve-reregistration` (admin) | Lifts `pending_reregistration`, re-serves configuration. |
+| Open a re-registration window | `POST /api/v1/agents/{id}/reregistration-window` (admin) | Sets `agents.reregistration_window_until` (`{"hours": N}` or `{"until": "RFC3339"}`), used by `window` mode. |
+
+### Audit
+
+Every re-registration attempt subject to the policy is audited (action `agent.reregistration`, actor `node:<agent_id>`, target `agent`) with the old and new certificate thumbprint, the source IP, the mode and the outcome (`allowed` / `denied` / `pending` / `proof_ok` / `proof_failed` / `window_open` / `window_closed`). The admin actions above are audited with `agent.persistent`, `agent.approve_reregistration` and `agent.reregistration_window` (actor = the admin's email).
+
+---
+
 ## Initial Administrator Account
 
 The server **never creates a default admin account** (the old `admin@localhost / password` is gone). To create the first administrator, run the binary in CLI mode **once**, locally:
@@ -158,7 +209,7 @@ This section records the **trust assumptions** the server makes and the scenario
 | Trust anchor | What it protects | What breaks it |
 |---|---|---|
 | Registered node **certificate thumbprint** (`agents.certificate_thumbprint`) | Node identity on the pull endpoints (mTLS binding) | The node's private key is compromised, or the thumbprint is overwritten via re-registration with the registration key. |
-| **Registration key** (`dsc_pullserver.registrationKey`) | Bootstrap enrollment / re-registration | Key leak or reuse: any holder can enroll or re-register a node. |
+| **Registration key** (`dsc_pullserver.registrationKey`) | Bootstrap enrollment / re-registration | Key leak or reuse: any holder can enroll or re-register a node. Mitigated for **persistent** nodes by the re-registration policy (`dsc_settings.reregistration_mode`); see [Re-registration policy](#re-registration-policy-for-persistent-nodes). |
 | Server **TLS key/cert** | Transport confidentiality & authenticity of the DSC/web endpoints | Private key compromise, or `enable_https: false`. |
 | OS **system trust store** (when `bypass_ca_validation: false`) | Chain/signature validation of node certificates | Trust store poisoned, or a bad CA issues a node certificate. |
 | Web/API **`shared_secret`** (JWT signing) | Web/API session tokens | Leak, or a weak/placeholder value. |
