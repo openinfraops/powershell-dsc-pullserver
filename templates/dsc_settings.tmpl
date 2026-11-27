@@ -1,0 +1,59 @@
+{{define "content"}}
+<section class="content-header">
+    <div class="container-fluid">
+        <div class="row mb-2">
+            <div class="col-sm-6">
+                <h1>DSC settings</h1>
+            </div>
+        </div>
+    </div>
+</section>
+<section class="content">
+  <div class="container-fluid">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">Re-registration policy &amp; certificate rotation</h3>
+      </div>
+      <div class="card-body">
+        <form id="dsc-settings-form">
+          <div class="form-group">
+            <label for="reregistration_mode">Re-registration policy (persistent nodes)</label>
+            <select class="form-control" id="reregistration_mode" name="reregistration_mode">
+              <option value="deny">deny</option>
+              <option value="approval">approval</option>
+              <option value="proof">proof</option>
+              <option value="window">window</option>
+              <option value="allow">allow</option>
+            </select>
+            <small class="form-text text-muted">
+              Applies only to nodes explicitly marked <em>persistent</em> that re-register
+              (certificate renewal, identity change). First-time enrollment and TEMP
+              (pre-enrolled) nodes are never gated by this policy.
+              <ul class="mt-1 mb-0">
+                <li><code>deny</code> &mdash; reject any persistent-node re-registration (default, safest).</li>
+                <li><code>approval</code> &mdash; accept but hold the node in <code>pending_reregistration</code>; its configuration is not served until an admin approves.</li>
+                <li><code>proof</code> &mdash; allow only when the incoming certificate thumbprint matches the one previously enrolled.</li>
+                <li><code>window</code> &mdash; allow only while the admin-opened re-registration window (<code>agents.reregistration_window_until</code>) is still open.</li>
+                <li><code>allow</code> &mdash; allow any re-registration (no proof, no approval). Weakens the identity guarantee.</li>
+              </ul>
+            </small>
+          </div>
+          <div class="form-group form-check">
+            <input type="checkbox" class="form-check-input" id="certificate_rotation_enabled" name="certificate_rotation_enabled">
+            <label class="form-check-label" for="certificate_rotation_enabled">Enable certificate rotation</label>
+            <small class="form-text text-muted">Emit the <code>DSC-certificateRotation</code> header (&sect;2.2.2.8 of MS-DSCPM) to nodes whose certificate is within the renewal window. Opt-in (default off).</small>
+          </div>
+          <div class="form-group">
+            <label for="certificate_renewal_days">Certificate renewal window (days before expiry)</label>
+            <input type="number" min="1" class="form-control" id="certificate_renewal_days" name="certificate_renewal_days" required>
+            <small class="form-text text-muted">Renewal window, in days before the certificate expires. Default 30.</small>
+          </div>
+          <button type="submit" class="btn btn-primary">Save</button>
+          <span id="dsc-settings-status" class="ml-3"></span>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+<script src="/web/dsc_settings.js"></script>
+{{end}}
