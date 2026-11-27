@@ -160,6 +160,11 @@ Both JWT and API tokens grant access to the API according to the user's permissi
 - **Admin only.** Apply a tag key/value to a list of agents (`{ "agent_ids": [...], "key": "...", "value": "..." }`).
 - Audited (actor, source IP, before/after per agent) with the `tag.set` action.
 
+### GET `/api/v1/agents/{id}/audit`
+- **Admin only.** Return the modification history of a node (the audit entries that mention the node), most recent first.
+- Entries are matched by the agent id, which appears in the free-text `details` of the audited actions that touch a node (`preenroll`, `tag.set`, `tag.delete`, `trash`, `restore`, …).
+- Response: JSON array of `{ "id", "user_email", "action", "target", "details", "ip_address", "created_at" }`, capped at the last 100 entries.
+
 ---
 
 ## DSC Settings

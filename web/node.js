@@ -203,7 +203,14 @@ const state = {
     reports: [],
     error: null,
     tags: {},
+    agentHistory: null,
 };
+
+function escapeHtml(text) {
+    if (text === null || text === undefined) return '';
+    const s = String(text);
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
 function renderAgentTags() {
     const isAdmin = window.currentUser && window.currentUser.role === 'admin';
     let html = '';
@@ -597,6 +604,74 @@ function formatStatusDate(ts) {
     return ts;
 }
 
+function renderAgentHistory() {
+    const isAdmin = window.currentUser && window.currentUser.role === 'admin';
+    if (!isAdmin) {
+        $('#agent-history-card').hide();
+        return;
+    }
+    $('#agent-history-card').show();
+    const entries = state.agentHistory;
+    if (!Array.isArray(entries) || entries.length === 0) {
+        $('#agent-history-block').html('<em>No modification history recorded for this node.</em>');
+        return;
+    }
+    let html = '<table class="table table-sm table-bordered mb-0" style="font-size:0.92em;">' +
+        '<thead><tr>' +
+        '<th style="width:150px;">Date</th>' +
+        '<th style="width:180px;">Actor</th>' +
+        '<th style="width:120px;">Action</th>' +
+        '<th>Details</th>' +
+        '<th style="width:140px;">Source IP</th>' +
+        '</tr></thead><tbody>';
+    for (const e of entries) {
+        html += '<tr>';
+        html += '<td>' + escapeHtml(formatDateTime(e.created_at)) + '</td>';
+        html += '<td>' + escapeHtml(e.user_email || '') + '</td>';
+        html += '<td><span class="badge badge-secondary">' + escapeHtml(e.action || '') + '</span></td>';
+        html += '<td>' + escapeHtml(e.details || '') + '</td>';
+        html += '<td>' + escapeHtml(e.ip_address || '') + '</td>';
+        html += '</tr>';
+    }
+    html += '</tbody></table>';
+    $('#agent-history-block').html(html);
+}
+
+// Recharge l'historique des modifications du nœud (admin uniquement). Le bloc
+// n'est visible que pour un admin ; on réévalue la visibilité à chaque rendu et
+// au signal userReady (currentUser est peuplé de façon asynchrone).
+function loadAgentHistory() {
+    const agentId = getNodeIdFromUrl();
+    if (!agentId || !window.currentUser || window.currentUser.role !== 'admin') {
+        return;
+    }
+    $.ajax({
+        url: `/api/v1/agents/${encodeURIComponent(agentId)}/audit`,
+        method: 'GET',
+        dataType: 'json',
+        success: function(entries) {
+            state.agentHistory = entries || [];
+            renderAgentHistory();
+        },
+        error: function() {
+            state.agentHistory = [];
+            renderAgentHistory();
+        }
+    });
+}
+
+function applyHistoryVisibility() {
+    const isAdmin = window.currentUser && window.currentUser.role === 'admin';
+    if (isAdmin) {
+        $('#agent-history-card').show();
+        if (state.agentHistory === null) {
+            loadAgentHistory();
+        }
+    } else {
+        $('#agent-history-card').hide();
+    }
+}
+
 function renderAll() {
     fillAgentInfo();
     $('#agent-tags-block').html(renderAgentTags());
@@ -605,6 +680,7 @@ function renderAll() {
     $('#node-action-block').html(renderNodeActionBlock());
     renderStatusHistory();
     applyTagFormVisibility();
+    renderAgentHistory();
 }
 
 // Ajout/suppression de tags réservé aux admins. window.currentUser est peuplé
@@ -622,7 +698,9 @@ function applyTagFormVisibility() {
 $(document).ready(function() {
     const agentId = getNodeIdFromUrl();
     applyTagFormVisibility();
+    applyHistoryVisibility();
     window.addEventListener('userReady', applyTagFormVisibility);
+    window.addEventListener('userReady', applyHistoryVisibility);
     // Ne pas réécrire le HTML, juste remplir les valeurs
     renderAll();
     if (!agentId) {

@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -364,5 +365,56 @@ func TestRegisterHandler_CannotSetEnvironmentTag(t *testing.T) {
 	}
 	if n != 0 {
 		t.Fatalf("node assigned itself environment=prod at registration (%d rows)", n)
+	}
+}
+
+// --- Historique des modifications d'un nœud (GET /api/v1/agents/{id}/audit) ---
+
+func TestAgentAuditListHandler_NonAdminForbidden(t *testing.T) {
+	database := setupTagTestDB(t)
+	tagTestAppConfig(t, database)
+	token := seedAPIToken(t, database, "user")
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/agents/agent-1/audit", nil)
+	req.SetPathValue("id", "agent-1")
+	req.Header.Set("Authorization", "Token "+token)
+	rec := httptest.NewRecorder()
+	AgentAuditListHandler(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d (body: %s)", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAgentAuditListHandler_AdminHistory(t *testing.T) {
+	database := setupTagTestDB(t)
+	tagTestAppConfig(t, database)
+	token := seedAPIToken(t, database, "admin")
+	const agentID = "agent-1"
+	// Une entrée pour ce nœud, une pour un autre nœud (ne doit pas remonter).
+	if _, err := database.Exec(`INSERT INTO audit (user_email, action, target, details, ip_address, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+		"admin@example.com", "tag.set", "agent", "Set tag environment=prod on agent "+agentID+" (previous: dev)", "10.0.0.1", "2026-11-27 10:00:00"); err != nil {
+		t.Fatalf("seed audit: %v", err)
+	}
+	if _, err := database.Exec(`INSERT INTO audit (user_email, action, target, details, ip_address, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+		"admin@example.com", "tag.set", "agent", "Set tag environment=prod on agent agent-2 (previous: dev)", "10.0.0.2", "2026-11-27 11:00:00"); err != nil {
+		t.Fatalf("seed audit: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/agents/"+agentID+"/audit", nil)
+	req.SetPathValue("id", agentID)
+	req.Header.Set("Authorization", "Token "+token)
+	rec := httptest.NewRecorder()
+	AgentAuditListHandler(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (body: %s)", rec.Code, rec.Body.String())
+	}
+	var items []agentAuditEntry
+	if err := json.Unmarshal(rec.Body.Bytes(), &items); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 audit entry for agent-1, got %d", len(items))
+	}
+	if items[0].Action != "tag.set" || !strings.Contains(items[0].Details, "on agent "+agentID+" ") {
+		t.Fatalf("unexpected audit entry: %+v", items[0])
 	}
 }
