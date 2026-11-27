@@ -17,6 +17,10 @@
     "key_file": "dsc-dev.local.key",
     "port": 8484,
     "registrationKey": "AnyString",
+    "read_header_timeout_seconds": 10,
+    "read_timeout_seconds": 120,
+    "write_timeout_seconds": 180,
+    "idle_timeout_seconds": 120,
     "release_check_interval_mins": 1440,
     "enable_log_rotation": true,
     "log_rotate_max_size_mb": 10,
@@ -42,6 +46,10 @@
     "key_file": "dsc-dev.local.key",
     "metrics_token": "",
     "shared_secret": "pQw8vZ3rT6sJkL2xQ9eBfG7hN1uVtX4yC5zR8aW0sD3mPqE6bH0jKfL9nS2tU7vY1",
-    "port": 443
+    "port": 443,
+    "read_header_timeout_seconds": 10,
+    "read_timeout_seconds": 120,
+    "write_timeout_seconds": 180,
+    "idle_timeout_seconds": 120
   }
 }

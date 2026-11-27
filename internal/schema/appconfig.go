@@ -1,10 +1,20 @@
 package schema
 
 type HTTPConfig struct {
-	Port                                    int    `json:"port"`
-	EnableHTTPS                             bool   `json:"enable_https"`
-	CertFile                                string `json:"cert_file"`
-	KeyFile                                 string `json:"key_file"`
+	Port        int    `json:"port"`
+	EnableHTTPS bool   `json:"enable_https"`
+	CertFile    string `json:"cert_file"`
+	KeyFile     string `json:"key_file"`
+	// HTTP server timeouts, in seconds. 0/absent -> sensible defaults
+	// (read_header: 10, read: 120, write: 180, idle: 120). These guard against
+	// slowloris-style connections: ReadHeaderTimeout bounds reading the request
+	// headers, ReadTimeout the whole request, WriteTimeout the response (kept
+	// generous so large MOF/module downloads are not cut off), IdleTimeout the
+	// keep-alive idle time.
+	ReadHeaderTimeoutSeconds                int    `json:"read_header_timeout_seconds"`
+	ReadTimeoutSeconds                      int    `json:"read_timeout_seconds"`
+	WriteTimeoutSeconds                     int    `json:"write_timeout_seconds"`
+	IdleTimeoutSeconds                      int    `json:"idle_timeout_seconds"`
 	EnableClientCertValidation              bool   `json:"enable_client_cert_validation"`
 	BypassCAValidation                      bool   `json:"bypass_ca_validation"`
 	RegistrationKey                         string `json:"registrationKey"`

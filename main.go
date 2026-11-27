@@ -27,6 +27,31 @@ import (
 	"time"
 )
 
+// httpServerTimeouts returns the HTTP server timeout durations for a config
+// block, applying the sensible defaults when a value is 0 or absent.
+//
+// Defaults (kept generous for large MOF/module downloads; read_header fixed at
+// 10s to guard against slowloris): read=120s, write=180s, idle=120s.
+func httpServerTimeouts(cfg schema.HTTPConfig) (readHeader, read, write, idle time.Duration) {
+	readHeader = time.Duration(cfg.ReadHeaderTimeoutSeconds) * time.Second
+	if readHeader <= 0 {
+		readHeader = 10 * time.Second
+	}
+	read = time.Duration(cfg.ReadTimeoutSeconds) * time.Second
+	if read <= 0 {
+		read = 120 * time.Second
+	}
+	write = time.Duration(cfg.WriteTimeoutSeconds) * time.Second
+	if write <= 0 {
+		write = 180 * time.Second
+	}
+	idle = time.Duration(cfg.IdleTimeoutSeconds) * time.Second
+	if idle <= 0 {
+		idle = 120 * time.Second
+	}
+	return readHeader, read, write, idle
+}
+
 func main() {
 
 	// Mode CLI : crÃ©ation du compte administrateur initial en local, avec un
@@ -236,13 +261,14 @@ func main() {
 		// permet Ã  la couche service de finaliser l'arrÃªt sans tuer les requÃªtes.
 
 		// Serveur DSC (endpoints MS-DSCPM)
+		dscReadHeader, dscRead, dscWrite, dscIdle := httpServerTimeouts(global.AppConfig.DSCPullServer)
 		dscServer := &http.Server{
 			Addr:              fmt.Sprintf(":%d", global.AppConfig.DSCPullServer.Port),
 			Handler:           dscHandler,
-			ReadHeaderTimeout: 10 * time.Second,
-			ReadTimeout:       120 * time.Second,
-			WriteTimeout:      180 * time.Second,
-			IdleTimeout:       120 * time.Second,
+			ReadHeaderTimeout: dscReadHeader,
+			ReadTimeout:       dscRead,
+			WriteTimeout:      dscWrite,
+			IdleTimeout:       dscIdle,
 		}
 		if global.AppConfig.DSCPullServer.EnableHTTPS {
 			certFile, keyFile := resolveCertKeyPath(global.AppConfig.DSCPullServer.CertFile, global.AppConfig.DSCPullServer.KeyFile)
@@ -288,13 +314,14 @@ func main() {
 		}
 
 		// Serveur WebUI / API
+		webReadHeader, webRead, webWrite, webIdle := httpServerTimeouts(global.AppConfig.WebUI)
 		webServer := &http.Server{
 			Addr:              fmt.Sprintf(":%d", global.AppConfig.WebUI.Port),
 			Handler:           webHandler,
-			ReadHeaderTimeout: 10 * time.Second,
-			ReadTimeout:       120 * time.Second,
-			WriteTimeout:      180 * time.Second,
-			IdleTimeout:       120 * time.Second,
+			ReadHeaderTimeout: webReadHeader,
+			ReadTimeout:       webRead,
+			WriteTimeout:      webWrite,
+			IdleTimeout:       webIdle,
 		}
 		if global.AppConfig.WebUI.EnableHTTPS {
 			certFile, keyFile := resolveCertKeyPath(global.AppConfig.WebUI.CertFile, global.AppConfig.WebUI.KeyFile)
