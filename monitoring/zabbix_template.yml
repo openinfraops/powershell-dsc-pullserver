@@ -115,6 +115,15 @@ zabbix_export:
           tags:
             - tag: Application
               value: DSC
+          triggers:
+            - uuid: abcd000333334c4dae5f000000000003
+              expression: 'last(/Template - DSC Console/dsc.console.statistics.reboot_loop)>0'
+              name: 'WARNING - DSC nodes stuck in reboot loop'
+              priority: AVERAGE
+              manual_close: 'YES'
+              tags:
+                - tag: Application
+                  value: DSC
         - uuid: e1f1212b3b4c4d5eaf600b0b0b0b0b02
           name: 'DSC - Node certificates expired'
           type: DEPENDENT
@@ -130,6 +139,14 @@ zabbix_export:
           tags:
             - tag: Application
               value: DSC
+          triggers:
+            - uuid: abcd000666664a7a8082000000000006
+              expression: 'last(/Template - DSC Console/dsc.console.statistics.certs_expired)>0'
+              name: 'HIGH - DSC node certificates expired'
+              priority: HIGH
+              tags:
+                - tag: Application
+                  value: DSC
         - uuid: e2f2323c4c5d4e6fbf710c0c0c0c0c03
           name: 'DSC - Node certificates expiring'
           type: DEPENDENT
@@ -145,6 +162,14 @@ zabbix_export:
           tags:
             - tag: Application
               value: DSC
+          triggers:
+            - uuid: abcd000777774b8b9193000000000007
+              expression: 'last(/Template - DSC Console/dsc.console.statistics.certs_expiring)>0'
+              name: 'WARNING - DSC node certificates expiring'
+              priority: WARNING
+              tags:
+                - tag: Application
+                  value: DSC
         - uuid: f019fd34717c4e0d9f123d6dc3a88a05
           name: 'DSC - Console version'
           type: DEPENDENT
@@ -253,6 +278,14 @@ zabbix_export:
           tags:
             - tag: Application
               value: DSC
+          triggers:
+            - uuid: abcd000111114a2b8c3d000000000001
+              expression: 'last(/Template - DSC Console/dsc.console.health.status)<>"ok"'
+              name: 'HIGH - DSC Console health degraded/unavailable'
+              priority: HIGH
+              tags:
+                - tag: Application
+                  value: DSC
         - uuid: d4f4a3b56e7f4a8bbc93444444444444
           name: 'DSC - Health running tasks'
           type: DEPENDENT
@@ -300,6 +333,14 @@ zabbix_export:
           tags:
             - tag: Application
               value: DSC
+          triggers:
+            - uuid: abcd000444444d5ebf60000000000004
+              expression: 'last(/Template - DSC Console/dsc.metrics.tls_expiry)<604800'
+              name: 'WARNING - DSC web TLS certificate expiring'
+              priority: WARNING
+              tags:
+                - tag: Application
+                  value: DSC
         - uuid: daeaa9bbcdef4ae192f9aaaaaaaaaaaa
           name: 'DSC - Last report age (s)'
           type: DEPENDENT
@@ -316,6 +357,14 @@ zabbix_export:
           tags:
             - tag: Application
               value: DSC
+          triggers:
+            - uuid: abcd000555554e6f8071000000000005
+              expression: 'last(/Template - DSC Console/dsc.metrics.last_report_age)>86400'
+              name: 'WARNING - DSC node reports stale'
+              priority: WARNING
+              tags:
+                - tag: Application
+                  value: DSC
         - uuid: 1234a5678b9c0d1e2f3a4b5c6d7e8f01
           name: 'DSC - Open error groups'
           type: DEPENDENT
@@ -332,6 +381,15 @@ zabbix_export:
           tags:
             - tag: Application
               value: DSC
+          triggers:
+            - uuid: abcd000bb8884f9fbf8100000000000b
+              expression: 'last(/Template - DSC Console/dsc.metrics.error_groups_open)-last(/Template - DSC Console/dsc.metrics.error_groups_by_category_unknown)>0'
+              name: 'WARNING - DSC error groups open (excluding noise)'
+              priority: WARNING
+              manual_close: 'YES'
+              tags:
+                - tag: Application
+                  value: DSC
         - uuid: 2345b6789c0d1e2f3a4b5c6d7e8f9a02
           name: 'DSC - Known error groups'
           type: DEPENDENT
@@ -364,6 +422,15 @@ zabbix_export:
           tags:
             - tag: Application
               value: DSC
+          triggers:
+            - uuid: abcd000aa7774e8fae7000000000000a
+              expression: 'last(/Template - DSC Console/dsc.metrics.error_groups_new_24h)>0'
+              name: 'HIGH - New DSC error group detected'
+              priority: HIGH
+              manual_close: 'YES'
+              tags:
+                - tag: Application
+                  value: DSC
         - uuid: 4567d8901e2f3a4b5c6d7e8f9a0b1c04
           name: 'DSC - Open error groups (unknown/noise)'
           type: DEPENDENT
@@ -429,6 +496,14 @@ zabbix_export:
           tags:
             - tag: Application
               value: DSC
+          triggers:
+            - uuid: abcd000cc9994e8fdf9200000000000c
+              expression: 'last(/Template - DSC Console/dsc.metrics.db_pool_in_use)>=last(/Template - DSC Console/dsc.metrics.db_pool_max_open) and last(/Template - DSC Console/dsc.metrics.db_pool_max_open)>0'
+              name: 'HIGH - DSC DB pool exhausted'
+              priority: HIGH
+              tags:
+                - tag: Application
+                  value: DSC
         - uuid: 93b4eb0c1d2e3f4a5b6c708192a4c4d0
           name: 'DSC - DB pool idle'
           type: DEPENDENT
@@ -445,6 +520,14 @@ zabbix_export:
           tags:
             - tag: Application
               value: DSC
+          triggers:
+            - uuid: abcd000eeccc4fa0f1b400000000000e
+              expression: 'min(/Template - DSC Console/dsc.metrics.db_pool_idle,5m)=0 and last(/Template - DSC Console/dsc.metrics.db_pool_in_use)>0'
+              name: 'WARNING - DSC DB pool saturated'
+              priority: WARNING
+              tags:
+                - tag: Application
+                  value: DSC
         - uuid: a4c5fc1d2e3f4a5b6c708192a5d5e5f0
           name: 'DSC - DB pool max open'
           type: DEPENDENT
@@ -477,6 +560,14 @@ zabbix_export:
           tags:
             - tag: Application
               value: DSC
+          triggers:
+            - uuid: abcd000ddaaa4f9fe0a300000000000d
+              expression: 'change(/Template - DSC Console/dsc.metrics.db_pool_wait_count,5m)>0'
+              name: 'WARNING - DSC DB pool connection wait'
+              priority: WARNING
+              tags:
+                - tag: Application
+                  value: DSC
         - uuid: c6e71e3f4a5b6c708192a7f7f7081820
           name: 'DSC - DB pool wait duration (s)'
           type: DEPENDENT
@@ -580,84 +671,3 @@ zabbix_export:
         - macro: '{$TOKEN_API}'
           value: ''
           description: 'API Token to monitor data from DSC'
-      triggers:
-        - uuid: abcd000111114a2b8c3d000000000001
-          expression: 'last(/Template - DSC Console/dsc.console.health.status)<>"ok"'
-          name: 'HIGH - DSC Console health degraded/unavailable'
-          priority: HIGH
-          tags:
-            - tag: Application
-              value: DSC
-        - uuid: abcd000333334c4dae5f000000000003
-          expression: 'last(/Template - DSC Console/dsc.console.statistics.reboot_loop)>0'
-          name: 'WARNING - DSC nodes stuck in reboot loop'
-          priority: AVERAGE
-          manual_close: 'YES'
-          tags:
-            - tag: Application
-              value: DSC
-        - uuid: abcd000666664a7a8082000000000006
-          expression: 'last(/Template - DSC Console/dsc.console.statistics.certs_expired)>0'
-          name: 'HIGH - DSC node certificates expired'
-          priority: HIGH
-          tags:
-            - tag: Application
-              value: DSC
-        - uuid: abcd000777774b8b9193000000000007
-          expression: 'last(/Template - DSC Console/dsc.console.statistics.certs_expiring)>0'
-          name: 'WARNING - DSC node certificates expiring'
-          priority: WARNING
-          tags:
-            - tag: Application
-              value: DSC
-        - uuid: abcd000444444d5ebf60000000000004
-          expression: 'last(/Template - DSC Console/dsc.metrics.tls_expiry)<604800'
-          name: 'WARNING - DSC web TLS certificate expiring'
-          priority: WARNING
-          tags:
-            - tag: Application
-              value: DSC
-        - uuid: abcd000555554e6f8071000000000005
-          expression: 'last(/Template - DSC Console/dsc.metrics.last_report_age)>86400'
-          name: 'WARNING - DSC node reports stale'
-          priority: WARNING
-          tags:
-            - tag: Application
-              value: DSC
-        - uuid: abcd000aa7774e8fae7000000000000a
-          expression: 'last(/Template - DSC Console/dsc.metrics.error_groups_new_24h)>0'
-          name: 'HIGH - New DSC error group detected'
-          priority: HIGH
-          manual_close: 'YES'
-          tags:
-            - tag: Application
-              value: DSC
-        - uuid: abcd000bb8884f9fbf8100000000000b
-          expression: 'last(/Template - DSC Console/dsc.metrics.error_groups_open)-last(/Template - DSC Console/dsc.metrics.error_groups_by_category_unknown)>0'
-          name: 'WARNING - DSC error groups open (excluding noise)'
-          priority: WARNING
-          manual_close: 'YES'
-          tags:
-            - tag: Application
-              value: DSC
-        - uuid: abcd000cc9994e8fdf9200000000000c
-          expression: 'last(/Template - DSC Console/dsc.metrics.db_pool_in_use)>=last(/Template - DSC Console/dsc.metrics.db_pool_max_open) and last(/Template - DSC Console/dsc.metrics.db_pool_max_open)>0'
-          name: 'HIGH - DSC DB pool exhausted'
-          priority: HIGH
-          tags:
-            - tag: Application
-              value: DSC
-        - uuid: abcd000ddaaa4f9fe0a300000000000d
-          expression: 'change(/Template - DSC Console/dsc.metrics.db_pool_wait_count,5m)>0'
-          name: 'WARNING - DSC DB pool connection wait'
-          priority: WARNING
-          tags:
-            - tag: Application
-              value: DSC
-        - uuid: abcd000eeccc4fa0f1b400000000000e
-          expression: 'min(/Template - DSC Console/dsc.metrics.db_pool_idle,5m)=0 and last(/Template - DSC Console/dsc.metrics.db_pool_in_use)>0'
-          name: 'WARNING - DSC DB pool saturated'
-          priority: WARNING
-          tags:
-            - tag: Application
-              value: DSC
