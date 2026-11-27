@@ -22,6 +22,7 @@ const (
 	taskAgentPurge                  = "agent_purge"
 	taskConfigurationVersionCleanup = "configuration_version_cleanup"
 	taskErrorDetection              = "error_detection"
+	taskIndexMaintenance            = "index_maintenance"
 )
 
 // logMaintenanceInterval est l'intervalle de la rotation des logs (non
@@ -71,6 +72,7 @@ func buildScheduledTasks(dbConn *sql.DB, repoSettings db.ConfigurationRepoSettin
 		errorDetectionTask(cfg),
 		releaseCheckTask(cfg),
 		logCleanupTask(cfg),
+		indexMaintenanceTask(cfg),
 		configurationRepoSyncTask(repoSettings),
 	}
 }
@@ -262,6 +264,40 @@ func releaseCheckTask(cfg schema.HTTPConfig) service.ScheduledTask {
 			}
 			logs.WriteLogFile(fmt.Sprintf("INFO [RELEASE CHECK] Up to date: current=%s", result.CurrentVersion))
 			return "Already up to date", nil
+		},
+	}
+}
+
+// indexMaintenanceTask optimise les index (et, pour SQLite, compacte
+// optionnellement le fichier via VACUUM). Le comportement est adapté au driver :
+// SQLite utilise PRAGMA optimize + REINDEX (VACUUM optionnel), MSSQL un
+// ALTER INDEX ... REORGANIZE en ligne. Opt-in : désactivée par défaut.
+func indexMaintenanceTask(cfg schema.HTTPConfig) service.ScheduledTask {
+	enabled := cfg.EnableIndexMaintenance
+	interval := intervalFromMins(cfg.IndexMaintenanceIntervalMins, 1440)
+	vacuum := cfg.IndexMaintenanceVacuum
+	if enabled {
+		mode := "optimize+reindex"
+		if vacuum {
+			mode = "optimize+reindex+vacuum"
+		}
+		logs.WriteLogFile(fmt.Sprintf("INFO [INDEX MAINTENANCE] Enabled: interval=%d minute(s), mode=%s", interval/time.Minute, mode))
+	} else {
+		logs.WriteLogFile("INFO [INDEX MAINTENANCE] Disabled (opt-in, use index_maintenance_vacuum for SQLite VACUUM)")
+	}
+	return service.ScheduledTask{
+		Key:         taskIndexMaintenance,
+		DisplayName: "Index maintenance",
+		Enabled:     enabled,
+		Interval:    interval,
+		Run: func(dbConn *sql.DB, driver string) (string, error) {
+			message, err := db.RunIndexMaintenance(dbConn, driver, vacuum)
+			if err != nil {
+				logs.WriteLogFile(fmt.Sprintf("ERROR [INDEX MAINTENANCE] %v", err))
+				return "", err
+			}
+			logs.WriteLogFile(fmt.Sprintf("INFO [INDEX MAINTENANCE] %s", message))
+			return message, nil
 		},
 	}
 }

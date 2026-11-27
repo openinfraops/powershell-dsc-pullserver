@@ -24,6 +24,7 @@ const (
 	schedulerTaskConfigurationRepoSync       = "configuration_repo_sync"
 	schedulerTaskAgentPurge                  = "agent_purge"
 	schedulerTaskConfigurationVersionCleanup = "configuration_version_cleanup"
+	schedulerTaskIndexMaintenance            = "index_maintenance"
 )
 
 func schedulerDisplayName(taskName string) string {
@@ -40,6 +41,8 @@ func schedulerDisplayName(taskName string) string {
 		return "Corbeille (purge agents)"
 	case schedulerTaskConfigurationVersionCleanup:
 		return "Rétention versions de configuration"
+	case schedulerTaskIndexMaintenance:
+		return "Index maintenance"
 	default:
 		return taskName
 	}
@@ -106,6 +109,16 @@ func schedulerNextRunFromConfig(taskName string) *time.Time {
 		}
 		n := now.Add(time.Duration(mins) * time.Minute)
 		return &n
+	case schedulerTaskIndexMaintenance:
+		if !global.AppConfig.DSCPullServer.EnableIndexMaintenance {
+			return nil
+		}
+		mins := global.AppConfig.DSCPullServer.IndexMaintenanceIntervalMins
+		if mins <= 0 {
+			mins = 1440
+		}
+		n := now.Add(time.Duration(mins) * time.Minute)
+		return &n
 	default:
 		return nil
 	}
@@ -137,6 +150,9 @@ type SchedulerConfigDTO struct {
 	EnableConfigurationVersionCleanup       bool   `json:"enable_configuration_version_cleanup"`
 	ConfigurationVersionMaxKeep             int    `json:"configuration_version_max_keep"`
 	ConfigurationVersionCleanupIntervalMins int    `json:"configuration_version_cleanup_interval_mins"`
+	EnableIndexMaintenance                  bool   `json:"enable_index_maintenance"`
+	IndexMaintenanceIntervalMins            int    `json:"index_maintenance_interval_mins"`
+	IndexMaintenanceVacuum                  bool   `json:"index_maintenance_vacuum"`
 }
 
 func resolveConfigPath() (string, error) {
@@ -205,6 +221,9 @@ func SchedulerConfigAPIHandler(w http.ResponseWriter, r *http.Request) {
 			EnableConfigurationVersionCleanup:       cfg.DSCPullServer.EnableConfigurationVersionCleanup,
 			ConfigurationVersionMaxKeep:             cfg.DSCPullServer.ConfigurationVersionMaxKeep,
 			ConfigurationVersionCleanupIntervalMins: cfg.DSCPullServer.ConfigurationVersionCleanupIntervalMins,
+			EnableIndexMaintenance:                  cfg.DSCPullServer.EnableIndexMaintenance,
+			IndexMaintenanceIntervalMins:            cfg.DSCPullServer.IndexMaintenanceIntervalMins,
+			IndexMaintenanceVacuum:                  cfg.DSCPullServer.IndexMaintenanceVacuum,
 		})
 
 	case http.MethodPut:
@@ -274,6 +293,11 @@ func SchedulerConfigAPIHandler(w http.ResponseWriter, r *http.Request) {
 			_ = json.NewEncoder(w).Encode(map[string]string{"error": "configuration_version_cleanup_interval_mins must be > 0 when configuration version cleanup is enabled"})
 			return
 		}
+		if req.EnableIndexMaintenance && req.IndexMaintenanceIntervalMins <= 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "index_maintenance_interval_mins must be > 0 when index maintenance is enabled"})
+			return
+		}
 
 		configPath, err := resolveConfigPath()
 		if err != nil {
@@ -315,6 +339,9 @@ func SchedulerConfigAPIHandler(w http.ResponseWriter, r *http.Request) {
 		dscPullRaw["enable_configuration_version_cleanup"] = req.EnableConfigurationVersionCleanup
 		dscPullRaw["configuration_version_max_keep"] = req.ConfigurationVersionMaxKeep
 		dscPullRaw["configuration_version_cleanup_interval_mins"] = req.ConfigurationVersionCleanupIntervalMins
+		dscPullRaw["enable_index_maintenance"] = req.EnableIndexMaintenance
+		dscPullRaw["index_maintenance_interval_mins"] = req.IndexMaintenanceIntervalMins
+		dscPullRaw["index_maintenance_vacuum"] = req.IndexMaintenanceVacuum
 		fullConfig["dsc_pullserver"] = dscPullRaw
 
 		data, err := json.MarshalIndent(fullConfig, "", "  ")
@@ -364,12 +391,15 @@ func SchedulerConfigAPIHandler(w http.ResponseWriter, r *http.Request) {
 		global.AppConfig.DSCPullServer.EnableConfigurationVersionCleanup = req.EnableConfigurationVersionCleanup
 		global.AppConfig.DSCPullServer.ConfigurationVersionMaxKeep = req.ConfigurationVersionMaxKeep
 		global.AppConfig.DSCPullServer.ConfigurationVersionCleanupIntervalMins = req.ConfigurationVersionCleanupIntervalMins
+		global.AppConfig.DSCPullServer.EnableIndexMaintenance = req.EnableIndexMaintenance
+		global.AppConfig.DSCPullServer.IndexMaintenanceIntervalMins = req.IndexMaintenanceIntervalMins
+		global.AppConfig.DSCPullServer.IndexMaintenanceVacuum = req.IndexMaintenanceVacuum
 
 		{
 			auditDB := db.Shared()
 			driverName := global.AppConfig.Database.Driver
 			details := fmt.Sprintf(
-				"Updated scheduler config: report_cleanup(enable=%t, retention_days=%d, interval_mins=%d), release_check(enable=%t, interval_mins=%d), log_rotation(enable=%t, max_size_mb=%d, max_backups=%d, max_age_days=%d), configuration_repo_sync(enable=%t, interval_mins=%d, username=%q), agent_purge(enable=%t, retention_days=%d, interval_mins=%d), configuration_version_cleanup(enable=%t, max_keep=%d, interval_mins=%d)",
+				"Updated scheduler config: report_cleanup(enable=%t, retention_days=%d, interval_mins=%d), release_check(enable=%t, interval_mins=%d), log_rotation(enable=%t, max_size_mb=%d, max_backups=%d, max_age_days=%d), configuration_repo_sync(enable=%t, interval_mins=%d, username=%q), agent_purge(enable=%t, retention_days=%d, interval_mins=%d), configuration_version_cleanup(enable=%t, max_keep=%d, interval_mins=%d), index_maintenance(enable=%t, interval_mins=%d, vacuum=%t)",
 				req.EnableReportAutoCleanup,
 				req.ReportRetentionDays,
 				req.ReportCleanupIntervalMins,
@@ -388,6 +418,9 @@ func SchedulerConfigAPIHandler(w http.ResponseWriter, r *http.Request) {
 				req.EnableConfigurationVersionCleanup,
 				req.ConfigurationVersionMaxKeep,
 				req.ConfigurationVersionCleanupIntervalMins,
+				req.EnableIndexMaintenance,
+				req.IndexMaintenanceIntervalMins,
+				req.IndexMaintenanceVacuum,
 			)
 			_ = db.InsertAudit(auditDB, driverName, schedulerActorEmail(r), "update", "scheduler_config", details, r.RemoteAddr)
 		}
@@ -500,6 +533,38 @@ func SchedulerRunConfigurationVersionCleanupAPIHandler(w http.ResponseWriter, r 
 	_ = db.CompleteSchedulerTaskRun(database, global.AppConfig.Database.Driver, schedulerTaskConfigurationVersionCleanup, "success", fmt.Sprintf("Pruned %d configuration version(s)", pruned), time.Now().UTC(), nextRun)
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]int64{"pruned": pruned})
+}
+
+// SchedulerRunIndexMaintenanceAPIHandler déclenche manuellement l'optimisation des
+// index. Pour SQLite, si index_maintenance_vacuum est activé, un VACUUM est aussi
+// exécuté (accès exclusif : à réserver aux fenêtres de faible activité).
+func SchedulerRunIndexMaintenanceAPIHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	database := db.Shared()
+	driver := global.AppConfig.Database.Driver
+	vacuum := global.AppConfig.DSCPullServer.IndexMaintenanceVacuum
+
+	startedAt := time.Now().UTC()
+	nextRun := schedulerNextRunFromConfig(schedulerTaskIndexMaintenance)
+	_ = db.BeginSchedulerTaskRun(database, driver, schedulerTaskIndexMaintenance, schedulerDisplayName(schedulerTaskIndexMaintenance), "manual", startedAt, nextRun)
+
+	message, err := db.RunIndexMaintenance(database, driver, vacuum)
+	if err != nil {
+		_ = db.InsertAudit(database, driver, schedulerActorEmail(r), "run", "scheduler_task", fmt.Sprintf("Manual run failed: %s, error=%s", schedulerTaskIndexMaintenance, err.Error()), r.RemoteAddr)
+		_ = db.CompleteSchedulerTaskRun(database, driver, schedulerTaskIndexMaintenance, "error", err.Error(), time.Now().UTC(), nextRun)
+		http.Error(w, "Index maintenance failed", http.StatusInternalServerError)
+		return
+	}
+
+	logs.WriteLogFile(fmt.Sprintf("INFO [INDEX MAINTENANCE] Manual run triggered from admin: %s", message))
+	_ = db.InsertAudit(database, driver, schedulerActorEmail(r), "run", "scheduler_task", fmt.Sprintf("Manual run: %s, %s", schedulerTaskIndexMaintenance, message), r.RemoteAddr)
+	_ = db.CompleteSchedulerTaskRun(database, driver, schedulerTaskIndexMaintenance, "success", message, time.Now().UTC(), nextRun)
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{"message": message})
 }
 
 func SchedulerConfigFromApp(cfg *schema.AppConfig) SchedulerConfigDTO {
@@ -679,6 +744,7 @@ func SchedulerTasksAPIHandler(w http.ResponseWriter, r *http.Request) {
 		schedulerTaskLogCleanup,
 		schedulerTaskAgentPurge,
 		schedulerTaskConfigurationVersionCleanup,
+		schedulerTaskIndexMaintenance,
 	} {
 		if err := db.UpsertSchedulerTask(database, driver, taskKey, schedulerDisplayName(taskKey), schedulerNextRunFromConfig(taskKey)); err != nil {
 			logs.WriteLogFile(fmt.Sprintf("WARN [SCHEDULER] Failed to register scheduler task %q: %v", taskKey, err))

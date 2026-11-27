@@ -17,7 +17,8 @@ $(function() {
         log_cleanup: '/api/v1/scheduler/logs/cleanup/run',
         configuration_repo_sync: '/api/v1/scheduler/configuration-repo/run',
         agent_purge: '/api/v1/scheduler/agent-purge/run',
-        configuration_version_cleanup: '/api/v1/scheduler/configuration-version-cleanup/run'
+        configuration_version_cleanup: '/api/v1/scheduler/configuration-version-cleanup/run',
+        index_maintenance: '/api/v1/scheduler/index-maintenance/run'
     };
 
     function showStatus(text, color) {
@@ -51,7 +52,10 @@ $(function() {
             agent_purge_interval_mins: c.agent_purge_interval_mins || 1440,
             enable_configuration_version_cleanup: !!c.enable_configuration_version_cleanup,
             configuration_version_max_keep: c.configuration_version_max_keep || 10,
-            configuration_version_cleanup_interval_mins: c.configuration_version_cleanup_interval_mins || 1440
+            configuration_version_cleanup_interval_mins: c.configuration_version_cleanup_interval_mins || 1440,
+            enable_index_maintenance: !!c.enable_index_maintenance,
+            index_maintenance_interval_mins: c.index_maintenance_interval_mins || 1440,
+            index_maintenance_vacuum: !!c.index_maintenance_vacuum
         };
     }
 
@@ -122,6 +126,14 @@ $(function() {
         $('#configurationVersionCleanupModal').modal('show');
     }
 
+    function openIndexMaintenanceConfigModal() {
+        const cfg = normalizeConfig(schedulerConfig);
+        $('#modal_enable_index_maintenance').prop('checked', cfg.enable_index_maintenance);
+        $('#modal_index_maintenance_interval_mins').val(cfg.index_maintenance_interval_mins);
+        $('#modal_index_maintenance_vacuum').prop('checked', cfg.index_maintenance_vacuum);
+        $('#indexMaintenanceConfigModal').modal('show');
+    }
+
     function statusBadge(status) {
         const value = (status || '').toLowerCase();
         if (value === 'success') {
@@ -155,6 +167,9 @@ $(function() {
         }
         if (taskName === 'configuration_version_cleanup') {
             return !!cfg.enable_configuration_version_cleanup;
+        }
+        if (taskName === 'index_maintenance') {
+            return !!cfg.enable_index_maintenance;
         }
         return true;
     }
@@ -380,6 +395,10 @@ $(function() {
             openConfigurationVersionCleanupConfigModal();
             return;
         }
+        if (task === 'index_maintenance') {
+            openIndexMaintenanceConfigModal();
+            return;
+        }
     });
 
     $('#save-report-config').on('click', function() {
@@ -434,6 +453,17 @@ $(function() {
         });
         saveConfig(payload, function() {
             $('#configurationVersionCleanupModal').modal('hide');
+        });
+    });
+
+    $('#save-index-maintenance-config').on('click', function() {
+        const payload = buildPayload({
+            enable_index_maintenance: $('#modal_enable_index_maintenance').prop('checked'),
+            index_maintenance_interval_mins: parseInt($('#modal_index_maintenance_interval_mins').val(), 10),
+            index_maintenance_vacuum: $('#modal_index_maintenance_vacuum').prop('checked')
+        });
+        saveConfig(payload, function() {
+            $('#indexMaintenanceConfigModal').modal('hide');
         });
     });
 

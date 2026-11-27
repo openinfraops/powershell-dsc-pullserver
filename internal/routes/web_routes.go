@@ -105,6 +105,7 @@ func RegisterWebRoutes(mux *http.ServeMux, dbConn *sql.DB, jwtAuthMiddleware fun
 	mux.Handle("POST /api/v1/scheduler/agent-purge/run", jwtAuthMiddleware(adminOnly(http.HandlerFunc(handlers.SchedulerRunAgentPurgeAPIHandler))))
 	mux.Handle("POST /api/v1/scheduler/configuration-version-cleanup/run", jwtAuthMiddleware(adminOnly(http.HandlerFunc(handlers.SchedulerRunConfigurationVersionCleanupAPIHandler))))
 	mux.Handle("POST /api/v1/scheduler/logs/cleanup/run", jwtAuthMiddleware(adminOnly(http.HandlerFunc(handlers.SchedulerRunLogCleanupAPIHandler))))
+	mux.Handle("POST /api/v1/scheduler/index-maintenance/run", jwtAuthMiddleware(adminOnly(http.HandlerFunc(handlers.SchedulerRunIndexMaintenanceAPIHandler))))
 	// Web UI for SAML config (admin only)
 	mux.Handle("GET /web/saml_config", handlers.WebJWTAuthMiddleware(middleware.WebAdminOnly(dbConn, renderDenied)(http.HandlerFunc(handlers.WebSAMLConfigHandler))))
 	mux.Handle("GET /web/admin/scheduler", handlers.WebJWTAuthMiddleware(middleware.WebAdminOnly(dbConn, renderDenied)(http.HandlerFunc(handlers.WebSchedulerConfigHandler))))

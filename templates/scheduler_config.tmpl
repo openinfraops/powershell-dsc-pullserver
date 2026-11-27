@@ -283,5 +283,35 @@
     </div>
   </div>
 </div>
+
+<div class="modal fade" id="indexMaintenanceConfigModal" tabindex="-1" role="dialog" aria-labelledby="indexMaintenanceConfigModalLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="indexMaintenanceConfigModalLabel">Configure index maintenance</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group form-check">
+          <input type="checkbox" class="form-check-input" id="modal_enable_index_maintenance">
+          <label class="form-check-label" for="modal_enable_index_maintenance">Enable periodic index optimization</label>
+        </div>
+        <div class="form-group">
+          <label for="modal_index_maintenance_interval_mins">Execution interval (minutes)</label>
+          <input type="number" min="1" class="form-control" id="modal_index_maintenance_interval_mins" required>
+        </div>
+        <div class="form-group form-check">
+          <input type="checkbox" class="form-check-input" id="modal_index_maintenance_vacuum">
+          <label class="form-check-label" for="modal_index_maintenance_vacuum">Also run SQLite VACUUM to reclaim free pages</label>
+          <small class="form-text text-muted">Only applies to SQLite. VACUUM needs an exclusive lock and can stall DSC traffic while it runs &mdash; leave off on a busy pull-server. Ignored for MSSQL (which uses an online REORGANIZE).</small>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="save-index-maintenance-config">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
 <script src="/web/scheduler_config.js"></script>
 {{end}}

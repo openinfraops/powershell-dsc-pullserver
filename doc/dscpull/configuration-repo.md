@@ -15,6 +15,7 @@ This page describes how the DSC Pull Server syncs a **Git-backed configuration r
 | `POST` | `/api/v1/scheduler/configuration-repo/run` | Trigger a manual sync + compile (admin) |
 | `GET` | `/api/v1/scheduler/tasks` | List scheduled background tasks (admin) |
 | `GET` | `/api/v1/scheduler/tasks/{task}/history` | Task execution history (admin) |
+| `POST` | `/api/v1/scheduler/index-maintenance/run` | Trigger a manual index optimization (admin). SQLite: `PRAGMA optimize` + `REINDEX` (and `VACUUM` if `index_maintenance_vacuum` is set); MSSQL: online `REORGANIZE`. |
 
 Web UI: the settings live on **`/web/admin/scheduler`** (admin only).
 

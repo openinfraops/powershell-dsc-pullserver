@@ -81,6 +81,9 @@ This page describes all configuration options available in `config.json` for the
 | error_categories | array | Ordered (first match wins) category rules. When absent, the built-in defaults apply (module_missing, access_denied, credential_decryption, reboot_required, timeout_network, checksum_download, unknown). Each rule: `{ "name": "...", "pattern": "...", "resource_type": "..." }`. | see below |
 | error_detection_repeat_minutes | int | Minimum delay between two alerts for the same fingerprint. `0` = no temporal deduplication. | `0` |
 | error_detection_grace_minutes | int | Grace period after a node registers during which a new error is not alerted. `0`/absent = default `5`. | `5` |
+| enable_index_maintenance | bool | Enable the periodic index-optimization task. Opt-in (default off). SQLite: `PRAGMA optimize` + `REINDEX`. MSSQL: online `ALTER INDEX … REORGANIZE`. | `false` |
+| index_maintenance_interval_mins | int | Execution interval of the index-optimization task, in minutes. `0`/absent = default `1440` (1×/day). | `1440` |
+| index_maintenance_vacuum | bool | For SQLite only: additionally run `VACUUM` to reclaim free pages (needs an exclusive lock — can stall DSC traffic). Ignored for MSSQL. | `false` |
 
 > **Client certificate validation (DSC endpoint).** When `enable_client_cert_validation` is `true`, the DSC endpoint **always** requires a client certificate. `bypass_ca_validation` only controls the CA/chain validation of that certificate: `true` accepts any certificate (self-signed node certs work, the node is identified by its enrolled thumbprint only — classic DSC model); `false` additionally validates the chain/signature against the **OS system trust store** (`RequireAndVerifyClientCert`) and still checks the enrolled thumbprint. A client certificate requires HTTPS; in pure HTTP mode (`enable_https: false`) no certificate is negotiated. **If `enable_client_cert_validation` is `true` while `enable_https` is `false`, the server refuses to start (fail-closed).**
 
@@ -167,6 +170,9 @@ The Git-backed **configuration repository** settings are **stored in the databas
     "log_rotate_max_age_days": 30,
     "report_retention_days": 90,
     "report_cleanup_interval_mins": 1440,
+    "enable_index_maintenance": false,
+    "index_maintenance_interval_mins": 1440,
+    "index_maintenance_vacuum": false,
     "shared_secret": "pQw8vZ3rT6sJkL2xQ9eBfG7hN1uVtX4yC5zR8aW0sD3mPqE6bH0jKfL9nS2tU7vY1",
   },
   "saml": {

@@ -96,6 +96,18 @@ type HTTPConfig struct {
 	// ErrorDetectionGraceMinutes est la période de grâce après le démarrage d'un
 	// nœud pendant laquelle une nouvelle erreur n'est pas alertée. 0 -> défaut 5.
 	ErrorDetectionGraceMinutes int `json:"error_detection_grace_minutes"`
+	// EnableIndexMaintenance active la tâche planifiée d'optimisation des index
+	// (et, si IndexMaintenanceVacuum est vrai, le compactage du fichier SQLite).
+	// Opt-in : désactivé par défaut. 0/absent -> désactivé.
+	EnableIndexMaintenance bool `json:"enable_index_maintenance"`
+	// IndexMaintenanceIntervalMins est la fréquence (en minutes) de la tâche
+	// d'optimisation des index. 0/absent -> défaut 1440 (1x/jour).
+	IndexMaintenanceIntervalMins int `json:"index_maintenance_interval_mins"`
+	// IndexMaintenanceVacuum demande, en plus de l'optimisation, un VACUUM SQLite
+	// (récupération des pages libres / réduction de la taille du fichier). Cette
+	// opération requiert un accès exclusif et peut bloquer le serveur pendant son
+	// exécution : réservée aux fenêtres de faible activité. Ignorée pour MSSQL.
+	IndexMaintenanceVacuum bool `json:"index_maintenance_vacuum"`
 }
 
 type AppConfig struct {
