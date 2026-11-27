@@ -1,4 +1,4 @@
-﻿zabbix_export:
+zabbix_export:
   version: '7.0'
   template_groups:
     - uuid: 68eee0da6b534924b6eada4a0923c446
@@ -380,6 +380,119 @@
           tags:
             - tag: Application
               value: DSC
+        # --- Tâches planifiées : liste (token API, admin) ---
+        - uuid: 6081b8d7c9e0f1a2b3c4d5e6f7081920
+          name: 'DSC Console API - Scheduler tasks'
+          type: HTTP_AGENT
+          key: dsc.console.scheduler.tasks
+          delay: 1m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          url: '{$HOST_URL}/api/v1/scheduler/tasks'
+          headers:
+            - name: Authorization
+              value: 'Token {$TOKEN_API}'
+          tags:
+            - tag: Application
+              value: DSC
+        # --- Pool de connexions DB (issu de /metrics) ---
+        - uuid: 7192c9e8f0a1b2c3d4e5f6a708192a2b
+          name: 'DSC - DB pool open connections'
+          type: DEPENDENT
+          key: dsc.metrics.db_pool_open
+          delay: '0'
+          value_type: UNSIGNED
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'dsc_db_pool_open_connections'
+                - value
+          master_item:
+            key: dsc.metrics
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: 82a3daf0b1c2d3e4f5a6b708192a3b3c
+          name: 'DSC - DB pool in use'
+          type: DEPENDENT
+          key: dsc.metrics.db_pool_in_use
+          delay: '0'
+          value_type: UNSIGNED
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'dsc_db_pool_in_use'
+                - value
+          master_item:
+            key: dsc.metrics
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: 93b4eb0c1d2e3f4a5b6c708192a4c4d0
+          name: 'DSC - DB pool idle'
+          type: DEPENDENT
+          key: dsc.metrics.db_pool_idle
+          delay: '0'
+          value_type: UNSIGNED
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'dsc_db_pool_idle'
+                - value
+          master_item:
+            key: dsc.metrics
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: a4c5fc1d2e3f4a5b6c708192a5d5e5f0
+          name: 'DSC - DB pool max open'
+          type: DEPENDENT
+          key: dsc.metrics.db_pool_max_open
+          delay: '0'
+          value_type: UNSIGNED
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'dsc_db_pool_max_open'
+                - value
+          master_item:
+            key: dsc.metrics
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: b5d60d2e3f4a5b6c708192a6e6f60710
+          name: 'DSC - DB pool wait count'
+          type: DEPENDENT
+          key: dsc.metrics.db_pool_wait_count
+          delay: '0'
+          value_type: UNSIGNED
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'dsc_db_pool_wait_count_total'
+                - value
+          master_item:
+            key: dsc.metrics
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: c6e71e3f4a5b6c708192a7f7f7081820
+          name: 'DSC - DB pool wait duration (s)'
+          type: DEPENDENT
+          key: dsc.metrics.db_pool_wait_duration
+          delay: '0'
+          value_type: FLOAT
+          preprocessing:
+            - type: PROMETHEUS_PATTERN
+              parameters:
+                - 'dsc_db_pool_wait_duration_seconds_total'
+                - value
+          master_item:
+            key: dsc.metrics
+          tags:
+            - tag: Application
+              value: DSC
       discovery_rules:
         - uuid: b3c603ee88fb44478805227243d2852b
           name: 'DSC Agent Discovery'
@@ -419,6 +532,44 @@
               path: $.agent_id
             - lld_macro: '{#NODE_NAME}'
               path: $.node_name
+        - uuid: d7f82f4a5b6c708192a8080808192930
+          name: 'DSC Scheduler Task Discovery'
+          type: DEPENDENT
+          key: dsc.discovery.scheduler.tasks
+          delay: '0'
+          item_prototypes:
+            - uuid: e809304a5b6c708192a90909091a3b41
+              name: 'Scheduler task {#TASK_DISPLAY} - Last status'
+              type: DEPENDENT
+              key: 'dsc.scheduler.last_status[{#TASK_NAME}]'
+              delay: '0'
+              value_type: TEXT
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.task_name=="{#TASK_NAME}")].last_status.first()'
+              master_item:
+                key: dsc.console.scheduler.tasks
+              tags:
+                - tag: Application
+                  value: DSC
+              trigger_prototypes:
+                - uuid: f91a415b6c708192a9a0a0a0a1b4c520
+                  expression: 'last(/Template - DSC Console/dsc.scheduler.last_status[{#TASK_NAME}])="error"'
+                  name: 'HIGH - DSC scheduler task {#TASK_DISPLAY} failed'
+                  priority: HIGH
+                  manual_close: 'YES'
+                  tags:
+                    - tag: Application
+                      value: DSC
+          master_item:
+            key: dsc.console.scheduler.tasks
+          lld_macro_paths:
+            - lld_macro: '{#TASK_NAME}'
+              path: $.task_name
+            - lld_macro: '{#TASK_DISPLAY}'
+              path: $.display_name
       tags:
         - tag: Application
           value: DSC
@@ -429,63 +580,84 @@
         - macro: '{$TOKEN_API}'
           value: ''
           description: 'API Token to monitor data from DSC'
-  triggers:
-    - uuid: abcd000111114a2b8c3d000000000001
-      expression: 'last(/Template - DSC Console/dsc.console.health.status)<>"ok"'
-      name: 'HIGH - DSC Console health degraded/unavailable'
-      priority: HIGH
-      tags:
-        - tag: Application
-          value: DSC
-    - uuid: abcd000333334c4dae5f000000000003
-      expression: 'last(/Template - DSC Console/dsc.console.statistics.reboot_loop)>0'
-      name: 'WARNING - DSC nodes stuck in reboot loop'
-      priority: AVERAGE
-      manual_close: 'YES'
-      tags:
-        - tag: Application
-          value: DSC
-    - uuid: abcd000666664a7a8082000000000006
-      expression: 'last(/Template - DSC Console/dsc.console.statistics.certs_expired)>0'
-      name: 'HIGH - DSC node certificates expired'
-      priority: HIGH
-      tags:
-        - tag: Application
-          value: DSC
-    - uuid: abcd000777774b8b9193000000000007
-      expression: 'last(/Template - DSC Console/dsc.console.statistics.certs_expiring)>0'
-      name: 'WARNING - DSC node certificates expiring'
-      priority: WARNING
-      tags:
-        - tag: Application
-          value: DSC
-    - uuid: abcd000444444d5ebf60000000000004
-      expression: 'last(/Template - DSC Console/dsc.metrics.tls_expiry)<604800'
-      name: 'WARNING - DSC web TLS certificate expiring'
-      priority: WARNING
-      tags:
-        - tag: Application
-          value: DSC
-    - uuid: abcd000555554e6f8071000000000005
-      expression: 'last(/Template - DSC Console/dsc.metrics.last_report_age)>86400'
-      name: 'WARNING - DSC node reports stale'
-      priority: WARNING
-      tags:
-        - tag: Application
-          value: DSC
-    - uuid: abcd000aa7774e8fae7000000000000a
-      expression: 'last(/Template - DSC Console/dsc.metrics.error_groups_new_24h)>0'
-      name: 'HIGH - New DSC error group detected'
-      priority: HIGH
-      manual_close: 'YES'
-      tags:
-        - tag: Application
-          value: DSC
-    - uuid: abcd000bb8884f9fbf8100000000000b
-      expression: 'last(/Template - DSC Console/dsc.metrics.error_groups_open)-last(/Template - DSC Console/dsc.metrics.error_groups_by_category_unknown)>0'
-      name: 'WARNING - DSC error groups open (excluding noise)'
-      priority: WARNING
-      manual_close: 'YES'
-      tags:
-        - tag: Application
-          value: DSC
+      triggers:
+        - uuid: abcd000111114a2b8c3d000000000001
+          expression: 'last(/Template - DSC Console/dsc.console.health.status)<>"ok"'
+          name: 'HIGH - DSC Console health degraded/unavailable'
+          priority: HIGH
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: abcd000333334c4dae5f000000000003
+          expression: 'last(/Template - DSC Console/dsc.console.statistics.reboot_loop)>0'
+          name: 'WARNING - DSC nodes stuck in reboot loop'
+          priority: AVERAGE
+          manual_close: 'YES'
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: abcd000666664a7a8082000000000006
+          expression: 'last(/Template - DSC Console/dsc.console.statistics.certs_expired)>0'
+          name: 'HIGH - DSC node certificates expired'
+          priority: HIGH
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: abcd000777774b8b9193000000000007
+          expression: 'last(/Template - DSC Console/dsc.console.statistics.certs_expiring)>0'
+          name: 'WARNING - DSC node certificates expiring'
+          priority: WARNING
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: abcd000444444d5ebf60000000000004
+          expression: 'last(/Template - DSC Console/dsc.metrics.tls_expiry)<604800'
+          name: 'WARNING - DSC web TLS certificate expiring'
+          priority: WARNING
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: abcd000555554e6f8071000000000005
+          expression: 'last(/Template - DSC Console/dsc.metrics.last_report_age)>86400'
+          name: 'WARNING - DSC node reports stale'
+          priority: WARNING
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: abcd000aa7774e8fae7000000000000a
+          expression: 'last(/Template - DSC Console/dsc.metrics.error_groups_new_24h)>0'
+          name: 'HIGH - New DSC error group detected'
+          priority: HIGH
+          manual_close: 'YES'
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: abcd000bb8884f9fbf8100000000000b
+          expression: 'last(/Template - DSC Console/dsc.metrics.error_groups_open)-last(/Template - DSC Console/dsc.metrics.error_groups_by_category_unknown)>0'
+          name: 'WARNING - DSC error groups open (excluding noise)'
+          priority: WARNING
+          manual_close: 'YES'
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: abcd000cc9994e8fdf9200000000000c
+          expression: 'last(/Template - DSC Console/dsc.metrics.db_pool_in_use)>=last(/Template - DSC Console/dsc.metrics.db_pool_max_open) and last(/Template - DSC Console/dsc.metrics.db_pool_max_open)>0'
+          name: 'HIGH - DSC DB pool exhausted'
+          priority: HIGH
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: abcd000ddaaa4f9fe0a300000000000d
+          expression: 'change(/Template - DSC Console/dsc.metrics.db_pool_wait_count,5m)>0'
+          name: 'WARNING - DSC DB pool connection wait'
+          priority: WARNING
+          tags:
+            - tag: Application
+              value: DSC
+        - uuid: abcd000eeccc4fa0f1b400000000000e
+          expression: 'min(/Template - DSC Console/dsc.metrics.db_pool_idle,5m)=0 and last(/Template - DSC Console/dsc.metrics.db_pool_in_use)>0'
+          name: 'WARNING - DSC DB pool saturated'
+          priority: WARNING
+          tags:
+            - tag: Application
+              value: DSC

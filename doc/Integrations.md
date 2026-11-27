@@ -88,8 +88,27 @@ A [Zabbix 7.0 template](../monitoring/zabbix_template.yml) for monitoring the pu
 | `dsc.pullserver.version.check` | `GET /api/v1/about` | Token `{$TOKEN_API}` |
 | `dsc.console.health` | `GET /health` | unauthenticated |
 | `dsc.metrics` | `GET /metrics` | Token `{$TOKEN_API}` |
+| `dsc.console.scheduler.tasks` | `GET /api/v1/scheduler/tasks` | Token `{$TOKEN_API}` (**admin**) |
 
-The template exposes derived metric items (compliant/failed/pending node counts, certificate and TLS expiry, report staleness) plus a Discovery rule (`DSC Agent Discovery`) that creates one item per managed node with its DSC configuration state.
+The template exposes derived metric items (compliant/failed/pending node counts, certificate and TLS expiry, report staleness) plus two Discovery rules:
+
+- `DSC Agent Discovery` — creates one item per managed node with its DSC configuration state.
+- `DSC Scheduler Task Discovery` — creates one item per scheduled task (`dsc.scheduler.last_status[{#TASK_NAME}]`) holding its last run status.
+
+### Database connection-pool gauges (`dsc_db_pool_*`)
+
+The `/metrics` endpoint also exposes process-level database connection-pool gauges read from the server's `sql.DB` pool. The template maps each of them to a dependent item on the `dsc.metrics` master item:
+
+| Item (Zabbix key) | Prometheus metric | Description |
+| --- | --- | --- |
+| `dsc.metrics.db_pool_open` | `dsc_db_pool_open_connections` | Open connections in the pool |
+| `dsc.metrics.db_pool_in_use` | `dsc_db_pool_in_use` | Connections currently in use |
+| `dsc.metrics.db_pool_idle` | `dsc_db_pool_idle` | Idle connections in the pool |
+| `dsc.metrics.db_pool_max_open` | `dsc_db_pool_max_open` | Configured maximum open connections |
+| `dsc.metrics.db_pool_wait_count` | `dsc_db_pool_wait_count_total` | Times a connection waited for a free one |
+| `dsc.metrics.db_pool_wait_duration` | `dsc_db_pool_wait_duration_seconds_total` | Total time spent waiting (seconds) |
+
+These gauges are emitted whether or not the database is reachable, so they are a reliable signal for pool saturation (idle = 0, in-use = max) and for connection starvation (a growing wait count).
 
 ### Host macros
 
@@ -100,11 +119,17 @@ The template declares two empty host macros that **must** be set on the host (or
 | `{$HOST_URL}` | Base URL of the DSC admin console, **without a trailing slash** (e.g. `https://dsc.example.com`) |
 | `{$TOKEN_API}` | API token carrying read access to the `/api/v1/*` and `/metrics` endpoints (`Authorization: Token <token>`) |
 
-> The `/metrics` endpoint requires the same user API token (it does not have its own token). Ensure the token belongs to a user with at least read access to the monitoring data.
+> The `/metrics` endpoint requires the same user API token (it does not have its own token). Ensure the token belongs to a user with at least read access to the monitoring data. The `GET /api/v1/scheduler/tasks` endpoint is **admin-only**, so for the scheduled-task item and the `DSC Scheduler Task Discovery` rule to work, `{$TOKEN_API}` must belong to an **admin** user (a plain `user`-role token returns `403 Forbidden` on that endpoint).
 
 ### Triggers
 
-The template ships triggers for console health, nodes stuck in a reboot loop, expired/expiring node certificates, web TLS certificate expiry, and stale node reports.
+The template ships triggers for console health, nodes stuck in a reboot loop, expired/expiring node certificates, web TLS certificate expiry, stale node reports, and database connection-pool health:
+
+- `HIGH - DSC DB pool exhausted` — fires when `in_use >= max_open` (pool saturated).
+- `WARNING - DSC DB pool connection wait` — fires when the wait counter changes within 5m.
+- `WARNING - DSC DB pool saturated` — fires when `idle = 0` for 5m while connections are in use.
+
+It also ships a per-task trigger prototype, created by `DSC Scheduler Task Discovery`, that fires `HIGH - DSC scheduler task {#TASK_DISPLAY} failed` whenever a task's last status is `error`.
 
 ---
 

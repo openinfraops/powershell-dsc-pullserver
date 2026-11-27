@@ -259,6 +259,26 @@ func renderMetrics(w http.ResponseWriter, dbConn *sql.DB) {
 		writeSample(&b, "dsc_db_up", "", 0)
 	}
 
+	// Database connection-pool metrics. These come from sql.DB.Stats() and are
+	// process-level (they do not require a successful query), so they are emitted
+	// whether or not the database is reachable. A saturated pool (idle = 0) or a
+	// growing wait counter is the classic "pulling too hard" signal to alert on.
+	if dbConn != nil {
+		st := dbConn.Stats()
+		writeMetricHeader(&b, "dsc_db_pool_open_connections", "Number of open database connections in the pool.", "gauge")
+		writeSample(&b, "dsc_db_pool_open_connections", "", float64(st.OpenConnections))
+		writeMetricHeader(&b, "dsc_db_pool_in_use", "Number of database connections currently in use.", "gauge")
+		writeSample(&b, "dsc_db_pool_in_use", "", float64(st.InUse))
+		writeMetricHeader(&b, "dsc_db_pool_idle", "Number of idle database connections in the pool.", "gauge")
+		writeSample(&b, "dsc_db_pool_idle", "", float64(st.Idle))
+		writeMetricHeader(&b, "dsc_db_pool_max_open", "Configured maximum number of open database connections.", "gauge")
+		writeSample(&b, "dsc_db_pool_max_open", "", float64(st.MaxOpenConnections))
+		writeMetricHeader(&b, "dsc_db_pool_wait_count_total", "Total number of times a connection had to wait for a free one.", "counter")
+		writeSample(&b, "dsc_db_pool_wait_count_total", "", float64(st.WaitCount))
+		writeMetricHeader(&b, "dsc_db_pool_wait_duration_seconds_total", "Total time spent waiting for a free database connection, in seconds.", "counter")
+		writeSample(&b, "dsc_db_pool_wait_duration_seconds_total", "", st.WaitDuration.Seconds())
+	}
+
 	// HTTP response counters (401/403 are the security-relevant ones).
 	writeMetricHeader(&b, "dsc_http_responses_total", "Total HTTP responses by status code.", "counter")
 	writeSample(&b, "dsc_http_responses_total", `code="401"`, float64(monitor.StatusCount(http.StatusUnauthorized)))
