@@ -69,7 +69,7 @@ DSC nodes (agents). Also stores the node certificate used for client-cert authen
 | deleted_by                | TEXT    | Who soft-deleted the agent (nullable)    |
 | state                     | TEXT    | `success`/`failure`/`pending_apply`/...  |
 
-Indexes (MSSQL): `idx_agents_state` on `state`.
+Indexes (MSSQL): `idx_agents_state` on `state`; `idx_agents_certificate_thumbprint` on `certificate_thumbprint` (serves the DSC client-cert middleware lookup `WHERE certificate_thumbprint = ?`, issue #73).
 
 ### `agent_tags`
 Key/value tags attached to an agent.

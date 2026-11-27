@@ -294,6 +294,12 @@ IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_agent_configurations_
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_agents_state' AND object_id = OBJECT_ID('agents'))
     CREATE INDEX idx_agents_state ON agents(state);
 
+-- Index sur l'empreinte de certificat : le middleware DSC compare
+-- certificate_thumbprint = ? (empreinte déjà en minuscules) à chaque requête,
+-- l'index évite un scan complet de la table (issue #73).
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_agents_certificate_thumbprint' AND object_id = OBJECT_ID('agents'))
+    CREATE INDEX idx_agents_certificate_thumbprint ON agents(certificate_thumbprint);
+
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_reports_job_id' AND object_id = OBJECT_ID('reports'))
     CREATE INDEX idx_reports_job_id ON reports(job_id);
 

@@ -76,6 +76,10 @@ CREATE TABLE IF NOT EXISTS agents (
     persistent INTEGER DEFAULT 0,
     reregistration_window_until TIMESTAMP NULL
 );
+-- Index sur l'empreinte de certificat : le middleware DSC compare
+-- certificate_thumbprint = ? (empreinte déjà en minuscules) à chaque requête,
+-- l'index évite un scan complet de la table (issue #73).
+CREATE INDEX IF NOT EXISTS idx_agents_certificate_thumbprint ON agents(certificate_thumbprint);
 -- Migration : ajout de la colonne has_error_last_report si besoin
 -- N'exécuter que si la version de la db est antérieure à 0.0.3
 -- Si la version était < 0.0.3, alors on ajoute la colonne
