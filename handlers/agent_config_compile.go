@@ -67,6 +67,13 @@ func triggerNodeRecompileAsync(agentId, nodeName string) {
 	go func() {
 		defer finish()
 		database := db.Shared()
+		// La compilation est asynchrone : elle peut être déclenchée par un
+		// handler qui répond avant que la connexion partagée soit encore
+		// disponible (et, en test, après que le teardown a remis shared à nil).
+		// On ne doit pas crasher si la base n'est (plus) accessible.
+		if database == nil {
+			return
+		}
 		if err := compileNodeConfig(database, agentId, nodeName); err != nil {
 			_ = logs.WriteLogFile(fmt.Sprintf("[RECOMPILE] Compilation failed for %s: %v", nodeName, err))
 			return
