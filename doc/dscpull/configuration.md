@@ -193,7 +193,7 @@ Unauthenticated (for load balancers, Zabbix and container health checks). Return
 ```json
 {
   "status": "ok",
-  "version": "1.9.1",
+  "version": "1.9.2",
   "db": { "reachable": true },
   "workers": { "alive": true, "running_tasks": 0 }
 }
