@@ -170,6 +170,10 @@ Both JWT and API tokens grant access to the API according to the user's permissi
 
 ## Audit
 
+> For the full description of the audit feature — audited events, stored fields,
+> retention, access control and the review of gaps — see the
+> [Audit trail](Audit.md) page.
+
 ### GET `/api/v1/audit`
 - List audit rows (paginated, DataTables compatible).
 - Query params supported (combinable):

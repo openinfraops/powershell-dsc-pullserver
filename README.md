@@ -32,6 +32,7 @@ The REST API under `/api/v1/` is consumed by third-party tools for automation an
 - [Installation](doc/installation.md)
 - [Configuration reference](doc/Configuration.md) (exhaustive, all sections)
 - [Forwarding logs to a syslog server](doc/syslog.md) — optional RFC 5424 syslog output (UDP/TCP/TCP+TLS)
+- [Audit trail](doc/Audit.md) — audited events, stored fields, retention, access control, gaps
 - [Database schema](doc/DatabaseSchema.md)
 - [DSC Pull Server configuration guide](doc/dscpull/configuration.md) (focused, mutual-TLS)
 - [Configuration repository (Git) & Scheduler](doc/dscpull/configuration-repo.md)
