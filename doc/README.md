@@ -45,6 +45,7 @@ Dates per the Microsoft lifecycle pages for [Windows Server 2019](https://learn.
 
 > New release notes must follow the [release-notes template](release-notes-template.md), which includes a mandatory **`API changes`** section.
 
+- [v1.9.0](release_v1.9.0.md)
 - [v1.8.3](release_v1.8.3.md)
 - [v1.8.2](release_v1.8.2.md)
 - [v1.8.1](release_v1.8.1.md)

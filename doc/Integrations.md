@@ -45,7 +45,7 @@ The API is versioned by its URL prefix (`/api/v1/`) — see [API versioning](#ap
 
 | DSC Pull Server | Provider version | API prefix | Compatibility |
 | --- | --- | --- | --- |
-| **v1.7.x** (current) | **v0.1.0** (planned, not yet released) | `/api/v1` | Compatible with a caveat (see below) |
+| **v1.9.0** (current) | **v0.1.0** (planned, not yet released) | `/api/v1` | Compatible with a caveat (see below) |
 
 > **Provider status.** The Terraform provider (`openinfraops/terraform-provider-dscpull`) is still in development: it currently has **no tagged release**. The mapping above references its intended `v0.1.0`. Once the provider is released, this table is the place to pin the tested server ↔ provider pair, and to record any API change that required a coordinated provider update.
 
@@ -54,7 +54,7 @@ The API is versioned by its URL prefix (`/api/v1/`) — see [API versioning](#ap
 The provider is built around an **immutable node identity**, `internal_dsc_id`, as the Terraform resource ID. `agent_id` is treated as a runtime-only identifier that may change (for example `TEMP-*` → GUID after registration).
 
 - The provider reads `internal_dsc_id` from the agent payloads (`GET /api/v1/agents`, `GET /api/v1/agents/{id}`).
-- **Current server (v1.7.x) does not emit `internal_dsc_id`** in those payloads. Until it does, the provider **falls back to `agent_id`** and emits an explicit warning about this contractual debt.
+- **Current server (v1.9.0) does not emit `internal_dsc_id`** in those payloads. Until it does, the provider **falls back to `agent_id`** and emits an explicit warning about this contractual debt.
 - The required server-side change is **additive and non-breaking**: add `internal_dsc_id` to the agent JSON in `GET /api/v1/agents`, `GET /api/v1/agents/{id}`, and ideally `POST /api/v1/agents/preenroll`. See the provider's README for the expected payload shape.
 
 Adding this field restores the stable-identity guarantee without breaking any existing client.

@@ -10,14 +10,14 @@ startup warnings) are documented in
 ## Supported versions
 
 Security fixes are applied to the **latest release** of the project. The
-currently supported release is **`v1.7.2`**. Older releases are **not**
+currently supported release is **`v1.9.0`**. Older releases are **not**
 actively patched — please upgrade to the latest release to receive security
 updates.
 
 | Version | Supported |
 |---|---|
-| `v1.7.x` (latest) | ✅ |
-| `v1.6.x` and earlier | ❌ (please upgrade) |
+| `v1.9.0` (latest) | ✅ |
+| `v1.8.x` and earlier | ❌ (please upgrade) |
 
 ## Reporting a vulnerability
 

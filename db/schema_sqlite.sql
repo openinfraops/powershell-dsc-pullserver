@@ -79,7 +79,7 @@ CREATE INDEX IF NOT EXISTS idx_error_occ_node ON error_occurrences(node_id);
 CREATE TABLE IF NOT EXISTS dsc_infra_info (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     web_version TEXT DEFAULT '0.0.1',
-    db_version TEXT DEFAULT '1.8.3',
+    db_version TEXT DEFAULT '1.9.0',
     latest_release TEXT,
     latest_release_url TEXT,
     update_available INTEGER DEFAULT 0,
@@ -87,8 +87,8 @@ CREATE TABLE IF NOT EXISTS dsc_infra_info (
     release_checked_at TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-INSERT OR IGNORE INTO dsc_infra_info (id, web_version, db_version, updated_at) VALUES (1, '0.0.1', '1.8.3', CURRENT_TIMESTAMP);
-UPDATE dsc_infra_info SET db_version = '1.8.3', updated_at = CURRENT_TIMESTAMP WHERE id = 1;
+INSERT OR IGNORE INTO dsc_infra_info (id, web_version, db_version, updated_at) VALUES (1, '0.0.1', '1.9.0', CURRENT_TIMESTAMP);
+UPDATE dsc_infra_info SET db_version = '1.9.0', updated_at = CURRENT_TIMESTAMP WHERE id = 1;
 
 CREATE TABLE IF NOT EXISTS scheduler_tasks (
     task_name TEXT PRIMARY KEY,
