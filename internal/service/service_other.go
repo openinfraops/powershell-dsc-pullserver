@@ -17,9 +17,8 @@ import (
 // runFunc reçoit un contexte annulable : il est annulé à la fin du programme.
 // runFunc doit respecter ctx.Done() pour arrêter proprement ses goroutines de
 // fond (workers planifiés, serveurs HTTP) avant de retourner.
-func StartWindowsService(runFunc func(ctx context.Context)) error {
+func StartWindowsService(runFunc func(ctx context.Context) error) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	runFunc(ctx)
-	return nil
+	return runFunc(ctx)
 }

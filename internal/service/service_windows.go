@@ -15,7 +15,7 @@ import (
 // du service (Stop / Shutdown) ou, en mode hors service, à la fin du programme.
 // runFunc doit respecter ctx.Done() pour arrêter proprement ses goroutines de
 // fond (workers planifiés, serveurs HTTP) avant de retourner.
-func StartWindowsService(runFunc func(ctx context.Context)) error {
+func StartWindowsService(runFunc func(ctx context.Context) error) error {
 	isService, err := svc.IsWindowsService()
 	if err != nil {
 		return fmt.Errorf("[SERVICE] Erreur détection mode service: %v", err)
@@ -27,13 +27,12 @@ func StartWindowsService(runFunc func(ctx context.Context)) error {
 	// pour permettre un arrêt propre du processus.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	runFunc(ctx)
-	return nil
+	return runFunc(ctx)
 }
 
 // appService implémente svc.Handler
 type appService struct {
-	runFunc func(ctx context.Context)
+	runFunc func(ctx context.Context) error
 }
 
 func (s *appService) Execute(args []string, r <-chan svc.ChangeRequest, status chan<- svc.Status) (bool, uint32) {
@@ -41,24 +40,38 @@ func (s *appService) Execute(args []string, r <-chan svc.ChangeRequest, status c
 	status <- svc.Status{State: svc.StartPending}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	done := make(chan struct{})
+	var runErr error
 	go func() {
 		defer close(done)
-		s.runFunc(ctx)
+		runErr = s.runFunc(ctx)
 	}()
 
 	status <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 	for {
-		c := <-r
-		switch c.Cmd {
-		case svc.Interrogate:
-			status <- c.CurrentStatus
-		case svc.Stop, svc.Shutdown:
-			status <- svc.Status{State: svc.StopPending}
-			// Annule le contexte : les goroutines de fond (workers planifiés,
-			// serveurs HTTP) s'arrêtent proprement, puis on attend leur fin.
-			cancel()
-			<-done
+		select {
+		case c := <-r:
+			switch c.Cmd {
+			case svc.Interrogate:
+				status <- c.CurrentStatus
+			case svc.Stop, svc.Shutdown:
+				status <- svc.Status{State: svc.StopPending}
+				cancel()
+				<-done
+				if runErr != nil {
+					return false, 1
+				}
+				return false, 0
+			}
+		case <-done:
+			// runFunc s'est terminé de lui-même (par ex. un listener a échoué).
+			// S'il a retourné une erreur, on la signale au SCM avec un code de
+			// sortie non nul ; sinon on considère l'arrêt comme normal.
+			if runErr != nil {
+				status <- svc.Status{State: svc.StopPending}
+				return false, 1
+			}
 			return false, 0
 		}
 	}

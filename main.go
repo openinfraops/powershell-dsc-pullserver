@@ -63,7 +63,7 @@ func main() {
 		}
 	}
 
-	runApp := func(ctx context.Context) {
+	runApp := func(ctx context.Context) error {
 		logs.WriteLogFile(fmt.Sprintf("INFO [BUILD] %s", buildinfo.Short()))
 		// RÃ©sout dynamiquement les chemins de cert/key si nÃ©cessaire
 		resolveCertKeyPath := func(certFile, keyFile string) (string, string) {
@@ -254,6 +254,12 @@ func main() {
 		dscHandler := logs.LoggingMiddleware(monitor.StatusCodeMiddleware(dscCertLogMiddleware(dscMux)))
 		webHandler := logs.LoggingMiddleware(monitor.StatusCodeMiddleware(webMux))
 
+		// Les goroutines de listener reportent leurs erreurs ici au lieu
+		// d'appeler os.Exit, afin qu'elles puissent être propagées et qu'un
+		// arrêt propre (serveurs, pool DB, flush logs) soit exécuté. Capacité 2
+		// pour que chaque serveur puisse émettre son erreur sans bloquer.
+		srvErr := make(chan error, 2)
+
 		// --- Serveurs HTTP avec arrÃªt propre (drivÃ© par ctx.Done()) ---
 		// Chaque serveur est dÃ©marrÃ© dans une goroutine. Ã€ la rÃ©ception d'un
 		// Stop/Shutdown du service Windows (annulation du contexte), runApp
@@ -300,7 +306,7 @@ func main() {
 				logs.WriteLogFile(fmt.Sprintf("INFO [DSC Core Server] DSC Server (HTTPS) on :%d ...", global.AppConfig.DSCPullServer.Port))
 				if err := dscServer.ListenAndServeTLS(certFile, keyFile); err != nil && err != http.ErrServerClosed {
 					logs.WriteLogFile(fmt.Sprintf("ERROR [DSC Core Server] Error starting HTTPS server: %v", err))
-					os.Exit(1)
+					srvErr <- err
 				}
 			}()
 		} else {
@@ -308,7 +314,7 @@ func main() {
 			go func() {
 				if err := dscServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 					logs.WriteLogFile(fmt.Sprintf("ERROR [DSC WebUi] Error starting HTTP server: %v", err))
-					os.Exit(1)
+					srvErr <- err
 				}
 			}()
 		}
@@ -329,7 +335,7 @@ func main() {
 				logs.WriteLogFile(fmt.Sprintf("INFO [DSC WebUI] UI/API (HTTPS) on :%d ... (UI on /web/)", global.AppConfig.WebUI.Port))
 				if err := webServer.ListenAndServeTLS(certFile, keyFile); err != nil && err != http.ErrServerClosed {
 					logs.WriteLogFile(fmt.Sprintf("ERROR [DSC WebUI] Error starting HTTPS server: %v", err))
-					os.Exit(1)
+					srvErr <- err
 				}
 			}()
 		} else {
@@ -338,13 +344,20 @@ func main() {
 			go func() {
 				if err := webServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 					logs.WriteLogFile(fmt.Sprintf("ERROR [DSC WebUI] Error starting HTTP server: %v", err))
-					os.Exit(1)
+					srvErr <- err
 				}
 			}()
 		}
 
 		// Bloque jusqu'Ã  l'arrÃªt, puis ferme gracieusement les deux serveurs.
-		<-ctx.Done()
+		var runErr error
+		select {
+		case <-ctx.Done():
+			runErr = nil
+		case err := <-srvErr:
+			logs.WriteLogFile(fmt.Sprintf("ERROR [SERVER] A listener failed, shutting down: %v", err))
+			runErr = err
+		}
 		// Signale aux consommateurs (GET /health) que le processus s'arrÃªte :
 		// pendant la fenÃªtre de shutdown gracieux, workers.alive passe Ã  false.
 		monitor.SetShutdown()
@@ -354,6 +367,7 @@ func main() {
 		_ = dscServer.Shutdown(shutdownCtx)
 		_ = webServer.Shutdown(shutdownCtx)
 		logs.WriteLogFile("INFO [SHUTDOWN] HTTP servers stopped cleanly.")
+		return runErr
 	}
 
 	if runtime.GOOS == "windows" {
@@ -370,6 +384,9 @@ func main() {
 		// les serveurs HTTP ni laisser les requÃªtes en vol se terminer.
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
-		runApp(ctx)
+		if err := runApp(ctx); err != nil {
+			logs.WriteLogFile(fmt.Sprintf("ERROR [APP] %v", err))
+			os.Exit(1)
+		}
 	}
 }
