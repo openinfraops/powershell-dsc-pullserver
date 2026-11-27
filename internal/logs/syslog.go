@@ -173,6 +173,10 @@ func CloseSyslog() {
 func buildSyslogTLSConfig(cfg schema.SyslogConfig) (*tls.Config, error) {
 	tlsCfg := &tls.Config{MinVersion: tls.VersionTLS12}
 	if cfg.InsecureSkipVerify {
+		// #nosec G402 -- InsecureSkipVerify is an explicit, operator-controlled
+		// setting (insecure_skip_verify) that is only honoured when the operator
+		// opts in; it triggers a startup WARN and is refused by default. It is
+		// never enabled implicitly.
 		tlsCfg.InsecureSkipVerify = true
 		return tlsCfg, nil
 	}
